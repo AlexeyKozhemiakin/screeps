@@ -33,40 +33,31 @@ module.exports = {
         //}
         else
         {
-            var flagDismantle = tower.pos.findClosestByRange(FIND_FLAGS, {
-                    filter: flag => (flag.color == COLOR_RED && flag.secondaryColor == COLOR_BROWN)
-                });
-            if(flagDismantle)
-                return;
-            if((tower.room.energyAvailable >= 0.8*tower.room.energyCapacityAvailable && tower.energy >= 0.6*tower.energyCapacity) ||
-                
-                (tower.energy >= 0.9*tower.energyCapacity))
+            
+            if((tower.room.energyAvailable >= 0.8*tower.room.energyCapacityAvailable && tower.energy >= 0.5*tower.energyCapacity) ||
+                    (tower.energy >= 0.9*tower.energyCapacity))
             {
                 var tgts;
-                 
-                if(tower.room.name == "W57S37")
-                     tgts = tower.room.find(FIND_STRUCTURES, {
-                            filter: object => ((object.structureType != STRUCTURE_WALL && object.structureType != STRUCTURE_RAMPART) && object.hits < 0.8*object.hitsMax) 
-                        });
-                 else  
-                //console.log("repair");
-                    tgts = tower.room.find(FIND_STRUCTURES, {
-                            filter: object => ((object.structureType == STRUCTURE_WALL || object.structureType == STRUCTURE_RAMPART) && object.hits < 330000) ||
-                                              ((object.structureType != STRUCTURE_WALL && object.structureType != STRUCTURE_RAMPART) && object.hits < 0.8*object.hitsMax) 
-                        });
+                var wallHealth = 30000;
+                var repairK = 0.9;
+                
+                tgts = tower.room.find(FIND_STRUCTURES, {
+                        filter: object => ((object.structureType == STRUCTURE_WALL || object.structureType == STRUCTURE_RAMPART) && object.hits < wallHealth) ||
+                                          ((object.structureType != STRUCTURE_WALL && object.structureType != STRUCTURE_RAMPART) && object.hits < repairK*object.hitsMax) 
+                    });
                         
                 
                 var sorted = _.sortBy(tgts, c=>c.hits);
-                //console.log(_.map(sorted, s=>s.hits));
+                //if(tower.room.name == 'E33N44')
+                //    console.log(_.map(sorted, s=>s.hits), Game.getObjectById('5da1b912344e680001622fab').hitsMax);
                 
                 if(sorted.length>0)
                 {
                     var tgt = sorted[0];
                     //console.log("repair" + tgt.structureType);
-                    if(tower.repair(tgt)== ERR_NOT_IN_RANGE)
-                    {
-                        creep.moveTo(tgt ,{visualizePathStyle: {stroke: '#ffffff'}});
-                    }
+                    var err= tower.repair(tgt);
+                    if(err!=OK)
+                        console.log(tower.room.name, "repair err", err);
                 }
             }
             else{

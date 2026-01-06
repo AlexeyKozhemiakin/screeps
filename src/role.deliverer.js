@@ -1,10 +1,17 @@
 var basic = require("role.basic");
 
+var linkLimitHigh = 600;
+var linkLimitLow = 300;
+
 var roleDeliverer = 
 {
-
 	runDeliver:function(creep)
 	{
+        /*if(creep.name == 'deliverer11352490')
+            for(const resourceType in creep.carry) {
+                creep.drop(resourceType);
+            }*/
+            
         var target = this.selectTarget(creep);
                     
         if(!target) 
@@ -13,20 +20,22 @@ var roleDeliverer =
             return;
         }
         
-        var transferCode;
-        
         if(!creep.pos.isNearTo(target.pos))
         {
             creep.moveTo(target, {visualizePathStyle: {stroke: '#ffffff'}, range:1});
             return;
         }
         
-        // avoid link overflow
-        if(creep.memory.preferredTargetId)
+        var amnt;
+        
+        if(target.structureType == STRUCTURE_LINK)
         {
-            var tgt = Game.getObjectById(creep.memory.preferredTargetId);
-            if(tgt.structureType == STRUCTURE_LINK && tgt.energy > 400)
-                transferCode = ERR_FULL;
+           amnt = Math.min(linkLimitHigh-target.energy, creep.carry.energy);
+           if(amnt <= 0)
+           {
+            creep.say('♻︎');
+            return;
+           }
         }
         
         //console.log("tr type ", resType);
@@ -39,15 +48,18 @@ var roleDeliverer =
         var iHave = creep.carry[resType];
         var iHaveTotal = _.sum(creep.carry);
         
-        if(transferCode == undefined) 
-            transferCode = creep.transfer(target, resType);
+        var transferCode = creep.transfer(target, resType, amnt);
     
         if(OK == transferCode)
         {
+            creep.memory.targetId = undefined;
+            
             var transferAmount = Math.min(canAccept, iHave);
         
-            if(transferAmount == iHave && transferAmount == iHaveTotal)
+            if(transferAmount == iHave && transferAmount == iHaveTotal && amnt==transferAmount)
+            {
                 return true;
+            }
             
             return false;
         }
@@ -68,7 +80,7 @@ var roleDeliverer =
         }
         else
         {
-            creep.say("error " +transferCode);
+            creep.say("error"+ transferCode);
         }
 	},
 	
@@ -100,6 +112,15 @@ var roleDeliverer =
 	
 	selectTarget : function(creep)
 	{
+	    if(creep.memory.targetId)
+        {
+            var tgt =  Game.getObjectById(creep.memory.targetId);
+            if(tgt)
+                return tgt;
+                
+            creep.memory.targetId = undefined;
+        }
+        
 	    var target;
 	    const TERMINAL_WATERMARK = 10000;
 	    var resType = this.carryResType(creep);
@@ -120,7 +141,7 @@ var roleDeliverer =
             if(target == undefined){
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                         filter: (structure) => {
-                            return (structure.structureType == STRUCTURE_TOWER) && structure.energy < structure.energyCapacity*0.4;
+                            return (structure.structureType == STRUCTURE_TOWER) && structure.energy < structure.energyCapacity*0.3;
                         }
                     });
             }
@@ -140,27 +161,40 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return (structure.structureType == STRUCTURE_LINK)  && structure.isActive && structure.isNearBase
-                     && structure.energy < 400-creep.carryCapacity ;
+                     && structure.energy < linkLimitLow ;
                     }
                 });
             }   
             
-            //controller container
-            if(target == undefined && creep.room.name == "W55S33"){
+            /*//controller container
+            if(target == undefined){
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return (structure.structureType == STRUCTURE_CONTAINER)  
-                     && structure.isNearBase &&  creep.room.controller.container && structure.id == creep.room.controller.container.id
+                     && structure.isNearBase //&&  //creep.room.controller.container //&& structure.id == creep.room.controller.container.id
                      && structure.store.energy < structure.storeCapacity-creep.carryCapacity ;
                     }
                 });
-            } 
+            } */
+            
+            //controller container
+            if(target == undefined){
+                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                filter: (structure) => {
+                    return (structure.structureType == STRUCTURE_CONTAINER) &&  
+                     creep.room.controller.container && 
+                     structure.id == creep.room.controller.container.id && creep.room.level < 5
+                     //&& structure.store.energy < structure.storeCapacity-creep.carryCapacity ;
+                     && structure.store.energy < 0.5*structure.storeCapacity;
+                    }
+                });
+            }
         
             // towers fully
             if(target == undefined){
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                         filter: (structure) => {
-                            return (structure.structureType == STRUCTURE_TOWER) && structure.energy < structure.energyCapacity-creep.carryCapacity;
+                            return (structure.structureType == STRUCTURE_TOWER) && structure.energy <= structure.energyCapacity-100;
                         }
                     });
             }
@@ -184,15 +218,7 @@ var roleDeliverer =
                 });
             }
             
-            //locallinks
-            if(target == undefined){
-                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (structure) => {
-                    return (structure.structureType == STRUCTURE_LINK)  && structure.isActive && structure.isNearBase
-                     && structure.energy < 600-creep.carryCapacity ;
-                    }
-                });
-            }  
+            
             
             if(target == undefined)
             {
@@ -271,38 +297,55 @@ var roleDeliverer =
         {
             sources = creep.pos.findInRange(FIND_STRUCTURES, 4, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER)
-                    && o.store[resType] > creep.carryCapacity && o.isNearBase && o != creep.room.controller.container
+                    && o.store[resType] > creep.carryCapacity && 
+                    
+                    !o.isNearBase && o != creep.room.controller.container
                 });
             
             if(sources.length > 0)
                 source = sources[0];
         }
         
+         if(source == undefined)
+        {
+            source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                filter: o => (o.structureType == STRUCTURE_CONTAINER)
+                    && o.store[resType] > creep.carryCapacity && 
+                    o == creep.room.controller.container && o.store[resType] > 0.5*o.storeCapacity // special case for containers near source & controller, need to frmulate better
+                });
+        }
+        
         //locallinks
         if(source == undefined){
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
             filter: (structure) => {
-                return (structure.structureType == STRUCTURE_LINK)  && structure.isActive && structure.isNearBase && structure != creep.room.controller.link
-                 && structure.energy > 400+creep.carryCapacity ;
+                return (structure.structureType == STRUCTURE_LINK)  && structure.isActive && structure.isNearBase
+                 && structure.energy > linkLimitHigh ;
                 }
             });
         }
+        
         
         if(source == undefined)
         {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER)
-                    && o.store[resType] > 3*creep.carryCapacity && o.isNearBase && o != creep.room.controller.container
+                    && o.store[resType] > 2*creep.carryCapacity && o.isNearBase && o != creep.room.controller.container
+                   //  && o.store[resType] > 3*creep.carryCapacity && o != creep.room.controller.container
                 });
         } 
-        
         if(source == undefined)
         {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_TERMINAL)
-                && o.store[resType] > 2*TERMINAL_WATERMARK + creep.carryCapacity
+                filter: o => (o.structureType == STRUCTURE_CONTAINER)
+                    && o.store[resType] > creep.carryCapacity && !o.isNearBase && o != creep.room.controller.container
+                   //  && o.store[resType] > 2*creep.carryCapacity && o != creep.room.controller.container
                 });
-        }
+        } 
+        
+        
+        
+        
         
         if(source == undefined)
         {
@@ -372,6 +415,15 @@ var roleDeliverer =
                 });
         }
         
+        if(source == undefined)
+        {
+            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: o => (o.structureType == STRUCTURE_CONTAINER)
+                   // && o.store[resType] > 3*creep.carryCapacity && o.isNearBase && o != creep.room.controller.container
+                     && o.store[resType] > 50 && o != creep.room.controller.container
+                });
+        }
+        
         //if(source == creep.room.controller.container)
         //   source = undefined;
     
@@ -380,8 +432,25 @@ var roleDeliverer =
             creep.say("no source");
             return false;
         }
+        var amnt;
         
-        var code = creep.withdraw(source, resType);
+        if(source.structureType == STRUCTURE_LINK)
+        {
+           amnt = Math.min(source.energy-linkLimitLow, creep.carryCapacity-creep.carry.energy);
+        }
+        
+        if(!creep.pos.isNearTo(source))
+        {
+            creep.moveTo(source, {visualizePathStyle: {stroke: '#ffaa00'}, range:1});
+            return;
+        }
+        
+        /*if(_.sum(source.store) == 0)
+        {
+            creep.say("wait");
+            return;
+        }*/ // need to check energy field as well
+        var code = creep.withdraw(source, resType, amnt);
 
         if(OK == code) 
         {
@@ -390,13 +459,10 @@ var roleDeliverer =
             
             return true;
         }
-        else if(ERR_NOT_IN_RANGE == code)
-        {
-            creep.moveTo(source, {visualizePathStyle: {stroke: '#ffaa00'}, range:1});
-        }
+        
         else
         {
-            console.log("w, ", resType, " ", code, source);
+            console.log("w, ", resType, " ", code, source, creep.room.name);
             creep.say("w" + code);
         }
        
@@ -435,7 +501,7 @@ var roleDeliverer =
         
             // and there is no other - then take advantage
     	    if(!creep.memory.preferredSourceId)
-    	        if(basic.runDropped(creep, 10, undefined, 50))
+    	        if(basic.runDropped(creep, 10, undefined, 100))
     	            return;
     	   
     	    //otherwise run normal

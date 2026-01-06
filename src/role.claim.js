@@ -4,9 +4,10 @@ var roleClaim = {
     /** @param {Creep} creep **/
     run: function(creep) 
     {
+       console.log("claiming 1", target);
        if(!basic.moveToRoom(creep))
             return;
-        
+        console.log("claiming ", target);
         /*
         var needClaim = function (roomName) 
         {
@@ -21,12 +22,16 @@ var roleClaim = {
         */
         
         var target = creep.room.controller;
-        
+        console.log("claiming ", target);
         if(target)
         {    
-            //console.log(controller);
+            console.log(controller);
+            var err;
             
-            var err = creep.claimController(target) ;
+            if(target.owner)
+                err = creep.attackController(target);
+            else
+                err = creep.claimController(target) ;
             
             if(OK == err)
             {
@@ -38,7 +43,7 @@ var roleClaim = {
             }
             else
             {
-                console.log("claim" + err);
+                console.log(creep.room.name, "claim" + err);
             }
         }
         else

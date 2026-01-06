@@ -31,7 +31,64 @@ function add_stats_callback(cbfunc) {
     global.stats_callbacks.subscribe(cbfunc);
 }
 
+function collect_stats_end(){
+    for(var name in Memory.creeps) {
+        if(!Game.creeps[name]) {
+            delete Memory.creeps[name];
+            console.log('Clearing non-existing creep memory:', name);
+        }
+    }
+    
+    for(var name in Memory.rooms) {
+        if(!Game.rooms[name]) {
+            delete Memory.rooms[name];
+            console.log('Clearing non-existing room memory:', name);
+        }
+    }
 
+    // stats
+    for(var roomName in Game.rooms)
+    {    
+        var n = 30;
+        
+        var room = Game.rooms[roomName];
+        if(!room.controller)
+            continue;
+            
+        if(room.memory.controllerProcessStats == undefined)
+        {
+            room.memory.controllerProcessStats = new Array();
+        }
+        
+        var st = room.memory.controllerProcessStats;
+        
+        room.memory.controllerProcessStats.push(room.controller.progress);
+        if(room.memory.controllerProcessStats.length > n){
+            room.memory.controllerProcessStats.shift();
+            
+            if(room.memory.controllerProcessStats.length > n)
+            {
+                room.memory.controllerProcessStats.splice(0, room.memory.controllerProcessStats.length-n);
+            }
+        }
+        
+        var should = room.memory.controllerProcessStats[room.memory.controllerProcessStats.length-1] - room.memory.controllerProcessStats[0];
+        
+        var eff = should / ((room.memory.controllerProcessStats.length-1)*CONTROLLER_MAX_UPGRADE_PER_TICK) * 100;
+        if(eff<0)
+        {
+            eff = 0;
+        }
+        
+        room.memory.controllerEfficiency = eff;
+        
+        if(Memory.stats.roomSummary[room.name])
+            Memory.stats.roomSummary[room.name].controllerEfficiency = eff;
+    }    
+    
+    
+    Memory.stats.cpu.used = Game.cpu.getUsed(); // AT END OF MAIN LOOP
+}
 // Update the Memory.stats with useful information for trend analysis and graphing.
 // Also calls all registered stats callback functions before returning.
 function collect_stats() {
@@ -72,4 +129,5 @@ function collect_stats() {
 module.exports = {
     collect_stats,
     add_stats_callback,
+    collect_stats_end
 };

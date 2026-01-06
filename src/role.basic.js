@@ -1,4 +1,8 @@
-module.exports = {
+var profiler = require('screeps-profiler');
+
+
+
+var roleBasic =  {
     moveToRoom:function(creep)
     {
         if(!creep.memory.toGo)
@@ -7,34 +11,68 @@ module.exports = {
         var roomToGo = creep.memory.toGo[0];
         if(roomToGo == creep.room.name)
         {
+            console.log(creep.name, " in the room");
             return true;
         }
         
         var moveTarget;
         
-        var flag = creep.pos.findClosestByRange(FIND_FLAGS, {
-                    filter: flag => (flag.color == COLOR_ORANGE && flag.secondaryColor == COLOR_ORANGE)
-                });
+        //var flag = creep.pos.findClosestByRange(FIND_FLAGS, {
+        //            filter: flag => (flag.color == COLOR_ORANGE && flag.secondaryColor == COLOR_ORANGE)
+        //       });
         
-        if(flag)
+        if(!Memory.caches)
+            Memory.caches = new Object();
+        
+        var route = Memory.caches[creep.room+roomToGo];
+        
+        if(!route)
         {
-            moveTarget = flag.pos;    
+            route = Game.map.findRoute(creep.room, roomToGo, {
+                routeCallback(roomName) {
+                    
+                    var x = roomName[2];
+            		var y = roomName[5];
+            		
+            		console.log(creep.name, roomName, x, y);
+            		if((x == 4 || x == 5 || x == 6) && (y == 4 || y == 5 || y == 6))
+            				return Infinity;
+            				
+                    return 1;
+                }});
+            Memory.caches[creep.room+roomToGo] = route;     
         }
-        else
-        {
+
+        //if(creep.memory.toGo[0] == 'E36N49')
+        //    console.log("exiting--->",JSON.stringify(route), route[0].exit);
+            
+       
+        moveTarget = creep.pos.findClosestByRange(route[0].exit);
+        if(creep.memory.toGo[0] == 'E36N49'){
+            moveTarget = new RoomPosition (49, 10, 'E35N49');
+        }
+            /*
             if(Game.rooms[roomToGo])
             {
                 moveTarget = Game.rooms[roomToGo].controller;
             }
             else
             {
-                const exitDir = creep.room.findExitTo(roomToGo);
-                moveTarget = creep.pos.findClosestByRange(exitDir);
-            }
-        }
+                
+            }*/
+        //}
         
+        /*if(flag)
+        {
+            moveTarget = flag.pos;    
+        }
+        else
+        {
+            
+        }*/
+        //console.log(JSON.stringify(moveTarget));
         var code = creep.moveTo(moveTarget, {visualizePathStyle: {stroke: '#ff0000'}});
-        creep.say("Go "+ roomToGo);
+        creep.say("Go"+ roomToGo);
         
         return false;        
     },
@@ -105,14 +143,17 @@ module.exports = {
     
     repairEmergency:function(creep, extN)
     {
-        var N = 0.5;
+        var N = 0.2;
         if(extN)
             N = extN;
-            
-        var damagedBuilds =  creep.pos.findInRange(FIND_STRUCTURES, 1, {filter : s=>s.hits < s.hitsMax*N && (s.strctureType == STRUCTURE_ROAD || s.structureType==STRUCTURE_CONTAINER)});
+
+        var damagedBuilds =  creep.pos.findInRange(FIND_STRUCTURES, 1, 
+            {filter : s=>s.hits < s.hitsMax*N && (s.strctureType == STRUCTURE_ROAD || s.structureType==STRUCTURE_CONTAINER)});
         
         if(damagedBuilds.length > 0)
             creep.repair(damagedBuilds[0]);
     }
     
 };
+profiler.registerObject(roleBasic, 'basic');
+module.exports = roleBasic;

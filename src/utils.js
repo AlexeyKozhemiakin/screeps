@@ -7,6 +7,19 @@ var roleRenew = require('role.renew');
 var roleClaim = require('role.claim');
 var roleAttack = require('role.attack');
 var roleReserve = require('role.reserve');
+var roleScout = require('role.scout');
+
+var profiler = require('screeps-profiler');
+
+/*
+profiler.registerObject(roleHarvester,'harvester');
+profiler.registerObject(roleUpgrader, 'upgrader');
+profiler.registerObject(roleBuilder, 'builder');
+profiler.registerObject(roleClaim, 'claim');
+profiler.registerObject(roleDeliverer, 'deliverer');
+profiler.registerObject(roleScout, 'scout');
+
+*/
 
 Object.defineProperty(Room.prototype, 'extractor', {
   get: function() 
@@ -22,7 +35,7 @@ Object.defineProperty(Room.prototype, 'extractor', {
 Object.defineProperty(RoomObject.prototype, 'isNearBase', {
  get: function() 
  {
-     return  this.pos.findInRange(FIND_MY_STRUCTURES, 5, {filter: s=>s.structureType == STRUCTURE_EXTENSION}).length > 0;
+     return  this.pos.findInRange(FIND_MY_STRUCTURES, 2, {filter: s=> (s.structureType == STRUCTURE_EXTENSION || s.structureType == STRUCTURE_SPAWN) }).length > 0;
  },
  
  enumerable: false,
@@ -33,6 +46,15 @@ Object.defineProperty(Room.prototype, 'links', {
  get: function() 
  {
      return  this.find(FIND_STRUCTURES, {filter : {structureType : STRUCTURE_LINK}});
+ },
+ enumerable: false,
+ configurable: true
+});
+
+Object.defineProperty(Room.prototype, 'extensions', {
+ get: function() 
+ {
+     return  this.find(FIND_STRUCTURES, {filter : {structureType : STRUCTURE_EXTENSION}});
  },
  enumerable: false,
  configurable: true
@@ -86,7 +108,7 @@ Object.defineProperty(RoomObject.prototype, 'container', {
  
  get: function() 
  {
-    return  this.pos.findInRange(FIND_STRUCTURES, 3, {filter: {structureType: STRUCTURE_CONTAINER}})
+    return  this.pos.findInRange(FIND_STRUCTURES, 4, {filter: {structureType: STRUCTURE_CONTAINER}})
         [0];
  },
  
@@ -110,7 +132,7 @@ Object.defineProperty(RoomObject.prototype, 'link', {
  
  get: function() 
  {
-    return  this.pos.findInRange(FIND_STRUCTURES, 3, {filter: {structureType: STRUCTURE_LINK}})
+    return  this.pos.findInRange(FIND_STRUCTURES, 4, {filter: {structureType: STRUCTURE_LINK}})
         [0];
  },
  
@@ -158,6 +180,112 @@ Object.defineProperty(RoomObject.prototype, 'mineralDemand', {
 });
 
 var utils = {
+    
+    roomGetSpawnOrders : function(bigRoom)
+    {
+        var roomsToClaim = ['W7N2'];
+
+        // do not claim more if dont have 700 energy for claim = 300 + 50*8 - need 8 extensions at least 
+        if(bigRoom.extensions.length < 8)
+            roomsToClaim = [];
+
+        var roomsNotClaimed = _.filter(roomsToClaim, roomName => {
+            var room = Game.rooms[roomName];
+            if(!room)
+                return false; // need visibility first
+                
+            
+            //console.log(roomName," controller is ", Game.rooms[roomName].controller.my);
+            var mine = room.controller.my;
+            var lvl = room.controller.level;
+            //console.log(room.name, mine, lvl, CONTROLLER_DOWNGRADE[lvl] ,room.controller.ticksToDowngrade );
+            if(room.controller.my)
+                return false;
+                
+            if(room.controller.ticksToDowngrade < CONTROLLER_DOWNGRADE[lvl] * 0.9)
+                return false;
+            
+                
+            return true;
+        
+        });
+        
+        var roomsNotVisible = _.filter(roomsToClaim, roomName => {
+            var room = Game.rooms[roomName];
+            if(room)
+            {
+               return false;
+            }
+            return true;
+        });
+        
+        if(roomsNotClaimed.length>0)
+         console.log("notClaimed", roomsNotClaimed);
+        if(roomsNotVisible.length>0)
+         console.log("notVisible", roomsNotVisible);
+        
+        var spawnOrder = new Object();
+        
+        for(var roomi in roomsToClaim)
+        {
+            var roomName = roomsToClaim[roomi];
+            
+            var scouts = _.filter(Game.creeps, c=>c.memory.role == "scout" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+            var numScout = 1;
+            if(roomsNotVisible.includes(roomName) && scouts.length < numScout)
+            {
+                spawnOrder.scoutRoom = roomName;
+                return spawnOrder;
+            }
+            
+            var claimers = _.filter(Game.creeps, c=>c.memory.role == "claim" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+            var numClaim = 1;
+            if(roomsNotClaimed.includes(roomName) && claimers.length < numClaim)
+            {
+                spawnOrder.claimRoom = roomName;
+                return spawnOrder;
+            }
+            
+            var room = Game.rooms[roomName];
+            if(!room)
+                continue;
+                
+            if(!room.controller) // in what meaning? same as above? visibility check?
+                continue;
+            
+            // if(!room.controller.my)
+            //   continue; 
+            
+            
+            var roomSpawns = _.filter(Game.spawns, s=>s.room.name == roomName);
+            var spawnExists = roomSpawns.length > 0;
+            if(spawnExists)
+                continue;
+                
+            var constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+            var builders = _.filter(Game.creeps, c=>c.memory.role == "builder" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+            var numBld = 2;
+                
+            if(constructionSites.length > 0 && builders.length < numBld)
+            {
+                console.log("needbuild", roomName);
+                spawnOrder.buildRoom = roomName;
+                return spawnOrder;
+            }
+            
+            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS);
+            var attackers = _.filter(Game.creeps, c=>c.memory.role == "attack" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+            var numAttack = 1;
+            
+            if(enemyCreeps.length > 0 && attackers.length < numAttack)
+            {
+                console.log("needAttack", roomName);
+                spawnOrder.attackRoom = roomName;
+                return spawnOrder;
+            }
+        }
+    },
+    
     roomAutoBuild :  function(room)
     {
         var flags = room.find(FIND_FLAGS, {filter: f => (f.color == COLOR_PURPLE)});
@@ -201,54 +329,8 @@ var utils = {
         
     },
     
-    roomMove :  function(room)
+    roomDraw : function(room)
     {
-       var roomCreeps = _.filter(Game.creeps, c=>c.room.name == room.name) ;
-        
-        for(var creepId in roomCreeps) {
-            var creep = roomCreeps[creepId];
-
-            try
-            {    
-                if(creep.memory.role == 'harvester') 
-                {
-                    roleHarvester.run(creep);
-                } 
-                else if(creep.memory.role == 'upgrader') 
-                {
-                    roleUpgrader.run(creep);
-                }
-                else if(creep.memory.role == 'builder') 
-                {
-                    roleBuilder.run(creep);
-                }
-                else if(creep.memory.role == 'deliverer')
-                {
-                    roleDeliverer.run(creep);
-                }
-                else if(creep.memory.role == 'claim') 
-                {
-                    roleClaim.run(creep);
-                }
-                else if(creep.memory.role == 'reserve')
-                {
-                    roleReserve.run(creep);
-                }
-                else if(creep.memory.role == 'mineralHarvester')
-                {
-                    roleMineralHarvester.run(creep);
-                }
-                else if(creep.memory.role == 'attack')
-                {
-                    roleAttack.run(creep);
-                }
-            }
-            catch(err)
-            {
-                console.log("!!!!-!!!!", room.name, err, err.fileName, err.lineNumber);
-            }
-        }
-        
         //room.visual.clear();
         
         room.spawns.forEach(spawn => {
@@ -262,6 +344,7 @@ var utils = {
             }
         });
         
+        /*
         if(room.mineral) { 
             room.visual.text(
                 '⏱️' + room.mineral.ticksToRegeneration,
@@ -269,7 +352,9 @@ var utils = {
                 room.mineral.pos.y, 
                 {align: 'left', opacity: 0.8});
         }
+        */
         
+        /*
         var labs = room.find(FIND_STRUCTURES, {
                         filter: (lab) => {
                             return ((lab.structureType == STRUCTURE_LAB) && lab.isActive
@@ -286,33 +371,52 @@ var utils = {
                         lab.pos.y+0.22, 
                         {align: 'center', color:"#000000", opacity: 1});
             });
+            
+            
+        */
     },
     
-    roomSpawn : function(room, claimToGo, buildToGo)
+    roomMove :  function(room)
+    {
+       var funcMap = {
+            'harvester' : roleHarvester,
+            'upgrader' : roleUpgrader,
+            'builder' : roleBuilder, 
+            'deliverer' : roleDeliverer,
+            'claim' : roleClaim,
+            'reserve' : roleReserve,
+            'mineralHarvester' : roleMineralHarvester,
+            'attack' : roleAttack,
+            'scout' : roleScout,
+
+        }
+
+        var roomCreeps = _.filter(Game.creeps, c=>c.room.name == room.name) ;
+
+        for(var creepId in roomCreeps) {
+            var creep = roomCreeps[creepId];
+            if(creep.spawning)
+                continue;
+            
+            try
+            {
+                var role = creep.memory.role;
+                var obj = funcMap[role];
+                obj.run(creep);
+            }
+            catch(err)
+            {
+                console.log("!!!!-!!!!", room.name, err, err.fileName, err.lineNumber, creep.name );
+                creep.memory.err = err;
+                //throw err;
+            }
+        }       
+    },
+    
+    roomSpawn : function(room, spawnOrders)
     {
         room.memory.iterator = 0;
         
-        var roomCreeps2 = room.find (FIND_MY_CREEPS);
-        var roomCreeps = _.filter(Game.creeps, cr=>cr.room.name == room.name); // cannot use FIND_MY_CREEPS cause it's use spawning
-        
-        if(roomCreeps.length != roomCreeps2.length)
-            {
-                let difference = roomCreeps
-                 .filter(x => !roomCreeps2.includes(x))
-                 .concat(roomCreeps2.filter(x => !roomCreeps.includes(x)));
-                 
-                //console.log(room.name,"diff", difference, difference[0].ticksToLive);
-            }
-        
-        
-        var harvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'harvester');
-        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader');
-        var builders = _.filter(roomCreeps, (creep) => creep.memory.role == 'builder');
-        var deliverers = _.filter(roomCreeps, (creep) => creep.memory.role == 'deliverer');
-        var mineralHarvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'mineralHarvester');
-
-        console.log(room.name + " " + room.energyAvailable+ " of " + room.energyCapacityAvailable + ' Harvesters: ' + harvesters.length, ' Builders: ' + builders.length , ' Upgraders: ' + upgraders.length, ' Deliverers: ' + deliverers.length, ' Mineral: ' + mineralHarvesters.length);
-
         var spawn = room.spawns.find(s=> !s.spawning);
         
         if(spawn == undefined)
@@ -321,7 +425,23 @@ var utils = {
             return;
         }
         
-        //console.log(sortedSources);
+        var roomCreeps = _.filter(Game.creeps, cr=>cr.room.name == room.name); // cannot use FIND_MY_CREEPS cause it's use spawning
+                
+        var harvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'harvester');
+        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader');
+        var builders = _.filter(roomCreeps, (creep) => creep.memory.role == 'builder');
+        var deliverers = _.filter(roomCreeps, (creep) => creep.memory.role == 'deliverer');
+        var mineralHarvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'mineralHarvester');
+
+/*
+        console.log(room.name + " " + room.energyAvailable+ " of " + room.energyCapacityAvailable,
+        ' Harvesters: ' + harvesters.length, 
+        ' Builders: ' + builders.length , 
+        ' Upgraders: ' + upgraders.length, 
+        ' Deliverers: ' + deliverers.length, 
+        ' Mineral: ' + mineralHarvesters.length);
+*/
+        
         
         var mem = Object();
         var repl;
@@ -329,7 +449,7 @@ var utils = {
         // replacement prep
         if(roomCreeps.length > 0 ){
             var ups =  _.filter(roomCreeps, (cr) => 
-                (cr.memory.role == "upgrader" || cr.memory.role == "harvester") && 
+                (cr.memory.role == "harvester" || cr.memory.role == "upgrader") && 
                 (cr.getActiveBodyparts(WORK)>=5) && 
                 cr.memory.replaced!=true 
                 && !cr.spawning);
@@ -338,14 +458,16 @@ var utils = {
             
             oldest = _.sortBy(ups, ['ticksToLive'],['asc'])[0];
         
-            if(oldest){
+            if(oldest && oldest.ticksToLive < 100){
+               
+                
                 var ticksToCreate = CREEP_SPAWN_TIME * oldest.body.length;
                 
-                var speed = 2;
+                var speed = 2.5; //TODO:calc based on parts
                 var ticksToTravel = oldest.pos.findPathTo(spawn.pos,{ignoreCreeps:true}).length * speed;
                 var estimate =  oldest.ticksToLive - ticksToCreate - ticksToTravel;
                 
-                if(estimate < 100)
+                //if(estimate < 100)
                     console.log(room.name, "to create =",ticksToCreate, " toTravel=",ticksToTravel, " oldest=",oldest.ticksToLive, " to replace ", oldest.name , " in=", estimate );
                 
                 if(oldest.ticksToLive <= ticksToCreate + ticksToTravel )
@@ -415,8 +537,8 @@ var utils = {
                 var path = source.pos.findPathTo(spawn.pos, {ignoreCreeps : true}); // TODO:interoom path
                 //console.log(path.length);
                 return path.length;
-            }
-        );
+            });
+        
         
         for(var source of sortedSources)
         {
@@ -424,16 +546,16 @@ var utils = {
             var budget = source.budget();
             if(budget > 2) budget=2;
             
-            // for highly developed rooms
-            //if(room.controller.level >=3)
-            budget = 1;
+            // for highly developed rooms - what?
+            if(room.controller.level >=3)
+                budget = 1;
                 
             const sourceId = source.id;
             
             var attachedCreeps = _.filter(Game.creeps, function(cr) { 
-                //console.log("sourceID = " + sourceId  + "|"+cr.memory.preferredSourceId );
-                return cr.memory.role == 'harvester' && cr.memory.preferredSourceId == sourceId;
-            }, sourceId);
+                    //console.log("sourceID = " + sourceId  + "|"+cr.memory.preferredSourceId );
+                    return cr.memory.role == 'harvester' && cr.memory.preferredSourceId == sourceId;
+                }, sourceId);
             
             //console.log("atLen "+attachedCreeps.length + " budgt " + budget + " id=" +sourceId);
             
@@ -452,7 +574,7 @@ var utils = {
                 }
                 
                 mem.role = 'harvester';
-                mem.parts = this.getBodyParts(Math.min(1000, room.energyAvailable),'harvester');
+                mem.parts = this.getBodyParts(Math.min(1000, room.energyAvailable), source.container? "harvesterContainer" : "harvester");
                 if(source.room.name != room.name)
                     mem.parts = this.getBodyParts(1000,"remoteHarvester");
                     
@@ -468,7 +590,7 @@ var utils = {
         // Why? priority to building instead of updating
         if(room.controller.level < 3)
         {
-            numBld = 2;
+            numBld = 2 * sources.length;
         }
         
         // Why? - Increaed buliding ok
@@ -478,7 +600,7 @@ var utils = {
         }
         
         var numUpd = 3; // for 2 sources 
-        if(sources.length == 1  || room.name =='W57S37')
+        if(sources.length == 1)
             numUpd = 2;
        
       
@@ -494,96 +616,36 @@ var utils = {
         }
         
         
+
+        // TODO: refactor spec delivers 1) change value to dynamic calculation
         if(mem.role == null)
         {
-            if(room.name == "W59S34" && room.controller.level >= 3)
+            if(room.name == "E33N49")
             {
                 var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
                 
-                if(specDelivers.length == 0)
+                if(specDelivers.length < 1)
                 {
                     mem.parts = utils.getBodyParts(600, "deliverer");
                     mem.role = 'deliverer';
                  }
-            }
-            else if (room.name == "W59S33" && room.controller.level >= 4)
-            {
-                
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-                
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(500, "delivererLight");
-                    mem.role = 'deliverer';
-                }
-            }
-            else if (room.name == "W59S36")
-            {
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(400, "deliverer");
-                    mem.role = 'deliverer';
-                }
-            }
-            else if (room.name == "W58S36" && room.controller.level >=4)
-            {
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(500, "deliverer");
-                    mem.role = 'deliverer';
-                }
-            }
-            
-            else if (room.name == "W57S37" && room.controller.level >=3)
-            {
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(500, "deliverer");
-                    mem.role = 'deliverer';
-                }
-            }
-            else if (room.name == "W57S35")
-            {
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(500, "deliverer");
-                    mem.role = 'deliverer';
-                }
-            }
-            else if (room.name == "W55S33")
-            {
-                var specDelivers = _.filter(deliverers,  d=> !d.memory.preferredSourceId);
-
-                if(specDelivers.length == 0)
-                {
-                    mem.parts = utils.getBodyParts(500, "deliverer");
-                    mem.role = 'deliverer';
-                }
-            }
+            }           
             
         }
        
         // route delivers
         if(mem.role == null)
         {
-            if(room.name ==  "W57S35") // if ther are links dont do it
+            if(room.name ==  "E33N49") // if ther are links dont do it
             {
                 
-                var amnt = 7;
+                var amnt = numUpd == 1 ? 5 : 20;
                 //if(numSources == 2 && !source.isNearBase)
                 //    amnt = 10; // for remote minerals in high room
                 var res;
                 //console.log(source2.container);
-                if(!room.controller.link)
-                    res = this.createDeliverer(room.storage.id, room.controller.container.id, amnt, RESOURCE_ENERGY);
+                if(room.controller.link)
+                    res = this.createDeliverer(room.storage.id, room.controller.link.id, amnt, RESOURCE_ENERGY);
                 
                 if(res != null)
                     mem = res;
@@ -643,11 +705,12 @@ var utils = {
         }
         
         
-        var needMinerals = roleMineralHarvester.needHarvester(room) && room.storage.store[RESOURCE_ENERGY] > 10000;
-        // mineral delivers
+         // mineral delivers
         if(mem.role == null)
         {
-            if(mineralHarvesters.length > 0)
+            var needMinerals = roleMineralHarvester.needHarvester(room) && room.storage.store[RESOURCE_ENERGY] > 10000;
+       
+            if(mineralHarvesters.length > 0 && (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY*0.5))
             {
                 var amountPerSec = _.sum(_.map(mineralHarvesters, m=>m.getActiveBodyparts(WORK))) * HARVEST_MINERAL_POWER / EXTRACTOR_COOLDOWN;
                 
@@ -655,7 +718,7 @@ var utils = {
                 var terminalWatermark = 0.8;
                 if(room.terminal && _.sum(room.terminal.store) < terminalWatermark*room.terminal.storeCapacity)
                     targetId = room.terminal.id;
-                    
+                
                 var res = this.createDeliverer(room.extractor.container.id, targetId, amountPerSec); 
                 if(res != null)
                     mem = res;
@@ -663,7 +726,7 @@ var utils = {
         }
        
         var needAttack = room.find(FIND_HOSTILE_CREEPS).length>0 && room.towers.length == 0;
-        var attackToGo = [];
+        
         if(room.config.remoteHarvest)
         {
             room.config.remoteHarvest.forEach(roomName=>
@@ -678,34 +741,49 @@ var utils = {
                 
                 if(enemies.length > 0 && attackers.length == 0)
                 {
+                    if(!attackToGo)
+                        attackToGo = [];
+                        
                     attackToGo.push(roomName);
                 }
             }
             );
         }
         
+        // why?
+        var energyCrazyUpgradeLimit = 300000;
         
-        if (room.name == "W57S37")
-            console.log(needAttack, attackToGo);
-        
+        if(room.energyCapacityAvailable >= 1800)
+            numUpd = 1;
+        if(room.energyCapacityAvailable >= 1800 && room.storage && room.storage.store.energy > energyCrazyUpgradeLimit && room.controller.level < 8)
+            numUpd = 2; //experimental to test fast upgrade
+            
         if(needAttack)
         {
             mem = new Object();
             mem.role = "attack";
         }
-        else if(attackToGo.length > 0)
+        else if(spawnOrders && spawnOrders.attackRoom)
         {
             mem = new Object();
             mem.role = "attack";
-            mem.toGo = attackToGo;
+            mem.toGo = [spawnOrders.attackRoom];
         }
         else if(mem.role != null)
         {
-            // already processed created
+            // parts already created
         }
         else if(upgraders.length == 0)
         {
             mem.role = 'upgrader';
+            if(room.energyCapacityAvailable >= 1800) // lightmovevemtn of upgrader
+                mem.parts = this.getBodyParts(1800, 'upgraderLight2');
+        }
+        else if(spawnOrders && spawnOrders.scoutRoom)
+        {
+            mem.role = 'scout';
+            mem.parts =  [MOVE];
+            mem.toGo = [spawnOrders.scoutRoom];
         }
         else if(needBuild && builders.length < numBld)
         {
@@ -715,6 +793,8 @@ var utils = {
         else if(upgraders.length < numUpd)
         {
             mem.role = 'upgrader';
+            if(room.energyCapacityAvailable >= 1800) // lightmovevemtn of upgrader
+                mem.parts = this.getBodyParts(1800, 'upgraderLight2');
         }
         else if(mineralHarvesters.length < 1 && needMinerals)
         {
@@ -722,19 +802,19 @@ var utils = {
         }
         else if(repl)
         {
-            console.log("yes repl");
+            console.log("creating replacement");
             mem = repl;
         }
-        else if(claimToGo && claimToGo.length > 0)
+        else if(spawnOrders && spawnOrders.claimRoom)
         {
              mem.role = "claim";
-             mem.toGo = claimToGo;
+             mem.toGo = [spawnOrders.claimRoom];
         }
-        else if(buildToGo && buildToGo.length > 0)
+        else if(spawnOrders && spawnOrders.buildRoom)
         {
              mem.role = "builder";
-             mem.parts = this.getBodyParts(1000, 'upgrader');
-             mem.toGo = buildToGo;
+             mem.parts = this.getBodyParts(1000, 'remoteBuilder');
+             mem.toGo = [spawnOrders.buildRoom];
         }
         else if(reserveToGo && reserveToGo.length > 0)
         {
@@ -780,7 +860,7 @@ var utils = {
                 
                 if(OK == code)
                 {
-                    console.log(spawn.name+ ' is spawning new : ' + mem.role + " with " + parts + " - " + code);
+                    console.log(spawn.name + ' is spawning new : ' + mem.role + " with " + parts + " - " + code);
                     if(repl && oldest)
                     {
                         oldest.memory.replaced = true;
@@ -788,12 +868,12 @@ var utils = {
                 }
                 else 
                 {
-                    console.log('Spawn error: '+ utils.getError(code));
+                    console.log(room.name, 'Spawn error: '+ utils.getError(code));
                 }
             }
             else
             {
-                console.log('not enough money yet for ' + mem.role,"budget=",energyBudget);
+                console.log(room.name, 'not enough money yet for ' + mem.role," budget=",energyBudget);
             }
         }
         
@@ -837,7 +917,6 @@ var utils = {
             console.log('deliverer cannot find path', fromId, '->', toId);
             return null;
         }
-        
         
         var travelTime = ret.path.length * 2 + 2; // 2 is turnaround delay tbd to remove it
         //console.log("cost analysis path", path.length)
@@ -930,16 +1009,29 @@ var utils = {
         if(role == "reserve")
             return [CLAIM, CLAIM, MOVE, MOVE];
         
+        if(role == "upgraderLight")
+            return [CARRY, MOVE, WORK, WORK, WORK, WORK, WORK];
+        
+        if(role == "upgraderLight2")
+            return [ WORK, WORK, WORK, WORK, WORK,
+                     WORK, WORK, WORK, WORK, WORK,
+                     WORK, WORK, WORK, WORK, WORK,
+                     CARRY, MOVE,
+                     MOVE, MOVE,
+                     MOVE, MOVE
+                     ];
+        
+        if(role == "remoteBuilder")
+            return  [
+                CARRY, MOVE,
+                CARRY, MOVE, 
+                WORK, MOVE,
+                WORK, MOVE,
+                WORK, MOVE];
+            
         var attackParts = 
                      [ATTACK, ATTACK, ATTACK, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH, TOUGH,
                      MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE];
-                    
-       
-       
-       
-       
-       
-       
        
         var deliverParts = 
                      [MOVE, CARRY,
@@ -981,9 +1073,16 @@ var utils = {
                      MOVE, CARRY, CARRY];
         
         
-        var upgraderParts       = [MOVE,CARRY, WORK,WORK,WORK,WORK,WORK, MOVE,MOVE,MOVE,MOVE];
-        
+        //var upgraderParts       = [MOVE, CARRY, WORK ,WORK ,WORK, WORK, WORK, MOVE, MOVE ,MOVE,MOVE];
+        var upgraderParts = [CARRY, 
+            WORK, MOVE,
+            WORK, MOVE,
+            WORK, MOVE,
+            WORK, MOVE, 
+            WORK, MOVE];
+            
         var harvesterParts      = [MOVE,CARRY, WORK,WORK,WORK,WORK,WORK, MOVE,MOVE,MOVE,MOVE];
+        
         var remoteHarvesterParts      = [MOVE,CARRY, WORK,WORK,WORK,WORK,WORK,WORK, MOVE,MOVE,MOVE,MOVE,MOVE];
         var mineralHarvesterParts = [MOVE,MOVE,MOVE,MOVE, WORK,WORK,WORK,WORK,WORK,WORK,WORK,WORK,WORK,WORK, CARRY];            
         
@@ -1000,8 +1099,15 @@ var utils = {
                     MOVE, CARRY, WORK,
                     MOVE, CARRY, WORK];
                     
-        var builderParts = [MOVE, CARRY, WORK, WORK, WORK, WORK, WORK, WORK,
-                    MOVE, MOVE, CARRY, CARRY, 
+        var builderParts = [
+                    MOVE, CARRY, 
+                   
+                    WORK, MOVE,
+                    CARRY, MOVE,
+                    WORK, MOVE,
+                    MOVE, WORK,
+                    MOVE, WORK,
+                    WORK, WORK,
                     MOVE, CARRY,
                     MOVE, CARRY,
                     MOVE, CARRY, 
@@ -1051,6 +1157,12 @@ var utils = {
             }
         }
         
+        if(role == "harvesterContainer"){
+            parts = harvesterParts;
+            if(currentEnergy > 600)
+                currentEnergy = 600;
+        }
+        
         var res = [];
         if(currentEnergy < 300 && role != "deliverer")
             return res;
@@ -1063,7 +1175,7 @@ var utils = {
             if(!nextPart)
                 break;
             var partCost = BODYPART_COST[nextPart.toLowerCase()];
-            
+             
             
             //console.log(nextPart, " ", partCost);
             if(budget < partCost)

@@ -24,8 +24,8 @@ var linkMod = {
                 return;
                 
             var code = fromLink.transferEnergy(toLink, amount);
-            if(OK != code && ERR_TIRED!=code)
-                console.log('TransferCode = ' + code);
+            if(OK != code)
+                console.log('Link Transfer Error = ', code);
         }
     },
     
@@ -45,22 +45,23 @@ var linkMod = {
             return;
         }
         
+        // TODO send not to controller but to base link as well
         for(var linkName in room.links)
         {
             var link = room.links[linkName];
             if(link == controllerLink)
                 continue;
             
-            var limit = 800;
+            var limit = LINK_CAPACITY;
             
-            if(link.isNearBase)
-                limit = 600;
+            // TODO why?
+            //if(link.isNearBase)
+            //    limit = LINK_CAPACITY*0.75;
                 
             //console.log(room, link, " ", limit, " ", isNearShore, " ", inRange); 
             
             this.runInternal(link, controllerLink, limit);
         }
-       
     }
     ,
     tryNearBase : function(room)
@@ -79,8 +80,7 @@ var linkMod = {
             if(link == baseLink)
                 continue;
             
-            var limit = 800;
-            
+            var limit = LINK_CAPACITY;
             
             this.runInternal(link, baseLink, limit);
         }

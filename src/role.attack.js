@@ -5,17 +5,15 @@ var roleAttack = {
     /** @param {Creep} creep **/
     run: function(creep) {
 
-	    if(creep.memory.attacking && creep.carry.energy == 0) {
-            creep.memory.attacking = false;
-            creep.say('🔄 harvest');
-	    }
-	    if(!creep.memory.attacking && creep.carry.energy == creep.carryCapacity) {
+        if(!basic.moveToRoom(creep))
+	        return;
+	        
+	   
+	    if(!creep.memory.attacking) {
 	        creep.memory.attacking = true;
 	        creep.say('🚧 attack');
 	    }
 	    
-	    if(!basic.moveToRoom(creep))
-	        return;
 
 	    if(creep.memory.attacking) 
 	    {

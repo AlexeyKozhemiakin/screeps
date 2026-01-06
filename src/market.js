@@ -1,8 +1,8 @@
 module.exports = {
     shareEnergyInternal:function()
     {
-        if(Game.rooms['W59S33'].terminal.store.energy  < 5000)
-            this.shareResource("W59S34", "W59S33", RESOURCE_ENERGY, 5000);
+        //if(Game.rooms['W59S33'].terminal.store.energy < 25000)
+       //     this.shareResource("W59S34", "W59S33", RESOURCE_ENERGY, 5000);
         
         if(!Memory.orderCreated)
         {
@@ -63,6 +63,9 @@ module.exports = {
             return;
         }
         
+        if(!room.terminal)
+            return;
+            
         if(room.terminal.cooldown > 0)
             return;
     
@@ -82,11 +85,14 @@ module.exports = {
         
         var lab3 = Game.getObjectById(id3);
         
+        if(!lab3)
+            return;
+            
         if(lab3.cooldown > 0)
             return;
             
         var code =lab3.runReaction(lab1, lab2);
-         if(OK != code)
+         if(OK != code && code!=-6)
         {
             console.log('failed to run reacton', lab1.room.name, code);
         }
@@ -94,8 +100,9 @@ module.exports = {
     
     shareResourcesInternal:function()
     {
-         this.shareResource("W57S35", "W59S33", RESOURCE_ZYNTHIUM, 1000);
+         //this.shareResource("W57S35", "W59S33", RESOURCE_ZYNTHIUM, 1000);
          
+         return;
          if(Game.rooms['W58S36'].terminal.store[RESOURCE_ZYNTHIUM_KEANITE] == undefined || Game.rooms['W58S36'].terminal.store[RESOURCE_ZYNTHIUM_KEANITE] < 10000)
             this.shareResource("W59S33", "W58S36", RESOURCE_ZYNTHIUM_KEANITE, 2000);
             
@@ -116,6 +123,7 @@ module.exports = {
     
     sellExcess:function()
     {
+       return;
         if(Game.rooms['W57S37'].terminal.store[RESOURCE_HYDROGEN] > 150000)
             this.matchOrderInternal("W57S37", RESOURCE_HYDROGEN, 5000, ORDER_BUY);
             
@@ -128,6 +136,8 @@ module.exports = {
     
     buyDemand:function()
     {
+        return;
+        
         if(Game.rooms['W59S33'].terminal.store[RESOURCE_ZYNTHIUM] == undefined || Game.rooms['W59S33'].terminal.store[RESOURCE_ZYNTHIUM] < 5000)
             this.matchOrderInternal("W59S33", RESOURCE_ZYNTHIUM, 1000, ORDER_SELL);
         

@@ -179,8 +179,9 @@ function summarize_room_internal(room) {
     // Energy spent on making creeps
     // Energy lost to links
 
+    const cput = room.memory.cputime;
+    const cputarr = [1, 2, 3, 10, 1];
     
-
     let retval = {
         room_name: room.name, // In case this gets taken out of context
         controller_level,
@@ -228,6 +229,8 @@ function summarize_room_internal(room) {
         construction_hits,
         ground_resources: reduced_resources,
         num_source_containers,
+        cput,
+        cputarr
     };
     
     // console.log('Room ' + room.name + ': ' + JSON.stringify(retval));
