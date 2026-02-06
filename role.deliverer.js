@@ -485,9 +485,9 @@ var roleDeliverer =
         if (creep.memory.task == undefined) {
             creep.memory.task = "pickup";
         }
-        if(creep.memory.task == "recycle")
+
+        if (creep.memory.task == "recycle")
             basic.recycleCreep(creep);
-        
 
         if (creep.memory.task == "deliver") {
             var res = this.runDeliver(creep);

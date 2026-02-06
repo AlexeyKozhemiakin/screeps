@@ -326,7 +326,7 @@ var utils = {
         // 2D pattern array - each cell represents a position relative to spawn
         // e - ExtensionP - spawn ( reference point)
         // s - Storage t - tower c - container . - empty space l - link
-
+        // b - lab m - terminal
 
         var pattern1 = [
             ".........",
@@ -386,14 +386,27 @@ var utils = {
             "..r...r...r.."
         ];
 
+        var pattern6 = [
+            ".............",
+            "......rbb....",
+            ".....rmrb....",
+            "...trsrlrt...",
+            "...rerPrer...",
+            "..reeereeer..",
+            ".rererererer.",
+            "reeereeereeer",
+            ".rer.rer.rer.",
+            "..r...r...r.."
+        ];
+
         // for 1
-        const patterns = [pattern5, pattern1, pattern2, pattern3, pattern4, pattern5];
+        const patterns = [pattern5, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6];
 
         var pattern = patterns[room.controller.level];
         // find spawn or spawn construction site at pos 
         var showAll = room.spawns.length == 0;
         if (!pattern || showAll)
-            pattern = pattern5; // default to max
+            pattern = patterns[patterns.length - 1]; // default to max
 
         // no spawns yet build only it
         if (showAll)
@@ -446,28 +459,26 @@ var utils = {
 
 
                 // Determine structure type and color based on cell letter
-                var structureType = STRUCTURE_EXTENSION;
+                const cellMap = {
+                    'e': STRUCTURE_EXTENSION,
+                    's': STRUCTURE_STORAGE,
+                    't': STRUCTURE_TOWER,
+                    'c': STRUCTURE_CONTAINER,
+                    'r': STRUCTURE_ROAD,
+                    'l': STRUCTURE_LINK,
+                    'b': STRUCTURE_LAB,
+                    'm': STRUCTURE_TERMINAL
+                };
+                var structureType = cellMap[cell];
 
-                if (cell == 'e') {
-                    structureType = STRUCTURE_EXTENSION;
-                }
-                else if (cell == 's') {
-                    structureType = STRUCTURE_STORAGE;
-                }
-                else if (cell == 't') {
-                    structureType = STRUCTURE_TOWER;
-                }
-                else if (cell == 'c') {
-                    structureType = STRUCTURE_CONTAINER;
-                }
-                else if (cell == 'r') {
-                    structureType = STRUCTURE_ROAD;
-                }
-                else if (cell == 'l') {
-                    structureType = STRUCTURE_LINK;
-                }
-                else {
+                if (!structureType) {
+                    
                     console.log("Unknown cell type ", cell, " at ", worldX, ",", worldY);
+                    room.visual.circle(checkPos, {                        
+                        radius: 0.7,
+                        stroke: 'red'
+                    });
+
                     continue; // unknown cell type
                 }
 
@@ -1085,7 +1096,7 @@ var utils = {
                         room.storage.store[RESOURCE_ENERGY] > RICH_ROOM_ENERGY;
 
         room.memory.needMineralHarvester = needMinerals;
-        
+
         // MINERAL deliverer
         if (mem.role == null) {
             if (mineralHarvesters.length > 0 &&

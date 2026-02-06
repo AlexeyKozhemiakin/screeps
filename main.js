@@ -22,7 +22,11 @@ loopInner = function () {
     */
 
 
-    var roomsToClaim = ["E51S23", "E52S23", "E53S22", "E55S22", "E54S22", "E56S23", "E55S21"];
+    var roomsToClaim = ["E51S23", "E52S23", "E53S22", 
+                        "E55S22", "E54S22", "E56S23", 
+                        "E55S21", "E48S27", "E49S23", 
+                        "E48S24"];
+
 
     var spawnOrders = utils.roomGetSpawnOrders(roomsToClaim);
 
