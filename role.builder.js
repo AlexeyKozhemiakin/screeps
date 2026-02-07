@@ -101,7 +101,7 @@ var roleBuilder = {
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (i) => ((i.structureType == STRUCTURE_STORAGE) &&
-                    i.store[RESOURCE_ENERGY] > creep.carryCapacity)
+                    i.store[RESOURCE_ENERGY] > 500)
             });
         }
 
@@ -120,16 +120,18 @@ var roleBuilder = {
         // what are conditions to allow stealing from extensions instead of container?
         // why commented?
         if (source == undefined) {
-            
-            if(creep.room.spawn && !creep.room.spawn.container)
-            if (creep.room.controller.level > 1 && creep.room.energyCapacityAvailable > 550)
-                if (creep.room.energyAvailable > 0.75 * creep.room.energyCapacityAvailable) {
-                    source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                        filter: (i) => ((i.structureType == STRUCTURE_SPAWN ||
-                            i.structureType == STRUCTURE_EXTENSION) &&
-                            i.store[RESOURCE_ENERGY] > creep.carryCapacity)
-                    });
-                }
+            // for lower levels allow to pickup from spawns only when what?
+
+
+            if (creep.room.spawn && !creep.room.spawn.container && !creep.room.storage)
+                if (creep.room.controller.level > 1 && creep.room.energyCapacityAvailable > 550)
+                    if (creep.room.energyAvailable > 0.75 * creep.room.energyCapacityAvailable) {
+                        source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                            filter: (i) => ((i.structureType == STRUCTURE_SPAWN ||
+                                i.structureType == STRUCTURE_EXTENSION) &&
+                                i.store[RESOURCE_ENERGY] > creep.carryCapacity)
+                        });
+                    }
         }
 
         if (sourceDismantle) {
@@ -160,7 +162,7 @@ var roleBuilder = {
         else {
             var source = basic.findSource(creep);
 
-            if(!source)
+            if (!source)
                 return;
 
             //console.log("builder " + creep.name + " harvesting from source " + source.id);
@@ -242,17 +244,25 @@ var roleBuilder = {
             // spawns
             // then everything else
             var targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
-                filter: s => (s.structureType == STRUCTURE_ROAD && 
+                filter: s => (s.structureType == STRUCTURE_ROAD &&
                     s.pos.lookFor(LOOK_TERRAIN)[0] == 'swamp')
             });
 
-            //console.log("found ", targets.length, " road swamp sites");
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
                     filter: s => s.structureType == STRUCTURE_SPAWN
                 });
 
-            //console.log("found ", targets.length, " spawn sites");
+            if (targets.length == 0)
+                targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                    filter: s => s.structureType == STRUCTURE_EXTENSION
+                });
+
+            if (targets.length == 0)
+                targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                    filter: s => s.structureType == STRUCTURE_CONTAINER
+                });
+
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES);
 
