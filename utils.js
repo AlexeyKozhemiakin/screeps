@@ -223,28 +223,27 @@ var utils = {
             room.visual.circle(step.x, step.y,
                 { fill: 'transparent', radius: 0.1, stroke: stroke });
         }
-    },   
+    },
 
     tryRoad(from, to, room, range = 1, buildEnabled = false, buildLink = false) {
         if (from == undefined || to == undefined)
             return;
 
-
         var nearByLink = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
             filter: s => s.structureType == STRUCTURE_LINK
         })[0];
 
- 
         var nearByContainer = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
             filter: s => s.structureType == STRUCTURE_CONTAINER
         })[0];
 
-        if (nearByContainer == undefined)
-            nearByContainer = to.pos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
+       
+        var     nearByContainerSite = to.pos.findInRange(FIND_CONSTRUCTION_SITES, range + 1, {
                 filter: s => s.structureType == STRUCTURE_CONTAINER
             })[0];
 
         var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true, swampCost: 5 });
+
         this.drawPath(roadPath, room);
         // build only after container exists?
         if (nearByContainer) {
@@ -256,7 +255,7 @@ var utils = {
         }
 
         // need to repair roads still
-        if (nearByContainer && !buildLink)
+        if ((nearByContainer || nearByContainerSite)  && !buildLink)
             return;
 
         if (nearByLink && nearByContainer) {
@@ -265,7 +264,7 @@ var utils = {
 
         if (nearByLink)
             return;
-        
+
 
         roadPath = roadPath.reverse();
 
@@ -472,9 +471,9 @@ var utils = {
                 var structureType = cellMap[cell];
 
                 if (!structureType) {
-                    
+
                     console.log("Unknown cell type ", cell, " at ", worldX, ",", worldY);
-                    room.visual.circle(checkPos, {                        
+                    room.visual.circle(checkPos, {
                         radius: 0.7,
                         stroke: 'red'
                     });
@@ -511,9 +510,6 @@ var utils = {
     ,
     roomPlan: function (room) {
 
-        if (room.name == "W51S24")
-            this.tryRoad(room.storage, room.mineral, room, 1, false);
-
 
         var planEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("plan")) }).length > 0;
         if (!planEnabled)
@@ -537,17 +533,24 @@ var utils = {
             spawnPoint = room.spawn;
 
 
-        var sources = room.find(FIND_SOURCES).sort(
-            (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
-        );
 
-        var linkUnlocked = room.controller.level >= 5;
-
-        this.tryRoad(spawnPoint, sources[0], room, 1, buildEnabled);
-        this.tryRoad(spawnPoint, sources[1], room, 1, buildEnabled, buildLink = linkUnlocked);
-
-        this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled);
         this.tryExtensions(room, spawnPoint, buildEnabled);
+        
+        if (room.controller.level >= 2) {
+            var sources = room.find(FIND_SOURCES).sort(
+                (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
+            );
+
+            var linkUnlocked = room.controller.level >= 5;
+
+
+            this.tryRoad(spawnPoint, sources[0], room, 1, buildEnabled);
+            this.tryRoad(spawnPoint, sources[1], room, 1, buildEnabled, buildLink = linkUnlocked);
+
+            this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled);
+        }
+
+        
 
 
         if (buildEnabled) {
@@ -603,7 +606,7 @@ var utils = {
             var ignoreKeys = ["controllerProcessStats", "controllerEfficiency"];
             var messages = Object.keys(room.memory).map(key => {
                 var value = room.memory[key];
-                if( ignoreKeys.includes(key))
+                if (ignoreKeys.includes(key))
                     return;
                 if (typeof value === 'object') {
                     value = JSON.stringify(value);
@@ -711,7 +714,7 @@ var utils = {
     },
 
     roomSpawn: function (room, spawnOrders) {
-        
+
 
         var spawn = room.spawns.find(s => !s.spawning);
 
@@ -804,7 +807,9 @@ var utils = {
                     needReserve = true;
                 }
 
-                var reservers = _.filter(Game.creeps, c => c.memory.role == "reserve" && c.memory.toGo && c.memory.toGo.includes(roomName));
+                var reservers = _.filter(Game.creeps, 
+                    c => c.memory.role == "reserve" && c.memory.toGo && 
+                    c.memory.toGo.includes(roomName));
                 //console.log(room.name, needReserve, reservers);
                 if (reservers.length == 0 && needReserve) {
                     reserveToGo.push(roomName);
@@ -900,9 +905,9 @@ var utils = {
         // UPGRADER PLANNING
         var numUpd = 2; // for 2 sources 
 
-        if(room.name == "E56S23")
-            numUpd = 1; // very harsh room, only 1 upgrader to save energy for building and harvesting
-        
+        //if(room.name == "E56S23")
+        //    numUpd = 1; // very harsh room, only 1 upgrader to save energy for building and harvesting
+
         if (sources.length == 1)
             numUpd = 1;
 
@@ -928,7 +933,7 @@ var utils = {
             (room.controller.container && room.controller.container.store.energy > 1500) ||
             (room.spawn.container && room.spawn.container.store.energy > 1500) ||
             (room.storage && room.storage.store.energy > 15000);
-        
+
         room.memory.hasNoEnergy = hasNoEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
 
@@ -1044,10 +1049,10 @@ var utils = {
                 if (res && room.spawn && tgt == room.spawn.id)
                     res.preferredTargetId = undefined;
 
-                if(res && room.spawn.container && tgt == room.spawn.container.id) 
+                if (res && room.spawn.container && tgt == room.spawn.container.id)
                     res.preferredTargetId = undefined;
 
-                
+
                 if (res != null) {
                     mem = res;
                 }
@@ -1092,15 +1097,15 @@ var utils = {
 
 
         // MINERAL HARVESTER
-        var needMinerals = roleMineralHarvester.needHarvester(room) && 
-                        room.storage.store[RESOURCE_ENERGY] > RICH_ROOM_ENERGY;
+        var needMinerals = roleMineralHarvester.needHarvester(room) &&
+            room.storage.store[RESOURCE_ENERGY] > RICH_ROOM_ENERGY;
 
         room.memory.needMineralHarvester = needMinerals;
 
         // MINERAL deliverer
         if (mem.role == null) {
             if (mineralHarvesters.length > 0 &&
-                 (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY * 0.5)) {
+                (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY * 0.5)) {
                 var amountPerSec = _.sum(_.map(mineralHarvesters, m => m.getActiveBodyparts(WORK))) * HARVEST_MINERAL_POWER / EXTRACTOR_COOLDOWN;
 
                 var targetId = room.storage.id;
@@ -1144,15 +1149,21 @@ var utils = {
             );
         }
 
+        var energyBudget = room.energyCapacityAvailable; // max possible
+
+
         // only builders allowed in early game
         if (isEarlyGame) {
             mem = new Object();
-            if (builders.length < 6)
+            if (builders.length < 3*sources.length)
                 mem.role = "builder";
 
             if (upgraders.length < 1 && mem.role == null) {
                 mem.role = "upgrader";
             }
+
+            if(roomCreeps.length == 0)
+                energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
         else if (needAttack) {
             mem = new Object();
@@ -1219,7 +1230,7 @@ var utils = {
             mem.toGo = reserveToGo;
         }
 
-        var energyBudget = room.energyCapacityAvailable; // max possible
+        
 
         if (room.energyAvailable <= 300 && !isEarlyGame) {
 
@@ -1274,7 +1285,7 @@ var utils = {
 
             mem.parts = parts;
             if (parts.length != 0) {
-                var name = mem.role + Math.floor(Math.random()*10000);
+                var name = mem.role + Math.floor(Math.random() * 10000);
 
                 console.log(room.name, 'Spawning new creep: ', mem.role, name, " with parts ", parts, " energyBudget=", energyBudget);
                 var code = spawn.spawnCreep(parts, name, { memory: mem });
