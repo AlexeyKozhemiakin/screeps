@@ -47,20 +47,23 @@ var roleUpgrader =
             var nearby = undefined;
 
             if (nearby == undefined)
-                nearby = creep.room.controller.link;
-
-            if (nearby == undefined)
                 nearby = creep.room.controller.container;
 
             if (nearby == undefined)
                 nearby = creep.room.controller.storage;
 
+            if (nearby == undefined)
+                nearby = creep.room.controller.link;
+
             // this is strange check
             if (nearby != undefined) {
                 source = nearby;
-                if (!source.isOperating()) {
-                    source = undefined;
-                }
+
+                // commented to test - since for storage it was not true
+
+                //if (!source.isOperating()) {
+                //    source = undefined;
+               // }
             }
         }
 
@@ -68,8 +71,9 @@ var roleUpgrader =
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return ((structure.structureType == STRUCTURE_CONTAINER ||
-                         structure.structureType == STRUCTURE_STORAGE) && structure.isActive
-                        && structure.store[RESOURCE_ENERGY] > 0);
+                        structure.structureType == STRUCTURE_STORAGE) && 
+                        structure.isActive &&
+                        structure.store[RESOURCE_ENERGY] > 0);
                 }
             });
         }
@@ -77,26 +81,18 @@ var roleUpgrader =
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
-                    return ((structure.structureType == STRUCTURE_STORAGE) && structure.isActive
-                        && structure.store[RESOURCE_ENERGY] > 0);
+                    return ((structure.structureType == STRUCTURE_STORAGE) && 
+                    structure.isActive &&
+                    structure.store[RESOURCE_ENERGY] > 0);
                 }
             });
         }
 
-        if (source == undefined) {
-            source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (i) => ((i.structureType == STRUCTURE_TOWER) &&
-                    i.energy > 800)
-            });
-        }
-
         if (source != undefined) {
-            //console.log("try withdraw", source);
             var err = creep.withdraw(source, RESOURCE_ENERGY);
             if (err == ERR_NOT_IN_RANGE) {
                 if (creep.fatigue == 0)
                     creep.moveTo(source, { visualizePathStyle: { stroke: '#0000ff' } });
-                //creep.say(err2);
 
             }
             else if (OK != err) {
