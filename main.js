@@ -24,9 +24,11 @@ loopInner = function () {
 
     var roomsToClaim = ["E51S23", "E52S23", "E53S22", 
                         "E55S22", "E54S22", "E56S23", 
-                        "E55S21", "E48S27", "E49S23", 
-                        "E48S24"];
-
+                        "E55S21", "E48S27", "E49S23",
+                        "E52S22"
+                        ];
+    
+                        //"E48S24" was not able to pass because of rampart
 
     var spawnOrders = utils.roomGetSpawnOrders(roomsToClaim);
 
@@ -45,16 +47,14 @@ loopInner = function () {
         var cpuStart = Game.cpu.getUsed();
 
         var room = Game.rooms[roomName];
-        room.memory.iterator = 0; // used by upgraders, use global vairable which resets every tick instead 
+        room.memory.iterator = 0; // used by upgraders for throttelling, use global vairable which resets every tick instead 
 
 
         utils.roomMove(room);
-
         utils.roomDraw(room);
 
-        if (Game.time % 6 == 0)
+        if (Game.time % 20 == 0)
             utils.roomPlan(room);
-
 
         // every Nth tick to save CPU
         if (Game.time % 5 == 0) {
