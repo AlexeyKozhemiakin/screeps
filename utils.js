@@ -1264,9 +1264,6 @@ var utils = {
             room.memory.coldStart = false;
 
 
-        if (isEarlyGame)
-            console.log(room.name, " Early game spawn plan: ", mem.role, " parts=", mem.parts);
-
         var string = "numUpd=" + numUpd +
             " numBld=" + numBld +
             " energyAvailable=" + room.energyAvailable +

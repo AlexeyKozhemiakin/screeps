@@ -294,15 +294,17 @@ var roleDeliverer =
 
         //console.log("withdraw type ", resType);
 
-        // commented as creep was harvesting a controller container far away
+        // commented a few times back and forth as creep was harvesting a controller container far away
+        // special case for containers near source & controller when they are near base
 
+   
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER)
                     && o.store[resType] > creep.store.getCapacity() &&
                     o == creep.room.controller.container &&
+                    o.isNearBase &&
                     o.store[resType] > 1800
-                // special case for containers near source & controller, need to frmulate better
             });
         }
 
