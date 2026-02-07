@@ -130,17 +130,17 @@ function summarize_room_internal(room) {
     const controller_safemode_avail = room.controller.safeModeAvailable;
     const controller_safemode_cooldown = room.controller.safeModeCooldown;
 
-    const has_storage = room.storage != null;
-    const storage_energy = room.storage ? room.storage.store[RESOURCE_ENERGY] : 0;
-    const storage_minerals = room.storage ? _.sum(room.storage.store) - storage_energy : 0;
-    const storage_minerals_details = room.storage ? room.storage.store : new Object();
     const energy_avail = room.energyAvailable;
     const energy_cap = room.energyCapacityAvailable;
 
+    const storage_details = room.storage ? room.storage.store : new Object();
+
     const containers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_CONTAINER });
-    const num_containers = containers == null ? 0 : containers.length;
+    const num_containers = containers ? containers.length : 0;
+    
     const container_energy = _.sum(containers, c => c.store.energy);
     const container_energy_reduced = _.reduce(containers, (acc, res) => { acc[res.id] = res.store.energy; return acc; }, {});
+    const container_details = containers ? _.reduce(containers, (acc, res) => { acc[res.id] = res.store; return acc; }, {}) : {};
 
     const sources = room.find(FIND_SOURCES);
     const num_sources = sources == null ? 0 : sources.length;
@@ -174,10 +174,7 @@ function summarize_room_internal(room) {
     const extractors = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_EXTRACTOR });
     const num_extractors = extractors.length;
 
-
     const has_terminal = room.terminal != null;
-    const terminal_energy = room.terminal ? room.terminal.store[RESOURCE_ENERGY] : 0;
-    const terminal_minerals = room.terminal ? _.sum(room.terminal.store) - terminal_energy : 0;
     const terminal_details = room.terminal ? room.terminal.store : new Object();
 
     const creeps = _.filter(Game.creeps, c => c.pos.roomName == room.name && c.my);
@@ -261,17 +258,17 @@ function summarize_room_internal(room) {
         mineral_amount,
         mineral_ticksToRegeneration,
         num_extractors,
-        has_storage,
-        storage_energy,
-        storage_minerals,
-        storage_minerals_details,
+        
+        storage_details,
+                
         has_terminal,
-        terminal_energy,
-        terminal_minerals,
+                
         terminal_details,
+
         num_containers,
         container_energy,
         container_energy_reduced,
+        container_details,
         num_links,
         link_energy,
         link_energy_reduced,
