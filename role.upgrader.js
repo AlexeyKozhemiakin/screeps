@@ -46,6 +46,17 @@ var roleUpgrader =
 
             var nearby = undefined;
 
+            //var nearby = creep.room.controller.pos.findClosestByRange(FIND_STRUCTURES, {
+            //    filter: (structure) => {
+            //        return ((
+            //            structure == creep.room.controller.container ||
+            //            structure == creep.room.controller.storage ||
+            //            structure == creep.room.controller.link) &&
+            //            //structure.isActive &&
+            //            structure.store[RESOURCE_ENERGY] > 0);
+            //    }
+            //});
+
             if (nearby == undefined)
                 nearby = creep.room.controller.container;
 
@@ -55,6 +66,9 @@ var roleUpgrader =
             if (nearby == undefined)
                 nearby = creep.room.controller.link;
 
+            if(creep.room.name == "E51S24")    
+                nearby = creep.room.controller.link;
+            
             // this is strange check
             if (nearby != undefined) {
                 source = nearby;
@@ -63,7 +77,7 @@ var roleUpgrader =
 
                 //if (!source.isOperating()) {
                 //    source = undefined;
-               // }
+                // }
             }
         }
 
@@ -71,7 +85,7 @@ var roleUpgrader =
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return ((structure.structureType == STRUCTURE_CONTAINER ||
-                        structure.structureType == STRUCTURE_STORAGE) && 
+                        structure.structureType == STRUCTURE_STORAGE) &&
                         structure.isActive &&
                         structure.store[RESOURCE_ENERGY] > 0);
                 }
@@ -81,23 +95,28 @@ var roleUpgrader =
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
-                    return ((structure.structureType == STRUCTURE_STORAGE) && 
-                    structure.isActive &&
-                    structure.store[RESOURCE_ENERGY] > 0);
+                    return ((structure.structureType == STRUCTURE_STORAGE) &&
+                        structure.isActive &&
+                        structure.store[RESOURCE_ENERGY] > 0);
                 }
             });
         }
 
         if (source != undefined) {
-            var err = creep.withdraw(source, RESOURCE_ENERGY);
-            if (err == ERR_NOT_IN_RANGE) {
+            if (!creep.pos.isNearTo(source)) {
                 if (creep.fatigue == 0)
                     creep.moveTo(source, { visualizePathStyle: { stroke: '#0000ff' } });
 
+                return;
             }
-            else if (OK != err) {
-                creep.say(err);
+            else {
+                var err = creep.withdraw(source, RESOURCE_ENERGY);
+                if (OK != err) {
+                    creep.say(err);
+                }
+
             }
+            return;
         }
         else {
             creep.memory.upgrading = false;
@@ -112,7 +131,6 @@ var roleUpgrader =
             else if (err == ERR_FULL) {
                 upgrading = true;
             }
-
         }
 
     },

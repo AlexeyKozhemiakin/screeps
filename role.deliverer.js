@@ -1,7 +1,7 @@
 var basic = require("role.basic");
 
-var linkLimitHigh = 500;
-var linkLimitLow = 300;
+var linkLimitHigh = 400;
+var linkLimitLow = 200;
 
 var roleDeliverer =
 {
@@ -142,9 +142,9 @@ var roleDeliverer =
             if (target == undefined) {
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
-                        return (s.structureType == STRUCTURE_EXTENSION || 
+                        return (s.structureType == STRUCTURE_EXTENSION ||
                             s.structureType == STRUCTURE_SPAWN) &&
-                            s.isActive && 
+                            s.isActive &&
                             s.energy < s.energyCapacity;
                     }
                 });
@@ -163,12 +163,12 @@ var roleDeliverer =
             }
 
             //base  container
-            if(target == undefined && creep.room.spawn){
-                if(creep.room.spawn.container && 
-                    creep.room.spawn.container.isActive && 
+            if (target == undefined && creep.room.spawn) {
+                if (creep.room.spawn.container &&
+                    creep.room.spawn.container.isActive &&
                     creep.room.spawn.container.store.getFreeCapacity(RESOURCE_ENERGY) > 0)
-                    target = creep.room.spawn.container ;
-            } 
+                    target = creep.room.spawn.container;
+            }
 
             //controller container
             // maybe to controller link as well?
@@ -297,7 +297,7 @@ var roleDeliverer =
         // commented a few times back and forth as creep was harvesting a controller container far away
         // special case for containers near source & controller when they are near base
 
-   
+
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER)
@@ -500,7 +500,19 @@ var roleDeliverer =
                     return;
                 }
                 creep.memory.task = "pickup";
+
+
+                // and there is no other - then take advantage
+                if (!creep.memory.preferredSourceId) {
+                    if (basic.runDropped(creep, 7, undefined, 50))
+                        return;
+                }
+                else
+                    if (basic.runDropped(creep, 1, undefined, 50))
+                        return;
+
                 this.runPickup(creep);
+                
                 return;
             }
         }

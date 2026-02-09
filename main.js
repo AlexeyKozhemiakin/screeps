@@ -22,13 +22,13 @@ loopInner = function () {
     */
 
 
-    var roomsToClaim = ["E51S23", "E52S23", "E53S22", 
-                        "E55S22", "E54S22", "E56S23", 
-                        "E55S21", "E48S27", "E49S23",
-                        "E52S22"
-                        ];
-    
-                        //"E48S24" was not able to pass because of rampart
+    var roomsToClaim = ["E51S23", "E52S23", "E53S22",
+        "E55S22", "E54S22", "E56S23",
+        "E55S21", "E48S27", "E49S23",
+        "E52S22"
+    ];
+
+    //"E48S24" was not able to pass because of rampart
 
     var spawnOrders = utils.roomGetSpawnOrders(roomsToClaim);
 
@@ -42,9 +42,14 @@ loopInner = function () {
         Game.cpu.generatePixel();
     }
 
-    for (var roomName in Game.rooms) {
 
+    for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();
+        // standard game time and room unique hash
+        // to redistribute CPU more or less equally between rooms and to avoid doing heavy lifting in the same room every tick
+        var roomTime = Game.time + _.reduce(roomName, (hash, char) => {
+            return ((hash << 5) + hash) + char.charCodeAt(0);
+        }, 5381) >>> 0;
 
         var room = Game.rooms[roomName];
         room.memory.iterator = 0; // used by upgraders for throttelling, use global vairable which resets every tick instead 
@@ -53,11 +58,13 @@ loopInner = function () {
         utils.roomMove(room);
         utils.roomDraw(room);
 
-        if (Game.time % 20 == 0)
+        utils.safeModeIfDanger(room);
+
+        if (roomTime % 20 == 0)
             utils.roomPlan(room);
 
         // every Nth tick to save CPU
-        if (Game.time % 5 == 0) {
+        if (roomTime % 5 == 0) {
 
             if (spawnOrders && spawnOrders.sponsorRoomName == roomName)
                 utils.roomSpawn(room, spawnOrders);

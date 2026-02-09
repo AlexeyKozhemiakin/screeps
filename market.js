@@ -68,6 +68,12 @@ module.exports = {
         if(room.terminal.cooldown > 0)
             return;
     
+        var cost = Game.market.calcTransactionCost(amount, idFrom, idTo);
+        console.log("cost to send", amount, res, "from", idFrom, "to", idTo, "is", cost);
+
+        if(room.terminal.store[RESOURCE_ENERGY] < cost)
+            return;
+
         var code = room.terminal.send(res, amount, idTo, "bro help");
         //console.log("CODE ", code);
         if(OK != code)

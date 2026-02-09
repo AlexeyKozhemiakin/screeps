@@ -136,17 +136,14 @@ function summarize_room_internal(room) {
     const storage_details = room.storage ? room.storage.store : new Object();
 
     const containers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_CONTAINER });
-    const num_containers = containers ? containers.length : 0;
     
     const container_energy = _.sum(containers, c => c.store.energy);
     const container_energy_reduced = _.reduce(containers, (acc, res) => { acc[res.id] = res.store.energy; return acc; }, {});
     const container_details = containers ? _.reduce(containers, (acc, res) => { acc[res.id] = res.store; return acc; }, {}) : {};
 
     const sources = room.find(FIND_SOURCES);
-    const num_sources = sources == null ? 0 : sources.length;
     const source_energy = _.sum(sources, s => s.energy);
     const source_energy_reduced = _.reduce(sources, (acc, res) => { acc[res.id] = res.energy; return acc; }, {});
-    const num_source_containers = 0;
 
     if (!Memory.tmp)
         Memory.tmp = new Object();
@@ -160,9 +157,32 @@ function summarize_room_internal(room) {
 
 
     const source_energy_wasted = _.reduce(sources, (acc, source) => { acc[source.id] = Memory.tmp[source.id]; return acc; }, {});
+    const source_energy_wasted2 = _.reduce(sources, (acc, source) => 
+        { acc[source.id] = 0.1 * source.energy / (source.ticksToRegeneration || 1); return acc; }, {});
+
+
+
+    // Real-time ideal diff metric:
+    // For each source assume ideal harvesting is 10 per tick
+    // so each tick we compare how much is left in the source and the diff from ideal harvesting
+    // tickToRegeneration = 0 out of 300 
+    // if 0 left then 0% diff, it 3000 left 100% diff, if 1500 left - 50% diff, if 0 left - 0% diff
+    // now lets do midpoint calculation
+    // if ticksToRegeneration = 150 out of 300 
+    // if 1500 left then 0% diff if 1650 left then 10% diff
+       
+    const source_energy_diff = _.reduce(sources, (acc, source) => {
+        var timeElapsed = ENERGY_REGEN_TIME - source.ticksToRegeneration;
+        var idealHarvested = timeElapsed * 10;
+        var idealLeft = SOURCE_ENERGY_CAPACITY - idealHarvested;
+        var diff = (source.energy - idealLeft)/idealHarvested; 
+        acc[source.id] = diff ;
+        return acc;
+    }, {});
+
+    
 
     const links = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_LINK && s.my });
-    const num_links = links == null ? 0 : links.length;
     const link_energy = _.sum(links, l => l.energy);
     const link_energy_reduced = _.reduce(links, (acc, res) => { acc[res.id] = res.energy; return acc; }, {});
 
@@ -248,10 +268,10 @@ function summarize_room_internal(room) {
         controller_safemode_cooldown,
         energy_avail,
         energy_cap,
-        num_sources,
         source_energy,
         source_energy_reduced,
         source_energy_wasted,
+        source_energy_diff,
         minerals: {
             [mineral_type]: mineral_amount
         },
@@ -265,11 +285,9 @@ function summarize_room_internal(room) {
                 
         terminal_details,
 
-        num_containers,
         container_energy,
         container_energy_reduced,
         container_details,
-        num_links,
         link_energy,
         link_energy_reduced,
         num_creeps,
@@ -283,10 +301,8 @@ function summarize_room_internal(room) {
         tower_energy,
         structure_info,
         num_construction_sites,
-        num_my_construction_sites,
         construction_hits,
         ground_resources: reduced_resources,
-        num_source_containers,
         cput
     };
 

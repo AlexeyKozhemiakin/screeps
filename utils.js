@@ -237,25 +237,29 @@ var utils = {
             filter: s => s.structureType == STRUCTURE_CONTAINER
         })[0];
 
-       
-        var     nearByContainerSite = to.pos.findInRange(FIND_CONSTRUCTION_SITES, range + 1, {
-                filter: s => s.structureType == STRUCTURE_CONTAINER
-            })[0];
 
-        var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true, swampCost: 5 });
+        var nearByContainerSite = to.pos.findInRange(FIND_CONSTRUCTION_SITES, range + 1, {
+            filter: s => s.structureType == STRUCTURE_CONTAINER
+        })[0];
 
-        this.drawPath(roadPath, room);
+
+        //this.drawPath(roadPath, room);
+
         // build only after container exists?
         if (nearByContainer) {
             if (buildEnabled) {
-                for (var step of roadPath) {
+                // i want more stable roads so need to see if there is a construction site of
+                //  road and if exists in +1 range do not build new
+                var newRoad = from.pos.findPathTo(nearByContainer, { ignoreCreeps: true, heuristicWeight: 1.1 });
+
+                for (var step of newRoad) {
                     this.tryBuild(STRUCTURE_ROAD, new RoomPosition(step.x, step.y, room.name), room);
                 }
             }
         }
 
         // need to repair roads still
-        if ((nearByContainer || nearByContainerSite)  && !buildLink)
+        if ((nearByContainer || nearByContainerSite) && !buildLink)
             return;
 
         if (nearByLink && nearByContainer) {
@@ -265,7 +269,7 @@ var utils = {
         if (nearByLink)
             return;
 
-
+        var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true });
         roadPath = roadPath.reverse();
 
         // if building nearby make 1 stp further, this is for containers
@@ -506,6 +510,20 @@ var utils = {
                 }
             }
         }
+
+
+        // to do - fix container definition in range 2 not 4 which is too far away and can cause bad beahviour
+        // plus we mean here
+        if (buildEnabled) {
+            if (room.storage && room.storage.container)
+                room.storage.container.destroy();
+
+
+            //room.links.forEach(link => { if (link.container) link.destroy(); });
+
+        }
+
+
     }
     ,
     roomPlan: function (room) {
@@ -535,7 +553,7 @@ var utils = {
 
 
         this.tryExtensions(room, spawnPoint, buildEnabled);
-        
+
         if (room.controller.level >= 2) {
             var sources = room.find(FIND_SOURCES).sort(
                 (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
@@ -550,7 +568,7 @@ var utils = {
             this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled);
         }
 
-        
+
 
 
         if (buildEnabled) {
@@ -807,9 +825,9 @@ var utils = {
                     needReserve = true;
                 }
 
-                var reservers = _.filter(Game.creeps, 
-                    c => c.memory.role == "reserve" && c.memory.toGo && 
-                    c.memory.toGo.includes(roomName));
+                var reservers = _.filter(Game.creeps,
+                    c => c.memory.role == "reserve" && c.memory.toGo &&
+                        c.memory.toGo.includes(roomName));
                 //console.log(room.name, needReserve, reservers);
                 if (reservers.length == 0 && needReserve) {
                     reserveToGo.push(roomName);
@@ -891,8 +909,9 @@ var utils = {
         var numBld = 1;
         //console.log("Room ", room.name, " build size ", buildSize);
         // Why? priority to building instead of updating
-        if (room.controller.level <= 4 && sources.length == 2) {
-            numBld = 3;
+        if (room.controller.level <= 4) {
+            numBld = sources.length + 1;
+            // 1 builder per source to speed up building in the beginning
         }
 
         // Why? - Increased building ok
@@ -924,26 +943,26 @@ var utils = {
         // do not upgrade if need build for small levels 
         // in reality it has to be more complex - check actual energy capacity
         // building is really killing rooms dont increaase it PLEASE
-        var hasNoEnergy =
-            (room.controller.container && room.controller.container.store.energy < 1000) ||
-            (room.spawn.container && room.spawn.container.store.energy < 1000) ||
-            (room.storage && room.storage.store.energy < 2000);
+        var hasLowEnergy =
+            (room.controller.container ? room.controller.container.store.energy < 1000 : false) ||
+            (room.spawn.container ? room.spawn.container.store.energy < 1000 : false) ||
+            (room.storage ? room.storage.store.energy < 2000 : false);
 
         var hasLotsOfEnergy =
             (room.controller.container && room.controller.container.store.energy > 1500) ||
             (room.spawn.container && room.spawn.container.store.energy > 1500) ||
             (room.storage && room.storage.store.energy > 15000);
 
-        room.memory.hasNoEnergy = hasNoEnergy;
+        room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
 
         // do not upgrade if need build for poor rooms
-        if (hasNoEnergy && needBuild &&
+        if (hasLowEnergy && needBuild &&
             room.controller.ticksToDowngrade > 2 * CREEP_LIFE_TIME) {
             numUpd = 0;
         }
 
-        var hasEnoughSlots = room.name != "E52S22";
+        var hasEnoughSlots = room.name != "1E52S22";
         if (hasLotsOfEnergy && hasEnoughSlots && !needBuild)
             numUpd += 1;
 
@@ -1155,14 +1174,14 @@ var utils = {
         // only builders allowed in early game
         if (isEarlyGame) {
             mem = new Object();
-            if (builders.length < 3*sources.length)
+            if (builders.length < 3 * sources.length)
                 mem.role = "builder";
 
             if (upgraders.length < 1 && mem.role == null) {
                 mem.role = "upgrader";
             }
 
-            if(roomCreeps.length == 0)
+            if (roomCreeps.length == 0)
                 energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
         else if (needAttack) {
@@ -1176,11 +1195,6 @@ var utils = {
         }
         else if (mem.role != null) {
             // parts already created where?
-        }
-        else if (upgraders.length == 0 && upgraders.length < numUpd) {
-            mem.role = 'upgrader';
-            //if(room.energyCapacityAvailable >= 1800) // lightmovevemtn of upgrader
-            //    mem.parts = this.getBodyParts(1800, 'upgraderLight2');
         }
         else if (needBuild && builders.length < numBld) {
             mem.role = "builder";
@@ -1213,7 +1227,7 @@ var utils = {
             mem.toGo = [spawnOrders.scoutRoom];
         }
         else if (repl) {
-            console.log("creating replacement");
+            //console.log("creating replacement");
             mem = repl;
         }
         else if (spawnOrders && spawnOrders.claimRoom) {
@@ -1230,14 +1244,13 @@ var utils = {
             mem.toGo = reserveToGo;
         }
 
-        
+
 
         if (room.energyAvailable <= 300 && !isEarlyGame) {
 
             room.memory.coldStart = true;
 
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
-
                 // more proper amount
                 mem.parts = [CARRY, MOVE]
                 console.log(room.name, " low deliverer budget=", energyBudget);
@@ -1690,6 +1703,38 @@ var utils = {
         return _.sum(costs);
     },
 
+    safeModeIfDanger: function (room) {
+
+        // activate safe mode if creep was killed or structure was destroyed
+        let eventLog = room.getEventLog();
+
+        var eventTypes = [EVENT_ATTACK, EVENT_OBJECT_DESTROYED];
+
+        if (!room.memory.events)
+            room.memory.events = {};
+
+        // Log counters for each event type
+        for (var eventType of eventTypes) {
+            let events = _.filter(eventLog, { event: eventType });
+            
+            if (!room.memory.events[eventType])
+                room.memory.events[eventType] = [];
+            
+            // Append each event to the list
+            for (var event of events) {
+                room.memory.events[eventType].push({
+                    time: Game.time,
+                    event: event
+                });
+            }
+            
+            // Clear old events if list is larger than 30
+            if (room.memory.events[eventType].length > 30) {
+                room.memory.events[eventType] = room.memory.events[eventType].slice(-30);
+            }
+        }
+
+    }
 
 };
 

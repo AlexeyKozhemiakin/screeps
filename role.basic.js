@@ -151,8 +151,7 @@ var roleBasic = {
         if (creep.store.getFreeCapacity() == 0)
             return;
 
-
-        //console.log(creep.name, range, resType, limit);
+  
         var fRes = (res) => { return res.resourceType == resType && res.amount > limit; }
         if (!resType)
             fRes = (res) => { return res.amount > limit; }
