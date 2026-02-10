@@ -1,5 +1,5 @@
  /** @param {Creep} creep **/
-
+var basic = require("role.basic");
 var roleMineralHarvester = {
 
     needHarvester : function(room)

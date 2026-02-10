@@ -23,7 +23,7 @@ function collect_stats_end() {
     for (var name in Memory.creeps) {
         if (!Game.creeps[name]) {
             delete Memory.creeps[name];
-            console.log('Clearing non-existing creep memory:', name);
+            //console.log('Clearing non-existing creep memory:', name);
         }
     }
 
@@ -118,9 +118,17 @@ function summarize_room_internal(room) {
     if (!room.controller) {
         return null;
     }
-    if (room.controller.my == false) {
+    
+    var owner = room.controller.owner ? room.controller.owner.username : "none";
+    var reserv = room.controller.reservation ? room.controller.reservation.username : "none"
+    //console.log(, 
+    // /   room.controller.reservation ? room.controller.reservation.username : "none");
+
+    if (owner != 'Zenga' && 
+        reserv != 'Zenga') {
         return null;
     }
+
     const controller_level = room.controller.level;
     const controller_progress = room.controller.progress;
     const controller_needed = room.controller.progressTotal;

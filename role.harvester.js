@@ -112,11 +112,15 @@ var roleHarvester = {
         // this was causing issues with object cloning\serialization
         // need to explain the logic
         if (target == undefined) {
-            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, { filter: c => c.memory.role == "builder" && c.room.name == creep.room.name && c.store[RESOURCE_ENERGY] < 45 });
+            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, { 
+                filter: c => c.memory.role == "builder" && 
+                c.room.name == creep.room.name && c.store.getFreeCapacity() > 0 });
         }
 
         if (target == undefined) {
-            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, { filter: c => c.memory.role == "upgrader" && c.room.name == creep.room.name && c.store[RESOURCE_ENERGY] < 45 });
+            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, {
+                 filter: c => c.memory.role == "upgrader" && 
+                 c.room.name == creep.room.name && c.store.getFreeCapacity() > 0 });
         }
 
 
@@ -201,6 +205,7 @@ var roleHarvester = {
         }
 
         if (source.energy == 0 && source.ticksToRegeneration > 0) {
+            basic.repairEmergency(creep, 0.8);
             creep.say("⏱️ " + source.ticksToRegeneration);
             return;
         }
@@ -211,7 +216,6 @@ var roleHarvester = {
         }
         else {
             creep.say("no " + code);
-            //basic.repairEmergency(creep, 0.8);
         }
     },
 
@@ -232,12 +236,12 @@ var roleHarvester = {
         }
 
         if (creep.memory.task == "harvest") {
-            //basic.repairEmergency(creep);
-            this.runHarvest(creep);
+            if(!basic.repairEmergency(creep))
+                this.runHarvest(creep);
 
             if (_.sum(creep.store) >= creep.store.getCapacity() * 0.8) //TODO:replace to actual carry capacity and perf during tick see upgrader
             {
-                basic.repairEmergency(creep);
+                //basic.repairEmergency(creep);
                 this.runDeliver(creep, false);
             }
         }

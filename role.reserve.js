@@ -25,8 +25,8 @@ var roleReserve = {
         
         if(target)
         {    
-            
-            
+            creep.signController(creep.room.controller, "Zenga is here - Spawn More Overlords");
+                 
             const code = creep.reserveController(target) ;
             
             if(OK == code)

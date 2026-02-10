@@ -3,11 +3,13 @@
 
 
 var roleBasic = {
-    moveToRoom: function (creep) {
-        if (!creep.memory.toGo)
+    moveToRoom: function (creep, roomToGo = undefined) {
+        if (!roomToGo && creep.memory.toGo)
+            roomToGo = creep.memory.toGo[0];
+        
+        if(!roomToGo)
             return true;
 
-        var roomToGo = creep.memory.toGo[0];
         if (roomToGo == creep.room.name) {
             //console.log(creep.name, " in the room");
             if (creep.pos.x == 0)
@@ -90,12 +92,17 @@ var roleBasic = {
     },
 
     recycleCreep: function (creep) {
+        
         var spawn = creep.room.spawn;
         if (!spawn) {
+            if(creep.memory.motherland)
+                this.moveToRoom(creep, creep.memory.motherland);
+            
             return;
         }
 
-        creep.say("recycle");
+        creep.say("recycle");        
+        
         if (creep.pos.inRangeTo(spawn, 1)) {
             var code = spawn.recycleCreep(creep);
         }
@@ -174,7 +181,7 @@ var roleBasic = {
         }
 
         //creep.say("see drop");
-        console.log("see drop" + " " + dropped + " " + dropped.amount + " " + dropped.room.name + " " + dropped.pos.x + " " + dropped.pos.y);
+        //console.log("see drop" + " " + dropped + " " + dropped.amount + " " + dropped.room.name + " " + dropped.pos.x + " " + dropped.pos.y);
 
         var err;
         if (dropped instanceof Resource)
@@ -241,7 +248,9 @@ var roleBasic = {
     },
 
     repairEmergency: function (creep, range = 1) {
-        var N = 0.2;
+        var N = 0.5;
+        if(creep.store.energy < 20)
+            return false;
 
         // Find all damaged roads/containers in the room, then filter by range
         var damagedBuild = creep.pos.findClosestByPath(FIND_STRUCTURES, {

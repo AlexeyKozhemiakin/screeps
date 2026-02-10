@@ -5,6 +5,11 @@ var scp = require('screepsplus');
 var market = require('market');
 var prototypes = require('prototypes');
 
+var roomPlanning = require('room.planning');
+var roomClaiming = require('room.claim');
+var roomRemoteHarvesting = require('room.remoteHarvesting');
+var roomProcess = require('room.process');
+
 module.exports.loop = function () {
     try {
         loopInner();
@@ -30,11 +35,11 @@ loopInner = function () {
 
     //"E48S24" was not able to pass because of rampart
 
-    var spawnOrders = utils.roomGetSpawnOrders(roomsToClaim);
+    var claimOrders = roomClaiming.roomGetSpawnOrders(roomsToClaim);
 
-    if (spawnOrders) {
+    if (claimOrders) {
 
-        console.log(JSON.stringify(spawnOrders));
+        console.log(JSON.stringify(claimOrders));
         //spawnOrders = undefined;
     }
 
@@ -42,6 +47,13 @@ loopInner = function () {
         Game.cpu.generatePixel();
     }
 
+    var obj1 = Game.getObjectById('698a2e3591dbb3e9094d8eb8');
+    var obj2 = Game.getObjectById('69827367dd8e6f975e92973a');
+    if (obj1 && obj2) {
+        //console.log("Path:", utils.isRoaded(obj1, obj2));
+        //var path = obj1.pos.findPathTo(obj2, { ignoreCreeps: true });
+        //roomPlanning.drawPath(path, obj1.room, 'red');
+    }
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();
@@ -55,21 +67,28 @@ loopInner = function () {
         room.memory.iterator = 0; // used by upgraders for throttelling, use global vairable which resets every tick instead 
 
 
-        utils.roomMove(room);
+        roomProcess.roomMove(room);
         utils.roomDraw(room);
-
         utils.safeModeIfDanger(room);
 
         if (roomTime % 20 == 0)
-            utils.roomPlan(room);
+            roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU
         if (roomTime % 5 == 0) {
 
-            if (spawnOrders && spawnOrders.sponsorRoomName == roomName)
-                utils.roomSpawn(room, spawnOrders);
-            else
-                utils.roomSpawn(room);
+            var spawnOrder = roomRemoteHarvesting.getOrder(room);
+
+            if (spawnOrder) {
+                //console.log("Remote harvest orders: ", JSON.stringify(spawnOrder));
+            }
+
+            if (claimOrders && claimOrders.sponsorRoomName == roomName) {
+                spawnOrder = claimOrders;
+            }
+
+            utils.roomSpawn(room, spawnOrder);
+            // console.log(roomName,"Spawn orders: ", JSON.stringify(spawnOrder));
         }
 
         roleLink.run(room);

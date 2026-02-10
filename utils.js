@@ -1,607 +1,9 @@
-var roleHarvester = require('role.harvester');
 var roleMineralHarvester = require('role.mineralHarvester');
-var roleUpgrader = require('role.upgrader');
-var roleBuilder = require('role.builder');
-var roleDeliverer = require('role.deliverer');
-var roleClaim = require('role.claim');
-var roleAttack = require('role.attack');
-var roleReserve = require('role.reserve');
-var roleScout = require('role.scout');
 
 const RICH_ROOM_ENERGY = 8000;
 
 var utils = {
-
-    roomGetSpawnOrders: function (requestedRooms) {
-
-        // add safemode calculation threshold
-
-        var roomsNotClaimed = _.filter(requestedRooms, roomName => {
-            var room = Game.rooms[roomName];
-            if (!room)
-                return false; // need visibility first
-
-            //console.log(roomName," controller is ", Game.rooms[roomName].controller.my);
-            var mine = room.controller.my;
-            var lvl = room.controller.level;
-            //console.log(room.name, mine, lvl, CONTROLLER_DOWNGRADE[lvl] ,room.controller.ticksToDowngrade );
-            if (room.controller.safeMode)
-                return true;
-
-            if (room.controller.my)
-                return false;
-
-            if (room.controller.ticksToDowngrade < CONTROLLER_DOWNGRADE[lvl] * 0.9)
-                return false;
-
-            return true;
-
-        });
-
-        var roomsNeedScout = _.filter(requestedRooms, roomName => {
-            var room = Game.rooms[roomName];
-
-            if (room) {
-                // no need to scout owned rooms
-                if (room.controller && room.controller.my)
-                    return false;
-
-                //  need to scout with agressive scout rooms with walls around controller
-                var walls = room.controller.pos.findInRange(FIND_STRUCTURES, 1, { filter: s => s.structureType == STRUCTURE_WALL });
-                if (walls.length > 0) {
-                    room.memory.dangerous = true;
-                    return true;
-                }
-                // need to scout rooms with owner different than us until it becomes neutral
-                if (room.controller.owner && room.controller.username != "Zenga") {
-                    // downgrade not yet ready need to wait
-                    room.memory.dangerous = room.find(FIND_HOSTILE_CREEPS).length > 0;
-
-                    room.memory.timeWhenDowngrade = Game.time + room.controller.ticksToDowngrade;
-                    room.memory.ungradeBlockedUntil = Game.time + room.controller.upgradeBlocked;
-                    return true;
-                }
-
-                return false;
-            }
-
-            return true;
-        });
-
-
-        //console.log("needScout", roomsNeedScout, "notClaimed", roomsNotClaimed);
-
-        var spawnOrder = new Object();
-
-        for (var i in requestedRooms) {
-            var roomName = requestedRooms[i];
-            var room = Game.rooms[roomName];
-
-            var bigRooms = _.filter(Game.rooms,
-                r => r.controller && r.controller.my && r.name != roomName &&
-                    r.storage && r.storage.store.energy >= 10000);
-
-            var sponsorRoom = _.min(bigRooms,
-                r => Game.map.getRoomLinearDistance(r.name, roomName));
-
-            if (sponsorRoom == undefined) {
-                console.log("No sponsor room found for ", roomName);
-                continue;
-            }
-
-            spawnOrder.sponsorRoomName = sponsorRoom.name;
-            //console.log(bigRooms.map(r => r.name).join(", "));
-            //console.log("sponsorRoom for ", roomName, " is ", sponsorRoom.name);
-            var scouts = _.filter(Game.creeps, c => c.memory.role == "scout" &&
-                (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numScout = 1;
-
-            if (roomsNeedScout.includes(roomName)) {
-                if (scouts.length < numScout) {
-                    spawnOrder.scoutRoom = roomName;
-                    return spawnOrder;
-                }
-                continue; // to next room
-            }
-
-            var claimers = _.filter(Game.creeps, c => c.memory.role == "claim" && (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numClaim = 1;
-            if (roomsNotClaimed.includes(roomName) && claimers.length < numClaim) {
-                spawnOrder.claimRoom = roomName;
-                return spawnOrder;
-            }
-
-            var room = Game.rooms[roomName];
-            if (!room)
-                continue;
-
-            if (!room.controller) // in what meaning? same as above? visibility check?
-                continue;
-
-            if (room.controller.safeMode) {
-                console.log("room", roomName, " in safe mode for ", room.controller.safeModeCooldown);
-                room.safeMode = room.controller.safeModeCooldown;
-                continue;
-            }
-
-            // ok to build check condition
-            if (!room.controller.my && room.controller.upgradeBlocked > 100) {
-                console.log("room", roomName, " upgrade blocked for ", room.controller.upgradeBlocked);
-                room.upgradeBlocked = room.controller.upgradeBlocked;
-                continue;
-            }
-            // if(!room.controller.my)
-            //   continue; 
-
-
-            // build only spawns in remote rooms for now
-            var roomSpawns = _.filter(Game.spawns, s => s.room.name == roomName);
-            var spawnExists = roomSpawns.length > 0;
-            if (spawnExists)
-                continue;
-
-            var constructionSites = room.find(FIND_CONSTRUCTION_SITES);
-            var builders = _.filter(Game.creeps, c => c.memory.role == "builder" && (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var remoteBuildersLimit = 2;
-
-            if (constructionSites.length > 0 && builders.length < remoteBuildersLimit) {
-                console.log("needbuild external ", roomName);
-                spawnOrder.buildRoom = roomName;
-                return spawnOrder;
-            }
-
-            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS);
-            var enemyStructures = room.controller.pos.findInRange(FIND_STRUCTURES, 1, {
-                filter: object => (
-                    object.structureType == STRUCTURE_WALL)
-            });
-            var attackers = _.filter(Game.creeps, c => c.memory.role == "attack" && (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numAttack = 1;
-
-            if (enemyCreeps.length > 0 && attackers.length < numAttack) {
-                console.log("needAttack", roomName);
-                spawnOrder.attackRoom = roomName;
-                return spawnOrder;
-            }
-        }
-    },
-
-    roomAutoBuild: function (room) {
-        var flags = room.find(FIND_FLAGS, { filter: f => (f.color == COLOR_PURPLE) });
-
-        for (var flagNo in flags) {
-            var flag = flags[flagNo];
-            var strType;
-
-            switch (flag.secondaryColor) {
-                case COLOR_GREEN:
-                    strType = STRUCTURE_EXTENSION;
-                    break;
-                case COLOR_ORANGE:
-                    strType = STRUCTURE_STORAGE;
-                    break;
-                case COLOR_YELLOW:
-                    strType = STRUCTURE_CONTAINER;
-                    break;
-                case COLOR_RED:
-                    strType = STRUCTURE_TOWER;
-                    break;
-            }
-
-            if (!strType)
-                continue;
-
-            var code = room.createConstructionSite(flag.pos, strType);
-
-            if (OK == code) {
-                flag.remove();
-                return; // one at a time
-            }
-            else {
-                //console.log("Cant build", strType, "in", room.name, ":", utils.getError(code));
-            }
-        }
-
-    },
-
-    tryBuild: function (structureType, pos, room) {
-        if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).length > 0)
-            return false;
-
-        var code = room.createConstructionSite(pos, structureType);
-        if (OK == code) {
-            return true;
-        }
-        else {
-            //console.log("Cant build", structureType, "in", room.name, ":", utils.getError(code));
-            return false;
-        }
-    },
-
-    drawPath(roadPath, room, stroke = 'yellow') {
-        for (var step of roadPath) {
-            room.visual.circle(step.x, step.y,
-                { fill: 'transparent', radius: 0.1, stroke: stroke });
-        }
-    },
-
-    tryRoad(from, to, room, range = 1, buildEnabled = false, buildLink = false) {
-        if (from == undefined || to == undefined)
-            return;
-
-        var nearByLink = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
-            filter: s => s.structureType == STRUCTURE_LINK
-        })[0];
-
-        var nearByContainer = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
-            filter: s => s.structureType == STRUCTURE_CONTAINER
-        })[0];
-
-
-        var nearByContainerSite = to.pos.findInRange(FIND_CONSTRUCTION_SITES, range + 1, {
-            filter: s => s.structureType == STRUCTURE_CONTAINER
-        })[0];
-
-
-        //this.drawPath(roadPath, room);
-
-        // build only after container exists?
-        if (nearByContainer) {
-            if (buildEnabled) {
-                // i want more stable roads so need to see if there is a construction site of
-                //  road and if exists in +1 range do not build new
-                var newRoad = from.pos.findPathTo(nearByContainer, { ignoreCreeps: true, heuristicWeight: 1.1 });
-
-                for (var step of newRoad) {
-                    this.tryBuild(STRUCTURE_ROAD, new RoomPosition(step.x, step.y, room.name), room);
-                }
-            }
-        }
-
-        // need to repair roads still
-        if ((nearByContainer || nearByContainerSite) && !buildLink)
-            return;
-
-        if (nearByLink && nearByContainer) {
-            nearByContainer.destroy();
-        }
-
-        if (nearByLink)
-            return;
-
-        var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true });
-        roadPath = roadPath.reverse();
-
-        // if building nearby make 1 stp further, this is for containers
-        // old fashioned way in some old rooms, this causing diagonal placement
-        // and not efficient harvesting in the beginning and issues with placing of 
-        var tick = 0;
-
-        //container in 1st step
-        if (roadPath.length > 1) {
-            var containerPos = new RoomPosition(roadPath[tick].x, roadPath[tick].y, room.name);
-            room.visual.circle(containerPos, { fill: 'transparent', radius: 0.3, stroke: 'blue' });
-
-            // for links
-            if (buildLink) {
-                // look at area +- 1 step around roadPath[0] for plain\swamp but not road
-                // check vertical and horizontal first
-                // build in first which is not road and not container and not wall
-                var rp = roadPath[0];
-                var options = [
-                    new RoomPosition(rp.x, rp.y - 1, room.name),
-                    new RoomPosition(rp.x, rp.y + 1, room.name),
-                    new RoomPosition(rp.x + 1, rp.y, room.name),
-                    new RoomPosition(rp.x - 1, rp.y, room.name)
-                ];
-                for (var optNo in options) {
-                    var optPos = options[optNo];
-                    if (optPos.x < 1 || optPos.x > 48 || optPos.y < 1 || optPos.y > 48)
-                        continue;
-
-                    var lookAround = room.lookAt(optPos);
-                    //console.log(room, JSON.stringify(lookAround));
-                    var canBuildLink = lookAround.some(o => o.type == 'terrain' && (o.terrain == 'plain' || o.terrain == 'swamp')) &&
-                        !lookAround.some(oo => oo.type == 'structure' &&
-                            (oo.structure.structureType == STRUCTURE_ROAD ||
-                                oo.structure.structureType == STRUCTURE_CONTAINER));
-
-                    if (canBuildLink) {
-                        room.visual.circle(optPos, { fill: 'transparent', radius: 0.3, stroke: 'orange' });
-                        if (buildEnabled)
-                            this.tryBuild(STRUCTURE_LINK, optPos, room);
-
-                        break;
-                    }
-                }
-            }
-
-
-            if (buildEnabled && !nearByContainer && !buildLink)
-                this.tryBuild(STRUCTURE_CONTAINER, containerPos, room);
-
-
-        }
-    },
-
-    tryExtensions: function (room, point, buildEnabled = false) {
-        var pos = point.pos;
-        // 2D pattern array - each cell represents a position relative to spawn
-        // e - ExtensionP - spawn ( reference point)
-        // s - Storage t - tower c - container . - empty space l - link
-        // b - lab m - terminal
-
-        var pattern1 = [
-            ".........",
-            ".........",
-            ".........",
-            "....r....",
-            "....P....",
-            ".........",
-            ".........",
-            "........."
-        ];
-
-        var pattern2 = [
-            ".........",
-            "...r.r...",
-            "..r.c.r..",
-            "..erPre..",
-            "..eere...",
-            ".........",
-            ".........",
-            "........."
-        ];
-
-        var pattern3 = [
-            "...r.r...",
-            "..r.c.rt.",
-            "..erPre..",
-            "..eeree..",
-            "..erere..",
-            ".........",
-            ".........",
-            "........."
-        ];
-
-        var pattern4 = [
-            ".........",
-            ".........",
-            "...r.r...",
-            "..rsr.rt.",
-            "..erPrer.",
-            ".eeereee.",
-            "..e.e.e..",
-            "...eee...",
-            "....e...."
-        ];
-
-        var pattern5 = [
-            ".............",
-            ".............",
-            ".....r.r.....",
-            "...trsrlrt...",
-            "...rerPrer...",
-            "..reeereeer..",
-            "...rerererer.",
-            "....reeereeer",
-            "...r.rer.rer.",
-            "..r...r...r.."
-        ];
-
-        var pattern6 = [
-            ".............",
-            "......rbb....",
-            ".....rmrb....",
-            "...trsrlrt...",
-            "...rerPrer...",
-            "..reeereeer..",
-            ".rererererer.",
-            "reeereeereeer",
-            ".rer.rer.rer.",
-            "..r...r...r.."
-        ];
-
-        // for 1
-        const patterns = [pattern5, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6];
-
-        var pattern = patterns[room.controller.level];
-        // find spawn or spawn construction site at pos 
-        var showAll = room.spawns.length == 0;
-        if (!pattern || showAll)
-            pattern = patterns[patterns.length - 1]; // default to max
-
-        // no spawns yet build only it
-        if (showAll)
-            buildEnabled = false;
-
-        var terrain = room.getTerrain();
-
-        // Find 'P' position in pattern to use as center reference
-        var centerY = -1;
-        var centerX = -1;
-        for (var y = 0; y < pattern.length; y++) {
-            var pIndex = pattern[y].indexOf('P');
-            if (pIndex != -1) {
-                centerY = y;
-                centerX = pIndex;
-                break;
-            }
-        }
-
-
-
-        // Scan pattern array
-        for (var y = 0; y < pattern.length; y++) {
-            var row = pattern[y];
-            for (var x = 0; x < row.length; x++) {
-                var cell = row[x];
-
-                if (cell == '.') // empty space
-                    continue;
-
-                if (cell == 'P') // skip spawn position - just for reference
-                    continue;
-
-                // Calculate world position
-                var dx = x - centerX;
-                var dy = y - centerY;
-                var worldX = pos.x + dx;
-                var worldY = pos.y + dy;
-
-
-                // Check bounds
-                if (worldX < 1 || worldX > 48 || worldY < 1 || worldY > 48)
-                    continue;
-
-                // Check terrain
-                if (terrain.get(worldX, worldY) == TERRAIN_MASK_WALL)
-                    continue;
-
-                var checkPos = new RoomPosition(worldX, worldY, room.name);
-
-
-                // Determine structure type and color based on cell letter
-                const cellMap = {
-                    'e': STRUCTURE_EXTENSION,
-                    's': STRUCTURE_STORAGE,
-                    't': STRUCTURE_TOWER,
-                    'c': STRUCTURE_CONTAINER,
-                    'r': STRUCTURE_ROAD,
-                    'l': STRUCTURE_LINK,
-                    'b': STRUCTURE_LAB,
-                    'm': STRUCTURE_TERMINAL
-                };
-                var structureType = cellMap[cell];
-
-                if (!structureType) {
-
-                    console.log("Unknown cell type ", cell, " at ", worldX, ",", worldY);
-                    room.visual.circle(checkPos, {
-                        radius: 0.7,
-                        stroke: 'red'
-                    });
-
-                    continue; // unknown cell type
-                }
-
-                var color = 'red';
-                var structures = checkPos.lookFor(LOOK_STRUCTURES);
-                if (structures.some(s => s.structureType == structureType))
-                    color = 'green';
-
-                //console.log("Planned ", structureType, " at ", checkPos, " for cell ", cell, room.name);
-
-                // Draw circle for visualization
-                var needDraw = color != 'green';
-                if (needDraw) {
-                    room.visual.circle(checkPos, {
-                        fill: 'transparent',
-                        radius: 0.3,
-                        stroke: color
-                    });
-
-                    room.visual.text(cell, checkPos.x, checkPos.y + 0.5 * 0.25,
-                        { color: 'black', font: 0.5, opacity: 0.9, align: 'center', backgroundPadding: 20 });
-                }
-                // Build if enabled
-                if (buildEnabled) {
-                    this.tryBuild(structureType, checkPos, room);
-                }
-            }
-        }
-
-
-        // to do - fix container definition in range 2 not 4 which is too far away and can cause bad beahviour
-        // plus we mean here
-        if (buildEnabled) {
-            if (room.storage && room.storage.container)
-                room.storage.container.destroy();
-
-
-            //room.links.forEach(link => { if (link.container) link.destroy(); });
-
-        }
-
-
-    }
-    ,
-    roomPlan: function (room) {
-
-
-        var planEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("plan")) }).length > 0;
-        if (!planEnabled)
-            return;
-
-        if (!room.controller)
-            return;
-
-        //console.log("Auto planning for room ", room.name, room.controller);
-        var buildEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("build")) }).length > 0;
-
-        var spawnPoint = room.find(FIND_FLAGS, { filter: f => (f.name.includes("spawn")) })[0];
-
-        if (!spawnPoint && !room.spawn) {
-            console.log("No spawn flag in ", room.name);
-            return;
-        }
-
-        // if there is no flag and spawn already exists use it
-        if (!spawnPoint)
-            spawnPoint = room.spawn;
-
-
-
-        this.tryExtensions(room, spawnPoint, buildEnabled);
-
-        if (room.controller.level >= 2) {
-            var sources = room.find(FIND_SOURCES).sort(
-                (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
-            );
-
-            var linkUnlocked = room.controller.level >= 5;
-
-
-            this.tryRoad(spawnPoint, sources[0], room, 1, buildEnabled);
-            this.tryRoad(spawnPoint, sources[1], room, 1, buildEnabled, buildLink = linkUnlocked);
-
-            this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled);
-        }
-
-
-
-
-        if (buildEnabled) {
-            //remove roads under non-walkable structures
-            var structures = room.find(FIND_STRUCTURES, {
-                filter: s => (s.structureType != STRUCTURE_ROAD && s.structureType != STRUCTURE_CONTAINER)
-            });
-
-            for (var sNo in structures) {
-                var struct = structures[sNo];
-                var roads = struct.pos.findInRange(FIND_STRUCTURES, 0, {
-                    filter: s => s.structureType == STRUCTURE_ROAD
-                });
-
-                for (var rNo in roads) {
-                    roads[rNo].destroy();
-                }
-            }
-        }
-
-
-        if (room.controller.level >= 6 &&
-            room.mineral)// && 
-        //room.storage && room.storage.store.energy > RICH_ROOM_ENERGY * 3) {
-        {
-            if (!room.extractor) {
-                this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral, room);
-            }
-
-            this.tryRoad(room.storage, room.mineral, room, 1, buildEnabled);
-        }
-
-    },
+   
     roomDraw: function (room) {
         //room.visual.clear();
 
@@ -621,7 +23,7 @@ var utils = {
         if (debugFlag) {
 
 
-            var ignoreKeys = ["controllerProcessStats", "controllerEfficiency"];
+            var ignoreKeys = ["controllerProcessStats", "controllerEfficiency", "events"];
             var messages = Object.keys(room.memory).map(key => {
                 var value = room.memory[key];
                 if (ignoreKeys.includes(key))
@@ -641,7 +43,6 @@ var utils = {
                         opacity: 0.8, font: 0.5, color: 'white'
                     });
             }
-
         }
         /*
         if(room.mineral) { 
@@ -673,63 +74,7 @@ var utils = {
             
             
         */
-    },
-
-    roomMove: function (room) {
-        //var isRoaded = (this.isRoaded(room.spawn, room.controller.container, room));
-        //console.log("Room ", room.name, " roading to controller: ", isRoaded);
-
-        var funcMap = {
-            'harvester': roleHarvester,
-            'upgrader': roleUpgrader,
-            'builder': roleBuilder,
-            'deliverer': roleDeliverer,
-            'delivererLight': roleDeliverer,
-            'claim': roleClaim,
-            'reserve': roleReserve,
-            'mineralHarvester': roleMineralHarvester,
-            'attack': roleAttack,
-            'scout': roleScout,
-        }
-
-        var roomCreeps = _.filter(Game.creeps, c => c.room.name == room.name);
-
-        for (var creepId in roomCreeps) {
-            var creep = roomCreeps[creepId];
-            if (creep.spawning)
-                continue;
-
-            try {
-                var role = creep.memory.role;
-                var obj = funcMap[role];
-
-
-                obj.run(creep);
-            }
-            catch (err) {
-                const errorInfo = {
-                    room: room.name,
-                    creep: creep.name,
-                    role: creep.memory.role,
-                    message: err.message || err.toString(),
-                    fileName: err.fileName,
-                    lineNumber: err.lineNumber,
-                    stack: err.stack
-                };
-
-                console.log("  room:", errorInfo.room);
-                console.log("  creep:", errorInfo.creep);
-                console.log("  role:", errorInfo.role);
-                console.log("  message:", errorInfo.message);
-                console.log("  fileName:", errorInfo.fileName);
-                console.log("  lineNumber:", errorInfo.lineNumber);
-                console.log("  stack:", errorInfo.stack);
-
-                creep.memory.err = err.toString ? err.toString() : String(err);
-
-            }
-        }
-    },
+    },    
 
     roomSpawn: function (room, spawnOrders) {
 
@@ -784,7 +129,7 @@ var utils = {
                 room.memory.planReplace = ticksToCreate + " + toTravel=" + ticksToTravel + " oldest=" + oldest.ticksToLive + " to replace " + oldest.name + " in=" + estimate;
 
                 if (oldest.ticksToLive <= ticksToCreate + ticksToTravel) {
-                    console.log("Preparing replacement for", oldest.name, oldest.ticksToLive);
+                    //console.log("Preparing replacement for", oldest.name, oldest.ticksToLive);
                     //console.log(oldest.memory);
                     repl = Object.assign({}, oldest.memory); // shallow copy of current mem
                 }
@@ -794,49 +139,9 @@ var utils = {
             }
         }
 
-        var externalSources = [];
+        
 
-        if (room.config.remoteHarvest) {
-            room.config.remoteHarvest.forEach(roomName => {
-                var remoteRoom = Game.rooms[roomName];
-                if (!remoteRoom)
-                    return; // need reserve it?
-
-                var remoteSources = remoteRoom.find(FIND_SOURCES);
-
-                if (remoteSources)
-                    externalSources = externalSources.concat(remoteSources);
-            }
-            );
-        }
-
-        var reserveToGo = [];
-        if (room.config.remoteHarvest) {
-            room.config.remoteHarvest.forEach(roomName => {
-                var remoteRoom = Game.rooms[roomName];
-                var needReserve = false;
-
-                if (remoteRoom && remoteRoom.controller.reservation) {
-                    if (remoteRoom.controller.reservation.ticksToEnd < 1000) {
-                        needReserve = true;
-                    }
-                }
-                else {
-                    needReserve = true;
-                }
-
-                var reservers = _.filter(Game.creeps,
-                    c => c.memory.role == "reserve" && c.memory.toGo &&
-                        c.memory.toGo.includes(roomName));
-                //console.log(room.name, needReserve, reservers);
-                if (reservers.length == 0 && needReserve) {
-                    reserveToGo.push(roomName);
-                }
-
-            });
-        }
-
-        var sources = room.find(FIND_SOURCES).concat(externalSources);
+        var sources = room.find(FIND_SOURCES);
 
         var sortedSources = _.sortBy(sources, function (source) {
             var path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true }); // TODO:interoom path
@@ -892,8 +197,8 @@ var utils = {
                 mem.role = 'harvester';
                 mem.parts = this.getBodyParts(room.energyAvailable, hasContainer ? "harvesterContainer" : "harvester");
 
-                if (source.room.name != room.name)
-                    mem.parts = this.getBodyParts(1000, "remoteHarvester");
+                //if (source.room.name != room.name)
+                //    mem.parts = this.getBodyParts(1000, "remoteHarvester");
 
                 mem.preferredSourceId = sourceId;
 
@@ -1006,22 +311,7 @@ var utils = {
                 }
         }
 
-        // EXTERNAL SOURCE DELIVERER
-        if (mem.role == null) {
-            // TODO: only single!
-            externalSources.forEach(externalSource => {
-                var amnt = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME; // 3000/300 = 10 per sec
-
-                //console.log("externalCoutnainer Ready", externalSource.container);
-                if (externalSource && externalSource.container && !externalSource.link) {
-                    var res = this.createDeliverer(externalSource.container.id, room.storage.id, amnt, RESOURCE_ENERGY);
-
-                    if (res != null) {
-                        mem = res;
-                    }
-                }
-            });
-        }
+        
 
         // FROM SOURCE CONTAINER TO BASE
         if (mem.role == null) {
@@ -1148,25 +438,7 @@ var utils = {
         if (largeEnemies.length > 0)
             needAttack = true;
 
-        if (room.config.remoteHarvest) {
-            room.config.remoteHarvest.forEach(roomName => {
-                var remoteRoom = Game.rooms[roomName];
-                if (!remoteRoom)
-                    return; // need reserve it?
-
-                var enemies = remoteRoom.find(FIND_HOSTILE_CREEPS,
-                    { filter: (c => c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) && (c.owner.username != "")) });
-                var attackers = _.filter(Game.creeps, c => c.memory.role == "attack" && c.memory.toGo && c.memory.toGo.includes(roomName));
-
-                if (enemies.length > 0 && attackers.length == 0) {
-                    if (!attackToGo)
-                        attackToGo = [];
-
-                    attackToGo.push(roomName);
-                }
-            }
-            );
-        }
+        
 
         var energyBudget = room.energyCapacityAvailable; // max possible
 
@@ -1198,14 +470,18 @@ var utils = {
         }
         else if (needBuild && builders.length < numBld) {
             mem.role = "builder";
-            // limit builder size to 1000 for better spawn times
-            //mem.parts = this.getBodyParts(1000, 'builder');
         }
         else if (upgraders.length < numUpd) {
             mem.role = 'upgrader';
 
-            if (this.isRoaded(spawn, room.controller.container, room)) {
-                console.log("Upgrader light for roading in ", room.name);
+            
+            // fix this for links
+            //this.isRoaded(spawn, room.controller.container, room)
+
+            // we will assume it's all roaded in auto rooms
+            var isRoaded = true; 
+            if (isRoaded) {
+                //console.log("Upgrader light for roading in ", room.name);
                 mem.parts = utils.getBodyParts(room.energyCapacityAvailable, "upgraderLight");
             }
 
@@ -1236,20 +512,22 @@ var utils = {
         }
         else if (spawnOrders && spawnOrders.buildRoom) {
             mem.role = "builder";
-            //mem.parts = this.getBodyParts(room.energyCapacityAvailable, 'remoteBuilder');
             mem.toGo = [spawnOrders.buildRoom];
         }
-        else if (reserveToGo && reserveToGo.length > 0) {
+        else if (spawnOrders && spawnOrders.reserveRoom) {
             mem.role = "reserve";
-            mem.toGo = reserveToGo;
+            mem.toGo = [spawnOrders.reserveRoom];
+        }
+        else if (spawnOrders && spawnOrders.memory) {
+            mem = spawnOrders.memory;
         }
 
+        
 
 
-        if (room.energyAvailable <= 300 && !isEarlyGame) {
-
-            room.memory.coldStart = true;
-
+        room.memory.coldStart = !isEarlyGame && room.energyAvailable <= 300;
+        if (room.memory.coldStart) {
+           
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
                 // more proper amount
                 mem.parts = [CARRY, MOVE]
@@ -1272,20 +550,17 @@ var utils = {
                 mem.parts = [CARRY, CARRY, MOVE, MOVE];
                 mem.preferredSourceId = undefined;
             }
-        }
-        else
-            room.memory.coldStart = false;
+        }       
 
 
         var string = "numUpd=" + numUpd +
             " numBld=" + numBld +
             " energyAvailable=" + room.energyAvailable +
             " energyCapacity=" + room.energyCapacityAvailable +
-            " role=" + mem.role +
-
-            " memory=" + JSON.stringify(mem);
+            " role=" + mem.role ;//" memory=" + JSON.stringify(mem);
 
         room.memory.planning = string;
+
         if (mem.role != undefined && !spawn.spawning) {
             //console.log(energyBudget);
 
@@ -1297,7 +572,7 @@ var utils = {
             if (parts.length != 0) {
                 var name = mem.role + Math.floor(Math.random() * 10000);
 
-                console.log(room.name, 'Spawning new creep: ', mem.role, name, " with parts ", parts, " energyBudget=", energyBudget);
+                //console.log(room.name, 'Spawning new creep: ', mem.role, name, " with parts ", parts, " energyBudget=", energyBudget);
                 var code = spawn.spawnCreep(parts, name, { memory: mem });
 
                 if (OK == code) {
@@ -1320,7 +595,7 @@ var utils = {
         if (target == undefined || from == undefined)
             return false;
 
-
+        
         //console.log("checking roading from ", pos, " to ", target);
         var path = from.pos.findPathTo(target, { range: 1, ignoreCreeps: true });
 
@@ -1335,8 +610,9 @@ var utils = {
             return true;
 
         //this.drawPath(path, room, 'blue');
-
-        var roaded = _.every(path, p => {
+        // exclucde first and last pos, where creep will stand on, so only middle road is checked
+        var middlePath = path.slice(1, path.length - 1);  
+        var roaded = _.every(middlePath, p => {
             var look = room.lookForAt(LOOK_STRUCTURES, p.x, p.y);
             var yesRoad = look.some(s => s.structureType == STRUCTURE_ROAD)
             return yesRoad;
@@ -1348,7 +624,7 @@ var utils = {
 
     getPathMultiroom: function (from, to, r = 1) {
         if (from.room.name == to.room.name)
-            return to.pos.findPathTo(from.pos, { range: r, ignoreCreeps: true });
+            return from.pos.findPathTo(to.pos, { range: r, ignoreCreeps: true });
 
         let goals = _.map([to], function (s) {
             return { pos: s.pos, range: r };
@@ -1404,7 +680,12 @@ var utils = {
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
-
+        if(travelTime > 170)
+            console.log("delivery tax for ", 
+                fromId, '->', toId, " travelTime=", travelTime, 
+                " requiredCapacity=", requiredCapacity,  " energyPerTick=", energyPerTick, 
+                "taxPerTick=", requiredCapacity  / CREEP_LIFE_TIME
+                );
         //if(requiredCapacity > existingCapacity)
         //console.log('deliverer capacity diff', fromId, '->', toId, ' required=', requiredCapacity, ' existing=', existingCapacity, ' remaining=', remainingCapacity);
 
@@ -1502,13 +783,12 @@ var utils = {
     ,
 
     getBodyParts: function (currentEnergy, role) {
-        console.log("getBodyParts for role ", role, " with energy ", currentEnergy);
+        //console.log("getBodyParts for role ", role, " with energy ", currentEnergy);
 
         if (role == "claim")
             return [CLAIM, MOVE];
 
-        if (role == "reserve")
-            return [CLAIM, CLAIM, MOVE, MOVE];
+        
 
         if (role == "upgraderLight2")
             return [WORK, WORK, WORK, WORK, WORK,
@@ -1528,7 +808,7 @@ var utils = {
 
         var attackParts =
             [MOVE, ATTACK, ATTACK, ATTACK, TOUGH, TOUGH, TOUGH,
-                MOVE, MOVE, MOVE, MOVE, MOVE, MOVE];
+                    MOVE, MOVE,     MOVE, MOVE,  MOVE,  MOVE];
 
         var deliverParts = [
             [MOVE, CARRY],
@@ -1562,7 +842,7 @@ var utils = {
             [CARRY, MOVE],
             [WORK, MOVE],
             [WORK, MOVE],
-            [WORK, WORK],
+            [WORK, MOVE],
             [WORK, MOVE],
             [WORK, MOVE]];
 
@@ -1595,6 +875,9 @@ var utils = {
             [MOVE, WORK], [MOVE, CARRY],
             [MOVE, WORK], [MOVE, CARRY]
         ];
+
+        if (role == "reserve")
+            parts = [[CLAIM, MOVE], [CLAIM, MOVE]];
 
         if (role == 'attack') {
             parts = attackParts;
@@ -1643,7 +926,7 @@ var utils = {
         if (currentEnergy < 300 && role != "deliverer" && role != "delivererLight")
             return [];
 
-        console.log(role, ' get part for ' + currentEnergy, " ");
+        //console.log(role, ' get part for ' + currentEnergy, " ");
         return this.prefillParts(currentEnergy, parts);
     },
 
@@ -1685,7 +968,7 @@ var utils = {
 
             parts.shift();
         }
-        console.log("  -> created parts: ", res, " total cost=", this.getPartsCost(res));
+        //console.log("  -> created parts: ", res, " total cost=", this.getPartsCost(res));
         return res.sort().reverse();
     },
 
@@ -1716,10 +999,10 @@ var utils = {
         // Log counters for each event type
         for (var eventType of eventTypes) {
             let events = _.filter(eventLog, { event: eventType });
-            
+
             if (!room.memory.events[eventType])
                 room.memory.events[eventType] = [];
-            
+
             // Append each event to the list
             for (var event of events) {
                 room.memory.events[eventType].push({
@@ -1727,7 +1010,7 @@ var utils = {
                     event: event
                 });
             }
-            
+
             // Clear old events if list is larger than 30
             if (room.memory.events[eventType].length > 30) {
                 room.memory.events[eventType] = room.memory.events[eventType].slice(-30);

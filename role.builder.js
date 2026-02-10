@@ -255,6 +255,11 @@ var roleBuilder = {
 
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                    filter: s => s.structureType == STRUCTURE_LINK
+                });
+
+            if (targets.length == 0)
+                targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
                     filter: s => s.structureType == STRUCTURE_EXTENSION
                 });
 
