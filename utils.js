@@ -54,26 +54,25 @@ var utils = {
         }
         */
 
-        
+
         var labs = room.find(FIND_STRUCTURES, {
-                        filter: (lab) => {
-                            return ((lab.structureType == STRUCTURE_LAB) && lab.isActive()
-                            && lab.mineralDemand);
-                            }
-                         });
-                         
-        _.forEach(labs, lab=>
-            {
-                //console.log("!!! ", lab);
-                room.visual.text(
-                        lab.mineralDemand,
-                        lab.pos.x, 
-                        lab.pos.y+0.22, 
-                        {align: 'center', color:"#000000", opacity: 1});
-            });
-            
-            
-        
+            filter: (lab) => {
+                return ((lab.structureType == STRUCTURE_LAB) && lab.isActive()
+                    && lab.mineralDemand);
+            }
+        });
+
+        _.forEach(labs, lab => {
+            //console.log("!!! ", lab);
+            room.visual.text(
+                lab.mineralDemand,
+                lab.pos.x,
+                lab.pos.y + 0.22,
+                { align: 'center', color: "#000000", opacity: 1 });
+        });
+
+
+
     },
 
     roomSpawn: function (room, spawnOrders) {
@@ -89,7 +88,7 @@ var utils = {
         var roomCreeps = _.filter(Game.creeps, cr => cr.room.name == room.name); // cannot use FIND_MY_CREEPS cause it's use spawning
 
         var harvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'harvester');
-        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader');
+
         var builders = _.filter(roomCreeps, (creep) => creep.memory.role == 'builder');
         var deliverers = _.filter(roomCreeps, (creep) => creep.memory.role == 'deliverer');
         var mineralHarvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'mineralHarvester');
@@ -112,9 +111,6 @@ var utils = {
                 && !cr.spawning);
 
             //console.log(room.name, ups);
-
-            // to makesure number of workers is allowed, like numUpd for example
-
 
             oldest = _.sortBy(ups, ['ticksToLive'], ['asc'])[0];
 
@@ -226,24 +222,13 @@ var utils = {
 
 
 
-        // UPGRADER PLANNING
-        var numUpd = 2; // for 2 sources 
 
-        //if(room.name == "E56S23")
-        //    numUpd = 1; // very harsh room, only 1 upgrader to save energy for building and harvesting
+        // UPGRADER PLANNING
+        // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
+        var upgradePartsNeeded = 10; // for 2 sources 
 
         if (sources.length == 1)
-            numUpd = 1;
-
-        /*
-        if (room.basecontainer && room.basecontainer.store.energy > 1500 &&
-            room.controller.level <= 3) {
-            numUpd = 3;
-        }
-            */
-        //console.log("Controller enery", room.controller.container ? room.controller.container.store.energy : 0);
-
-
+            upgradePartsNeeded = 5;
 
         // do not upgrade if need build for small levels 
         // in reality it has to be more complex - check actual energy capacity
@@ -266,22 +251,28 @@ var utils = {
         // do not upgrade if need build for poor rooms
         if (hasLowEnergy && needBuild &&
             room.controller.ticksToDowngrade > 2 * CREEP_LIFE_TIME) {
-            numUpd = 0;
+            upgradePartsNeeded = 0;
         }
 
         var hasEnoughSlots = room.name != "1E52S22";
         if (hasLotsOfEnergy && hasEnoughSlots && !needBuild)
-            numUpd += 1;
+            upgradePartsNeeded += 5;
 
         if (hasHugeEnergySurplus && room.controller.level < 8) {
-            numUpd += 2;
+            upgradePartsNeeded += 10;
         }
 
         // always upgrade to level 2
         if (room.controller.level == 1)
-            numUpd = 1;
+            upgradeParts = 5;
 
 
+        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
+            creep.ticksToLive > 100);
+        // do not count creeps close to death, that will be replaced anyway
+
+        var existingUpgradeParts = _.sum(upgraders, u => u.getActiveBodyparts(WORK));
+        var gapUpgradeParts = upgradePartsNeeded - existingUpgradeParts;
 
 
         // around spawn local deliverer
@@ -292,16 +283,16 @@ var utils = {
 
 
             size = (room.controller.level - 1) * 50;
-           
 
-            if(room.storage && room.storage.store.energy > 200000)
+
+            if (room.storage && room.storage.store.energy > 200000)
                 size += 100;
             // spawn
             // spawn.container
             // room.storage
             // room.terminal
             var numLocals = 1;
-            if(room.name == "E48S27")
+            if (room.name == "E48S27")
                 numLocals = 2;
 
             if (room.basecontainer || room.storage)
@@ -377,7 +368,7 @@ var utils = {
 
         // FROM BASE TO CONTROLLER
 
-        if (mem.role == null && numUpd > 0) {
+        if (mem.role == null && upgradePartsNeeded > 0) {
             if (room.controller.container &&
                 (room.spawn.container || room.storage) &&
                 !room.controller.storage &&
@@ -385,10 +376,10 @@ var utils = {
                 room.controller.container.store[RESOURCE_ENERGY] < 500) {
 
                 // 
-                var amnt = numUpd * 5 * UPGRADE_CONTROLLER_POWER;
+                var amnt = upgradePartsNeeded * UPGRADE_CONTROLLER_POWER;
 
                 if (room.controller.pos.findInRange(FIND_SOURCES, 3).length > 0)
-                    amnt-= 10; // 1 source equivalent
+                    amnt -= 10; // 1 source equivalent
 
                 // if not two sources are active (have containers or links)
 
@@ -445,7 +436,6 @@ var utils = {
             needAttack = true;
 
 
-
         var energyBudget = room.energyCapacityAvailable; // max possible
 
 
@@ -477,9 +467,8 @@ var utils = {
         else if (needBuild && builders.length < numBld) {
             mem.role = "builder";
         }
-        else if (upgraders.length < numUpd) {
+        else if (gapUpgradeParts > 0) {
             mem.role = 'upgrader';
-
 
             // fix this for links
             //this.isRoaded(spawn, room.controller.container, room)
@@ -488,11 +477,9 @@ var utils = {
             var isRoaded = true;
             if (isRoaded) {
                 //console.log("Upgrader light for roading in ", room.name);
-                mem.parts = utils.getBodyParts(room.energyCapacityAvailable, "upgraderLight");
+                mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
             }
 
-            //if(room.energyCapacityAvailable >= 1800) // lightmovevemtn of upgrader
-            //    mem.parts = this.getBodyParts(1800, 'upgraderLight2');
         }
         else if (mineralHarvesters.length < 1 && needMinerals) {
             mem.role = 'mineralHarvester';
@@ -530,6 +517,13 @@ var utils = {
         else if (spawnOrders && spawnOrders.memory) {
             mem = spawnOrders.memory;
         }
+        else if (room.controller.safeModeAvailabe < 6)
+        {
+            if(room.storage && room.storage.store[RESOURCE_GHODIUM] > 1000) 
+            {
+                mem.role = "safeModeEnabler";                
+            }
+        }
 
 
 
@@ -566,7 +560,9 @@ var utils = {
         }
 
 
-        var string = "numUpd=" + numUpd +
+        var string =
+            "upgradePartsNeeded=" + upgradePartsNeeded +
+            " upgradeGap=" + gapUpgradeParts +
             " numBld=" + numBld +
             " energyAvailable=" + room.energyAvailable +
             " energyCapacity=" + room.energyCapacityAvailable +
@@ -583,7 +579,7 @@ var utils = {
 
             mem.parts = parts;
             mem.motherland = room.name;
-            
+
             if (parts.length != 0) {
                 var name = mem.role + Math.floor(Math.random() * 10000);
 
@@ -635,6 +631,29 @@ var utils = {
 
         //sconsole.log("isPathRoaded =", roaded, " for ", path.length, " steps");
         return roaded;
+    },
+
+    /**
+     * Create an upgrader body limited by gapUpgradeParts and room energy capacity.
+     * @param {number} gapUpgradeParts - Maximum number of WORK parts to add.
+     * @param {Room} room - The room object to use for energy limits.
+     * @returns {string[]} Array of body parts.
+     */
+    createUpgraderBody: function (gapUpgradeParts, room) {
+        var maxWork = Math.max(0, gapUpgradeParts);
+        var energyBudget = room.energyCapacityAvailable;
+        var parts = [MOVE, CARRY];
+        var workParts = [];
+        var workCost = BODYPART_COST[WORK];
+        var baseCost = BODYPART_COST[MOVE] + BODYPART_COST[CARRY];
+        var usedEnergy = baseCost;
+        for (var i = 0; i < maxWork; i++) {
+            if (usedEnergy + workCost > energyBudget) break;
+            workParts.push(WORK);
+            usedEnergy += workCost;
+        }
+        parts = parts.concat(workParts);
+        return parts;
     },
 
     getPathMultiroom: function (from, to, r = 1) {
@@ -805,14 +824,7 @@ var utils = {
 
 
 
-        if (role == "upgraderLight2")
-            return [WORK, WORK, WORK, WORK, WORK,
-                WORK, WORK, WORK, WORK, WORK,
-                WORK, WORK, WORK, WORK, WORK,
-                CARRY, MOVE,
-                MOVE, MOVE,
-                MOVE, MOVE
-            ];
+
 
         if (role == "remoteBuilder")
             return [
@@ -823,7 +835,7 @@ var utils = {
 
         var attackParts =
             [MOVE, ATTACK, ATTACK, ATTACK, TOUGH, TOUGH, TOUGH,
-                            MOVE,   MOVE,   MOVE,  MOVE, MOVE];
+                MOVE, MOVE, MOVE, MOVE, MOVE];
 
         var deliverParts = [
             [MOVE, CARRY],
@@ -861,7 +873,12 @@ var utils = {
             [WORK, MOVE],
             [WORK, MOVE]];
 
-        var upgraderLightParts = [CARRY, MOVE, WORK, WORK, WORK, WORK, WORK];
+        var upgraderLightParts = [
+            [CARRY, MOVE, WORK, WORK, WORK, WORK, WORK],
+            [WORK, WORK, WORK, WORK, WORK],
+            [WORK, WORK, WORK, WORK, WORK]];
+
+
 
         var harvesterParts = [
             [CARRY, MOVE],
@@ -1013,7 +1030,7 @@ var utils = {
 
         // Log counters for each event type
         for (var eventType of eventTypes) {
-            let events = _.filter(eventLog, function(ev) {
+            let events = _.filter(eventLog, function (ev) {
                 return ev.event === eventType && (ev.type == EVENT_OBJECT_DESTROYED && ev.data.type !== "creep");
             });
 
