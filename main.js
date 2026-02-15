@@ -10,12 +10,26 @@ var roomClaiming = require('room.claim');
 var roomRemoteHarvesting = require('room.remoteHarvesting');
 var roomProcess = require('room.process');
 
+const profiler = require('screeps-profiler');
+//profiler.enable();
+profiler.registerClass(roleTower, 'role.tower');
+profiler.registerClass(roleLink, 'role.link');
+profiler.registerClass(roomPlanning, 'room.planning');
+profiler.registerClass(roomClaiming, 'room.claim');
+profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
+profiler.registerClass(roomProcess, 'room.process');
+
+
 module.exports.loop = function () {
-    try {
-        loopInner();
-    } catch (e) {
-        console.log("Loop error: ", e.stack, e.message);
-    }
+
+    profiler.wrap(function () {
+        try {
+
+            loopInner();
+        } catch (e) {
+            console.log("Loop error: ", e.stack, e.message);
+        }
+    });
 }
 
 loopInner = function () {
@@ -26,7 +40,16 @@ loopInner = function () {
     market.buyDemand();
     */
 
-
+    try {
+        market.sellExcess();
+        market.buyDemand();
+        market.putBuyOrders()
+        market.runReactions();
+        market.shareEnergyInternal();
+    }
+    catch (e) {
+        console.log("Market error: ", e.stack, e.message);
+    }
     var roomsToClaim = ["E51S23", "E52S23", "E53S22",
         "E55S22", "E54S22", "E56S23",
         "E55S21", "E48S27", "E49S23",
@@ -47,13 +70,7 @@ loopInner = function () {
         Game.cpu.generatePixel();
     }
 
-    var obj1 = Game.getObjectById('698a2e3591dbb3e9094d8eb8');
-    var obj2 = Game.getObjectById('69827367dd8e6f975e92973a');
-    if (obj1 && obj2) {
-        //console.log("Path:", utils.isRoaded(obj1, obj2));
-        //var path = obj1.pos.findPathTo(obj2, { ignoreCreeps: true });
-        //roomPlanning.drawPath(path, obj1.room, 'red');
-    }
+    
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();
@@ -71,7 +88,7 @@ loopInner = function () {
         utils.roomDraw(room);
         utils.safeModeIfDanger(room);
 
-        if (roomTime % 20 == 0)
+        if (roomTime % 100 == 0)
             roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU

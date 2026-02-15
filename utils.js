@@ -3,7 +3,7 @@ var roleMineralHarvester = require('role.mineralHarvester');
 const RICH_ROOM_ENERGY = 8000;
 
 var utils = {
-   
+
     roomDraw: function (room) {
         //room.visual.clear();
 
@@ -54,10 +54,10 @@ var utils = {
         }
         */
 
-        /*
+        
         var labs = room.find(FIND_STRUCTURES, {
                         filter: (lab) => {
-                            return ((lab.structureType == STRUCTURE_LAB) && lab.isActive
+                            return ((lab.structureType == STRUCTURE_LAB) && lab.isActive()
                             && lab.mineralDemand);
                             }
                          });
@@ -73,8 +73,8 @@ var utils = {
             });
             
             
-        */
-    },    
+        
+    },
 
     roomSpawn: function (room, spawnOrders) {
 
@@ -139,7 +139,7 @@ var utils = {
             }
         }
 
-        
+
 
         var sources = room.find(FIND_SOURCES);
 
@@ -258,6 +258,8 @@ var utils = {
             (room.spawn.container && room.spawn.container.store.energy > 1500) ||
             (room.storage && room.storage.store.energy > 15000);
 
+        var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 200000;
+
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
 
@@ -271,6 +273,9 @@ var utils = {
         if (hasLotsOfEnergy && hasEnoughSlots && !needBuild)
             numUpd += 1;
 
+        if (hasHugeEnergySurplus && room.controller.level < 8) {
+            numUpd += 2;
+        }
 
         // always upgrade to level 2
         if (room.controller.level == 1)
@@ -285,33 +290,34 @@ var utils = {
             var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId);
             var size = 50; // rough estimage
 
-            if (room.controller.level == 1)
-                size = 0;
 
-            if (room.controller.level >= 3)
-                size = 100;
+            size = (room.controller.level - 1) * 50;
+           
 
-            if (room.controller.level >= 5)
-                size = 200;
-
+            if(room.storage && room.storage.store.energy > 200000)
+                size += 100;
             // spawn
             // spawn.container
             // room.storage
             // room.terminal
+            var numLocals = 1;
+            if(room.name == "E48S27")
+                numLocals = 2;
 
             if (room.basecontainer || room.storage)
-                if (specDelivers.length < 1) {
+                if (specDelivers.length < numLocals) {
                     var roomSwpawnRoaded = room.controller.level >= 3;
                     if (roomSwpawnRoaded)
-                        mem.parts = utils.getBodyParts(size * 1.5, "delivererLight");
+                        mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 1.5), "delivererLight");
                     else
-                        mem.parts = utils.getBodyParts(size * 2, "deliverer");
+                        mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 2), "deliverer");
 
                     mem.role = 'deliverer';
                 }
         }
 
-        
+        //if (room.name == "E48S27")
+        //    console.log(room.name, " ",mem.role, " ", mem.parts);
 
         // FROM SOURCE CONTAINER TO BASE
         if (mem.role == null) {
@@ -382,7 +388,7 @@ var utils = {
                 var amnt = numUpd * 5 * UPGRADE_CONTROLLER_POWER;
 
                 if (room.controller.pos.findInRange(FIND_SOURCES, 3).length > 0)
-                    amnt = 5 * UPGRADE_CONTROLLER_POWER; // reduce if near source
+                    amnt-= 10; // 1 source equivalent
 
                 // if not two sources are active (have containers or links)
 
@@ -438,7 +444,7 @@ var utils = {
         if (largeEnemies.length > 0)
             needAttack = true;
 
-        
+
 
         var energyBudget = room.energyCapacityAvailable; // max possible
 
@@ -474,12 +480,12 @@ var utils = {
         else if (upgraders.length < numUpd) {
             mem.role = 'upgrader';
 
-            
+
             // fix this for links
             //this.isRoaded(spawn, room.controller.container, room)
 
             // we will assume it's all roaded in auto rooms
-            var isRoaded = true; 
+            var isRoaded = true;
             if (isRoaded) {
                 //console.log("Upgrader light for roading in ", room.name);
                 mem.parts = utils.getBodyParts(room.energyCapacityAvailable, "upgraderLight");
@@ -506,6 +512,9 @@ var utils = {
             //console.log("creating replacement");
             mem = repl;
         }
+        else if (mem.role == "deliverer") {
+            // do local deliverers
+        }
         else if (spawnOrders && spawnOrders.claimRoom) {
             mem.role = "claim";
             mem.toGo = [spawnOrders.claimRoom];
@@ -522,12 +531,12 @@ var utils = {
             mem = spawnOrders.memory;
         }
 
-        
+
 
 
         room.memory.coldStart = !isEarlyGame && room.energyAvailable <= 300;
         if (room.memory.coldStart) {
-           
+
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
                 // more proper amount
                 mem.parts = [CARRY, MOVE]
@@ -541,23 +550,27 @@ var utils = {
                 //mem.parts = [CARRY,  CARRY, MOVE, MOVE]
             }
 
-            if (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000 && deliverers.length == 0) {
+            var deliverersBase = _.filter(deliverers,
+                d => d.memory.preferredSourceId == undefined);
+
+            if (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000
+                && deliverersBase.length == 0) {
                 console.log(room.name, " low creeps budget deliverer=", energyBudget);
                 energyBudget = room.energyAvailable;
 
                 // create small local deliverer
                 mem.role = "deliverer";
-                mem.parts = [CARRY, CARRY, MOVE, MOVE];
+                mem.parts = [CARRY, MOVE];
                 mem.preferredSourceId = undefined;
             }
-        }       
+        }
 
 
         var string = "numUpd=" + numUpd +
             " numBld=" + numBld +
             " energyAvailable=" + room.energyAvailable +
             " energyCapacity=" + room.energyCapacityAvailable +
-            " role=" + mem.role ;//" memory=" + JSON.stringify(mem);
+            " role=" + mem.role;//" memory=" + JSON.stringify(mem);
 
         room.memory.planning = string;
 
@@ -569,6 +582,8 @@ var utils = {
                 parts = utils.getBodyParts(energyBudget, mem.role);
 
             mem.parts = parts;
+            mem.motherland = room.name;
+            
             if (parts.length != 0) {
                 var name = mem.role + Math.floor(Math.random() * 10000);
 
@@ -595,7 +610,7 @@ var utils = {
         if (target == undefined || from == undefined)
             return false;
 
-        
+
         //console.log("checking roading from ", pos, " to ", target);
         var path = from.pos.findPathTo(target, { range: 1, ignoreCreeps: true });
 
@@ -611,7 +626,7 @@ var utils = {
 
         //this.drawPath(path, room, 'blue');
         // exclucde first and last pos, where creep will stand on, so only middle road is checked
-        var middlePath = path.slice(1, path.length - 1);  
+        var middlePath = path.slice(1, path.length - 1);
         var roaded = _.every(middlePath, p => {
             var look = room.lookForAt(LOOK_STRUCTURES, p.x, p.y);
             var yesRoad = look.some(s => s.structureType == STRUCTURE_ROAD)
@@ -680,12 +695,12 @@ var utils = {
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
-        if(travelTime > 170)
-            console.log("delivery tax for ", 
-                fromId, '->', toId, " travelTime=", travelTime, 
-                " requiredCapacity=", requiredCapacity,  " energyPerTick=", energyPerTick, 
-                "taxPerTick=", requiredCapacity  / CREEP_LIFE_TIME
-                );
+        if (travelTime > 170)
+            console.log("delivery tax for ",
+                fromId, '->', toId, " travelTime=", travelTime,
+                " requiredCapacity=", requiredCapacity, " energyPerTick=", energyPerTick,
+                "taxPerTick=", requiredCapacity / CREEP_LIFE_TIME
+            );
         //if(requiredCapacity > existingCapacity)
         //console.log('deliverer capacity diff', fromId, '->', toId, ' required=', requiredCapacity, ' existing=', existingCapacity, ' remaining=', remainingCapacity);
 
@@ -710,11 +725,11 @@ var utils = {
         const room = to.room;
 
         if (bodyPartsEnergy > room.energyCapacityAvailable) {
-            console.log("limiting data from to", bodyPartsEnergy, "->", room.energyCapacityAvailable);
+            //console.log("limiting data from to", bodyPartsEnergy, "->", room.energyCapacityAvailable);
             bodyPartsEnergy = room.energyCapacityAvailable;
         }
 
-        console.log('deliverer creating new between ', fromId, '->', toId, ' carryParts=', carryParts, ' moveParts=', moveParts, ' bodyPartsEnergy=', bodyPartsEnergy, ' travelTime=', travelTime);
+        //console.log('deliverer creating new between ', fromId, '->', toId, ' carryParts=', carryParts, ' moveParts=', moveParts, ' bodyPartsEnergy=', bodyPartsEnergy, ' travelTime=', travelTime);
         var mem = new Object();
         mem.parts = utils.getBodyParts(bodyPartsEnergy, parts);
         mem.role = "deliverer";
@@ -788,7 +803,7 @@ var utils = {
         if (role == "claim")
             return [CLAIM, MOVE];
 
-        
+
 
         if (role == "upgraderLight2")
             return [WORK, WORK, WORK, WORK, WORK,
@@ -808,7 +823,7 @@ var utils = {
 
         var attackParts =
             [MOVE, ATTACK, ATTACK, ATTACK, TOUGH, TOUGH, TOUGH,
-                    MOVE, MOVE,     MOVE, MOVE,  MOVE,  MOVE];
+                            MOVE,   MOVE,   MOVE,  MOVE, MOVE];
 
         var deliverParts = [
             [MOVE, CARRY],
@@ -998,7 +1013,9 @@ var utils = {
 
         // Log counters for each event type
         for (var eventType of eventTypes) {
-            let events = _.filter(eventLog, { event: eventType });
+            let events = _.filter(eventLog, function(ev) {
+                return ev.event === eventType && (ev.type == EVENT_OBJECT_DESTROYED && ev.data.type !== "creep");
+            });
 
             if (!room.memory.events[eventType])
                 room.memory.events[eventType] = [];

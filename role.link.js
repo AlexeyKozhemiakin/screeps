@@ -34,7 +34,10 @@ var linkMod = {
     {
         if(!room.controller)
             return;
-            
+        
+        if(!room.controller.my)
+            return;
+
         var controllerLink = room.controller.link;
        
         if(!controllerLink){

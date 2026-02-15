@@ -94,6 +94,8 @@ var roleBasic = {
     recycleCreep: function (creep) {
         
         var spawn = creep.room.spawn;
+        creep.memory.toGo = undefined;
+
         if (!spawn) {
             if(creep.memory.motherland)
                 this.moveToRoom(creep, creep.memory.motherland);
@@ -101,7 +103,7 @@ var roleBasic = {
             return;
         }
 
-        creep.say("recycle");        
+        creep.say("recycle");
         
         if (creep.pos.inRangeTo(spawn, 1)) {
             var code = spawn.recycleCreep(creep);
@@ -219,6 +221,7 @@ var roleBasic = {
             var source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
 
             // stick creep to the source to avoid switching like headless chicken
+            // but not always only in busy room - what can be a criteria
             if (source)
                 creep.memory.preferredSourceId = source.id;
 
@@ -260,9 +263,8 @@ var roleBasic = {
                 creep.pos.getRangeTo(s) <= range
         });
 
-        if (damagedBuild)
-            console.log("repairEmergency ", creep.name, creep.room.name, " found ",
-                damagedBuild, " damaged in range ", range);
+        //if (damagedBuild)
+        //    console.log("repairEmergency ", creep.name, creep.room.name, " found ",               damagedBuild, " damaged in range ", range);
 
         if (!damagedBuild)
             return false;

@@ -1,6 +1,8 @@
 module.exports = {
 
     run: function (room) {
+        if(!room.controller.my)
+            return;
         var towers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER });
 
         _.forEach(towers, t => this.runInternal(t));

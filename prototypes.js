@@ -170,7 +170,7 @@ Object.defineProperty(StructureController.prototype, "storage", {
 Object.defineProperty(StructureController.prototype, "link", {
 
     get: function () {
-        return this.pos.findInRange(FIND_STRUCTURES, 4, { filter: { structureType: STRUCTURE_LINK } })
+        return this.pos.findInRange(FIND_STRUCTURES, 3, { filter: { structureType: STRUCTURE_LINK } })
         [0];
     },
 
@@ -189,37 +189,20 @@ Object.defineProperty(RoomObject.prototype, "link", {
     configurable: true
 });
 
-Object.defineProperty(RoomObject.prototype, 'mineralDemand', {
+Object.defineProperty(StructureLab.prototype, 'mineralDemand', {
 
     get: function () {
-        if (this.id == "5b17ead465803e4ceedf4ce3")
-            return RESOURCE_HYDROGEN;
+        if (!this.room.memory.labDemand) {
+            this.room.memory.labDemand = {};
+        }
+        return this.room.memory.labDemand[this.id] || null;
+    },
 
-        if (this.id == "5b1805832bee550ad3d83114")
-            return RESOURCE_OXYGEN;
-
-
-        if (this.id == '5b2d2822e8d5d019c1d778dd')
-            return RESOURCE_KEANIUM;
-        if (this.id == '5b2e22f3d08a6b242e80f462')
-            return RESOURCE_ZYNTHIUM;
-
-        if (this.id == '5b29a59e8d6e3c5e7f198aa2')
-            return RESOURCE_GHODIUM;
-        if (this.id == '5b192f05c9146e7a0e5721a5')
-            return RESOURCE_HYDROGEN;
-
-        if (this.id == '5b17d4f32d8da349cebafd64')
-            return RESOURCE_UTRIUM;
-        if (this.id == '5b182ff94226844ce49e4492')
-            return RESOURCE_LEMERGIUM;
-
-        if (this.id == '5b2db26618d810244ad0119b')
-            return RESOURCE_UTRIUM_LEMERGITE;
-        if (this.id == '5b2d97788002ae26413f2e78')
-            return RESOURCE_ZYNTHIUM_KEANITE;
-
-        return undefined;
+    set: function (mineral) {
+        if (!this.room.memory.labDemand) {
+            this.room.memory.labDemand = {};
+        }
+        this.room.memory.labDemand[this.id] = mineral;
     },
 
     enumerable: false,

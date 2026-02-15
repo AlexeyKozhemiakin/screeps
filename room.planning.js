@@ -46,8 +46,6 @@ var roomPlanning = {
 
         var code = room.createConstructionSite(pos, structureType);
 
-        if(room.name == "E49S22")
-            console.log("Trying to build ", structureType, " at ", pos, " in ", room.name, " code=", utils.getError(code));
         if (OK == code) {
             return true;
         }
@@ -159,9 +157,6 @@ var roomPlanning = {
             }
 
 
-            if(room.name == "E49S22")
-                console.log("Trying to build road from ", buildEnabled, from, " to ", to, " in ", room.name, " nearByContainer=", nearByContainer, " nearByLink=", nearByLink);
-            
             if (buildEnabled && !nearByContainer && !buildLink)
                 this.tryBuild(STRUCTURE_CONTAINER, containerPos, room);
 
@@ -223,10 +218,10 @@ var roomPlanning = {
 
         var pattern5 = [
             ".............",
-            ".............",
-            ".....r.r.....",
-            "...trsrlrt...",
-            "...rerPrer...",
+            "..r.......r..",
+            ".rer.r.r.rer.",
+            "reetrsrlrteer",
+            ".rererPrerer.",
             "..reeereeer..",
             "...rerererer.",
             "....reeereeer",
@@ -236,10 +231,10 @@ var roomPlanning = {
 
         var pattern6 = [
             ".............",
-            "......rbb....",
-            ".....rmrb....",
-            "...trsrlrt...",
-            "...rerPrer...",
+            "..r...rbb.r..",
+            ".rer.rmrbrer.",
+            "reetrsrlrteer",
+            ".rererPrerer.",
             "..reeereeer..",
             ".rererererer.",
             "reeereeereeer",
@@ -304,6 +299,12 @@ var roomPlanning = {
                     continue;
 
                 var checkPos = new RoomPosition(worldX, worldY, room.name);
+
+                // Check for purple flag
+                var flags = checkPos.lookFor(LOOK_FLAGS);
+                if (flags.some(f => f.color == COLOR_PURPLE))
+                    continue;
+
 
 
                 // Determine structure type and color based on cell letter
@@ -418,8 +419,13 @@ var roomPlanning = {
 
         if (buildEnabled) {
             //remove roads under non-walkable structures
+
             var structures = room.find(FIND_STRUCTURES, {
-                filter: s => (s.structureType != STRUCTURE_ROAD && s.structureType != STRUCTURE_CONTAINER)
+                filter: s => (
+                    s.structureType != STRUCTURE_ROAD &&
+                    s.structureType != STRUCTURE_CONTAINER &&
+                    s.structureType != STRUCTURE_RAMPART
+                )
             });
 
             for (var sNo in structures) {

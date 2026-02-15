@@ -69,45 +69,6 @@ var roleHarvester = {
             target = creep.room.spawn ? creep.room.spawn.container : null;
         }
 
-        // towers up to 40%
-        if (target == undefined) {
-            target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (structure) => {
-                    return (structure.structureType == STRUCTURE_TOWER) && structure.energy < structure.energyCapacity * 0.4;
-                }
-            });
-        }
-
-        // spawning
-        if (target == undefined) {
-            target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (s) => {
-                    return (s.structureType == STRUCTURE_EXTENSION || s.structureType == STRUCTURE_SPAWN) &&
-                        s.isActive &&
-                        s.energy < s.energyCapacity;
-                }
-            });
-        }
-
-        // towers fully
-        if (target == undefined) {
-            target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (s) => {
-                    return (s.structureType == STRUCTURE_TOWER) &&
-                        s.energy < s.energyCapacity * 0.9;
-                }
-            });
-        }
-
-        if (target == undefined) {
-            target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (s) => {
-                    return ((s.structureType == STRUCTURE_STORAGE) &&
-                        s.isActive &&
-                        s.store[RESOURCE_ENERGY] < s.storeCapacity);
-                }
-            });
-        }
 
         // this was causing issues with object cloning\serialization
         // need to explain the logic
@@ -221,6 +182,10 @@ var roleHarvester = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
+        //if (!basic.moveToRoom(creep)) {
+        //    return;
+        //}
+
         if (creep.memory.task == undefined) {
             creep.memory.task = "harvest";
         }

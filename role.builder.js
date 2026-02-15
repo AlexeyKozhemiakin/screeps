@@ -84,13 +84,13 @@ var roleBuilder = {
 
         // containers nearby
         if (source == undefined) {
-            source = creep.pos.findInRange(FIND_STRUCTURES, 5, {
+            source = creep.pos.findInRange(FIND_STRUCTURES, 3, {
                 filter: o => ((o.structureType == STRUCTURE_CONTAINER) &&
                     (o.store[RESOURCE_ENERGY] > 500))
             })[0];
         }
 
-        const TERMINAL_WATERMARK = 5000;
+        const TERMINAL_WATERMARK = 10000;
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: o => ((o.structureType == STRUCTURE_TERMINAL) &&

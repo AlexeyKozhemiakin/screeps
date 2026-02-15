@@ -35,11 +35,17 @@ var roleUpgrader =
         }
     },
 
-    runPickup: function (creep) {
-        if (basic.runDropped(creep, 2, RESOURCE_ENERGY, 30))
-            return;
+    getSource: function (creep) {
+    
+        if(creep.memory.preferredSourceId) {
+            var source = Game.getObjectById(creep.memory.preferredSourceId);
+            if(source && source.store[RESOURCE_ENERGY] > 0){
+                creep.memory.preferredSourceId = source.id;
+                return source;
+            }
+        }
 
-        var source;
+        var source = undefined;
 
         // nearby up containers
         if (source == undefined) {
@@ -102,6 +108,20 @@ var roleUpgrader =
             });
         }
 
+        if(source && source.store[RESOURCE_ENERGY] > 0)
+            creep.memory.preferredSourceId = source.id;
+
+
+        return source;
+    },
+
+    runPickup: function (creep) {
+        if (basic.runDropped(creep, 2, RESOURCE_ENERGY, 30))
+            return;
+
+        var source = this.getSource(creep);
+
+
         if (source != undefined) {
             if (!creep.pos.isNearTo(source)) {
                 if (creep.fatigue == 0)
@@ -112,6 +132,9 @@ var roleUpgrader =
             else {
                 var err = creep.withdraw(source, RESOURCE_ENERGY);
                 if (OK != err) {
+                    if(err != ERR_NOT_ENOUGH_RESOURCES)
+                        creep.memory.preferredSourceId = undefined;
+
                     creep.say(err);
                 }
 
@@ -126,7 +149,7 @@ var roleUpgrader =
 
             if (err == ERR_NOT_IN_RANGE) {
                 if (creep.fatigue == 0)
-                    creep.moveTo(source, { visualizePathStyle: { stroke: '#ffaa00' } });
+                    creep.moveTo(source,  { range:1, visualizePathStyle: { stroke: '#ffaa00' } });
             }
             else if (err == ERR_FULL) {
                 upgrading = true;

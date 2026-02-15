@@ -4,6 +4,5 @@
 
 -- Harvesters and probably other low-budget creeps do not recreate with proper parts after energy will restore after problem
 
--- delete containers after link, storage is built
-
 -- 2nd link build
+-- delete containers after link, storage is built
