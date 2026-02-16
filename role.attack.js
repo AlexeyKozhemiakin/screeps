@@ -73,15 +73,19 @@ var roleAttack = {
         }
 
         if (!target) {
+            //console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
             basic.recycleCreep(creep);
             return false;
         }
         //console.log("this room");
-        //console.log("attack target ", target, " in room ", creep.room.name);
+       // console.log("attack target ", target, " in room ", creep.room.name);
 
         if (!creep.pos.isNearTo(target.pos)) {
-            var err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff0000' }, ignoreDestructibleStructures: true });
-             
+
+            var err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff0000' } });
+            if (err == ERR_NO_PATH)
+                err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff0000' }, ignoreDestructibleStructures: true });
+
             if (err == OK) {
                 //creep.say("w" + err);
                 var walls = creep.pos.findInRange(FIND_STRUCTURES, 1, {
@@ -94,12 +98,11 @@ var roleAttack = {
                 walls.forEach(wall => {
                     //console.log(`Wall ID: ${wall.id}, Hits: ${wall.hits}`);
                 });
-                if(walls.length > 0) 
-                {
+                if (walls.length > 0) {
                     creep.say("🧱")
                     creep.attack(walls[0]);
                 }
-                return true;    
+                return true;
             }
             if (OK != err)
                 creep.say("a" + err);

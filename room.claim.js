@@ -25,45 +25,14 @@ var roomClaiming = {
 
         });
 
-        var roomsNeedScout = _.filter(requestedRooms, roomName => {
-            var room = Game.rooms[roomName];
-
-            if (room) {
-                // no need to scout owned rooms
-                if (room.controller && room.controller.my)
-                    return false;
-
-                //  need to scout with agressive scout rooms with walls around controller
-                var walls = room.controller.pos.findInRange(FIND_STRUCTURES, 1, { filter: s => s.structureType == STRUCTURE_WALL });
-                if (walls.length > 0) {
-                    room.memory.dangerous = true;
-                    return true;
-                }
-                // need to scout rooms with owner different than us until it becomes neutral
-                if (room.controller.owner && room.controller.username != "Zenga") {
-                    // downgrade not yet ready need to wait
-                    room.memory.dangerous = room.find(FIND_HOSTILE_CREEPS).length > 0;
-
-                    room.memory.timeWhenDowngrade = Game.time + room.controller.ticksToDowngrade;
-                    room.memory.ungradeBlockedUntil = Game.time + room.controller.upgradeBlocked;
-                    return true;
-                }
-
-                return false;
-            }
-
-            return true;
-        });
-
-
         //console.log("needScout", roomsNeedScout, "notClaimed", roomsNotClaimed);
 
         var spawnOrder = new Object();
 
         for (var i in requestedRooms) {
             var roomName = requestedRooms[i];
-            var room = Game.rooms[roomName];
 
+            // todo - need to fix this to check dynamically
             var bigRooms = _.filter(Game.rooms,
                 r => r.controller && r.controller.my && r.name != roomName &&
                     r.storage && r.storage.store.energy >= 10000);
@@ -77,33 +46,54 @@ var roomClaiming = {
             }
 
             spawnOrder.sponsorRoomName = sponsorRoom.name;
+
+
             //console.log(bigRooms.map(r => r.name).join(", "));
             //console.log("sponsorRoom for ", roomName, " is ", sponsorRoom.name);
-            var scouts = _.filter(Game.creeps, c => c.memory.role == "scout" &&
-                (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numScout = 1;
 
-            if (roomsNeedScout.includes(roomName)) {
+            var room = Game.rooms[roomName];
+
+            if (!room) {
+
+                var numScout = 1;
+
+                var scouts = _.filter(Game.creeps, c => c.memory.role == "scout" &&
+                    (c.memory.toGo && c.memory.toGo[0] == roomName));
+
                 if (scouts.length < numScout) {
                     spawnOrder.scoutRoom = roomName;
                     return spawnOrder;
                 }
-                continue; // to next room
+
+                return null;
             }
 
-            var claimers = _.filter(Game.creeps, c => c.memory.role == "claim" && (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numClaim = 1;
-            if (roomsNotClaimed.includes(roomName) && claimers.length < numClaim) {
-                spawnOrder.claimRoom = roomName;
-                return spawnOrder;
+            //  need to scout with agressive scout rooms with walls around controller
+            var controllerWalls = room.controller.pos.findInRange(FIND_STRUCTURES, 1, { filter: s => s.structureType == STRUCTURE_WALL });
+            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS);
+            var enemyStructures = room.find(FIND_STRUCTURES, {
+                filter: object => (
+                    object.structureType == STRUCTURE_INVADER_CORE)
+            });
+
+            room.memory.dangerous = enemyCreeps.length > 0 || enemyStructures.length > 0 || controllerWalls.length > 0;
+
+            if (room.memory.dangerous) {
+                var numAttack = 1;
+                var attackers = _.filter(Game.creeps, c => c.memory.role == "attack" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+
+                if (attackers.length < numAttack) {
+                    console.log("needAttack", roomName);
+                    spawnOrder.attackRoom = roomName;
+                    return spawnOrder;
+                }
+                
+                return null;
             }
 
-            var room = Game.rooms[roomName];
-            if (!room)
+            if (room.controller.reservation && room.controller.reservation.ticksToEnd > 100)
                 continue;
 
-            if (!room.controller) // in what meaning? same as above? visibility check?
-                continue;
 
             if (room.controller.safeMode) {
                 console.log("room", roomName, " in safe mode for ", room.controller.safeModeCooldown);
@@ -117,9 +107,18 @@ var roomClaiming = {
                 room.upgradeBlocked = room.controller.upgradeBlocked;
                 continue;
             }
-            // if(!room.controller.my)
-            //   continue; 
 
+
+            if (roomsNotClaimed.includes(roomName)) {
+                var claimers = _.filter(Game.creeps, c => c.memory.role == "claim" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+                var numClaim = 1;
+                if (claimers.length < numClaim) {
+                    spawnOrder.claimRoom = roomName;
+                    return spawnOrder;
+                }
+                
+                return null;
+            }
 
             // build only spawns in remote rooms for now
             var roomSpawns = _.filter(Game.spawns, s => s.room.name == roomName);
@@ -137,19 +136,7 @@ var roomClaiming = {
                 return spawnOrder;
             }
 
-            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS);
-            var enemyStructures = room.controller.pos.findInRange(FIND_STRUCTURES, 1, {
-                filter: object => (
-                    object.structureType == STRUCTURE_WALL)
-            });
-            var attackers = _.filter(Game.creeps, c => c.memory.role == "attack" && (c.memory.toGo && c.memory.toGo[0] == roomName));
-            var numAttack = 1;
 
-            if (enemyCreeps.length > 0 && attackers.length < numAttack) {
-                console.log("needAttack", roomName);
-                spawnOrder.attackRoom = roomName;
-                return spawnOrder;
-            }
         }
     }
 };

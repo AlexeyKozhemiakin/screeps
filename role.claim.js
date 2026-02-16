@@ -30,11 +30,13 @@ var roleClaim = {
 
         var err;
 
-        if (target.owner)
-            err = creep.attackController(target);
-        else
+        if(target.reservation && target.reservation.username != "Zenga") {
             err = creep.claimController(target);
-
+        } else if (target.owner) {
+            err = creep.attackController(target);
+        } else {
+            err = creep.claimController(target);
+        }
         if (OK == err) {
             creep.signController(target, signMessage);
         }

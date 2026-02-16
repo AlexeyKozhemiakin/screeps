@@ -27,8 +27,8 @@ var roomRemoteHarvesting = {
                 c => c.memory.role == "attack" &&
                     c.memory.toGo && c.memory.toGo.includes(roomName));
             
-            if(enemies.length > 0)
-             console.log("Remote room ", roomName, " has ", enemies.length, " enemies and ", attackers.length, " attackers");
+           // if(enemies.length > 0)
+           //  console.log("Remote room ", roomName, " has ", enemies.length, " enemies and ", attackers.length, " attackers");
 
             remoteRoom.memory.dangerous = enemies.length > 0;
             if (enemies.length > 0 && attackers.length < numAttack) {
