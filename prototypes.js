@@ -60,6 +60,14 @@ Object.defineProperty(Room.prototype, 'links', {
     configurable: true
 });
 
+Object.defineProperty(Room.prototype, 'labs', {
+    get: function () {
+        return this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_LAB } });
+    },
+    enumerable: false,
+    configurable: true
+});
+
 Object.defineProperty(Room.prototype, 'extensions', {
     get: function () {
         return this.find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } });

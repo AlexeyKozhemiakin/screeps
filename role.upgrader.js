@@ -1,4 +1,5 @@
 var basic = require('role.basic');
+var roleBoost = require('role.boost');
 
 var roleUpgrader =
 {
@@ -161,6 +162,12 @@ var roleUpgrader =
     run: function (creep) {
         if (!basic.moveToRoom(creep))
             return;
+
+        // Handle boosting for upgraders
+        if (roleBoost.needsBoosting(creep)) {
+            roleBoost.boostCreep(creep);
+            return;
+        }
 
         //console.log("upgrader", creep.name, creep.room.name, creep.store);
 

@@ -1,6 +1,7 @@
 var utils = require('utils');
 var roleTower = require('role.tower');
 var roleLink = require('role.link');
+var roleBoost = require('role.boost');
 var scp = require('screepsplus');
 var market = require('market');
 var prototypes = require('prototypes');
@@ -34,13 +35,10 @@ module.exports.loop = function () {
 
 loopInner = function () {
 
-    /*market.shareEnergyInternal();
-    market.shareResourcesInternal();
-    market.sellExcess();
-    market.buyDemand();
-    */
-
+  
     try {
+
+        market.exploreArbitrage();
         market.sellExcess();
         market.buyDemand();
         market.putBuyOrders()
@@ -53,7 +51,7 @@ loopInner = function () {
     var roomsToClaim = ["E51S23", "E52S23", "E53S22",
         "E55S22", "E54S22", "E56S23",
         "E55S21", "E48S27", "E49S23",
-        "E52S22"
+        "E52S22", "E47S26"
     ];
 
     //"E48S24" was not able to pass because of rampart
@@ -110,6 +108,11 @@ loopInner = function () {
 
         roleLink.run(room);
         roleTower.run(room);
+
+        // Prepare labs for boosting (every 10 ticks)
+        if (roomTime % 1 == 0) {
+            roleBoost.prepareLabs(room);
+        }
 
         var elapsed = Game.cpu.getUsed() - cpuStart;
 

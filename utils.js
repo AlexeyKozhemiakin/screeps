@@ -1,4 +1,5 @@
 var roleMineralHarvester = require('role.mineralHarvester');
+var draw = require('room.draw.visuals');
 
 const RICH_ROOM_ENERGY = 8000;
 
@@ -64,11 +65,9 @@ var utils = {
 
         _.forEach(labs, lab => {
             //console.log("!!! ", lab);
-            room.visual.text(
+            room.visual.resource(
                 lab.mineralDemand,
-                lab.pos.x,
-                lab.pos.y + 0.22,
-                { align: 'center', color: "#000000", opacity: 1 });
+                lab.pos.x, lab.pos.y);
         });
 
 
@@ -77,13 +76,15 @@ var utils = {
 
     roomSpawn: function (room, spawnOrders) {
 
-
         var spawn = room.spawns.find(s => !s.spawning);
 
         if (spawn == undefined) {
             //console.log("no available spawn in room ", room.name);
             return;
         }
+
+        if (spawn.id == '699238eb227166a800e1279a')
+            return;
 
         var roomCreeps = _.filter(Game.creeps, cr => cr.room.name == room.name); // cannot use FIND_MY_CREEPS cause it's use spawning
 
@@ -266,6 +267,8 @@ var utils = {
         if (room.controller.level == 1)
             upgradeParts = 5;
 
+        if (room.controller.level == 8)
+            upgradePartsNeeded = 15; // throttled on 8th level
 
         var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
             creep.ticksToLive > 100);
@@ -488,10 +491,16 @@ var utils = {
             mem.role = 'scout';
             mem.parts = [MOVE];
 
-            var scoutRoom = Game.rooms[spawnOrders.scoutRoom];
-            var needAggressiveScout = scoutRoom && scoutRoom.memory.dangerous;
+            var scoutRoomMemory = Memory.rooms[spawnOrders.scoutRoom];
+            var needAggressiveScout = scoutRoomMemory ? scoutRoomMemory.dangerous : false;
+
+            console.log("Need aggressive scout for ", scoutRoomMemory, "=", needAggressiveScout);
+
             if (needAggressiveScout)
-                mem.parts = [MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK];
+                mem.parts = [MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK,
+                    MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK,
+                    MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK
+                ];
 
             mem.toGo = [spawnOrders.scoutRoom];
         }
@@ -517,11 +526,9 @@ var utils = {
         else if (spawnOrders && spawnOrders.memory) {
             mem = spawnOrders.memory;
         }
-        else if (room.controller.safeModeAvailabe < 6)
-        {
-            if(room.storage && room.storage.store[RESOURCE_GHODIUM] > 1000) 
-            {
-                mem.role = "safeModeEnabler";                
+        else if (room.controller.safeModeAvailabe < 6) {
+            if (room.storage && room.storage.store[RESOURCE_GHODIUM] > 1000) {
+                mem.role = "safeModeEnabler";
             }
         }
 
@@ -597,7 +604,7 @@ var utils = {
                 }
             }
             else {
-                console.log(room.name, 'not enough money yet for ' + mem.role, " budget=", energyBudget);
+                console.log(room.name, 'not enough money yet for ' + mem.role, " budget=", energyBudget, " memory=", JSON.stringify(mem));
             }
         }
     },
@@ -834,8 +841,14 @@ var utils = {
                 [WORK, MOVE, WORK, MOVE]];
 
         var attackParts =
-            [MOVE, ATTACK, ATTACK, ATTACK, TOUGH, TOUGH, TOUGH,
-                MOVE, MOVE, MOVE, MOVE, MOVE];
+            [
+                [MOVE, TOUGH, MOVE, TOUGH, MOVE, TOUGH],
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE]
+
+            ];
+
 
         var deliverParts = [
             [MOVE, CARRY],
@@ -843,11 +856,31 @@ var utils = {
             [MOVE, CARRY],
             [MOVE, CARRY],
             [MOVE, CARRY],
+
             [MOVE, CARRY],
             [MOVE, CARRY],
             [MOVE, CARRY],
             [MOVE, CARRY],
-            [MOVE, CARRY]];
+            [MOVE, CARRY],
+
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY],
+            [MOVE, CARRY]
+        ];
 
         var deliverLightParts = [
             [MOVE, CARRY, CARRY],
@@ -855,13 +888,22 @@ var utils = {
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
+
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
             [MOVE, CARRY, CARRY],
+
             [MOVE, CARRY, CARRY],
-            [MOVE, CARRY, CARRY]];
+            [MOVE, CARRY, CARRY],
+            [MOVE, CARRY, CARRY],
+            [MOVE, CARRY, CARRY],
+            [MOVE, CARRY, CARRY],
+
+            [MOVE, CARRY, CARRY],
+            [MOVE, CARRY] // 50        
+        ];
 
 
         //var upgraderParts       = [MOVE, CARRY, WORK ,WORK ,WORK, WORK, WORK, MOVE, MOVE ,MOVE,MOVE];
