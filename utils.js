@@ -288,8 +288,9 @@ var utils = {
             size = (room.controller.level - 1) * 50;
 
 
-            if (room.storage && room.storage.store.energy > 200000)
+            if (room.storage && room.storage.store.energy > 100000)
                 size += 100;
+            
             // spawn
             // spawn.container
             // room.storage
@@ -729,6 +730,10 @@ var utils = {
             );
         //if(requiredCapacity > existingCapacity)
         //console.log('deliverer capacity diff', fromId, '->', toId, ' required=', requiredCapacity, ' existing=', existingCapacity, ' remaining=', remainingCapacity);
+
+        if (remainingCapacity <= 0) {
+            return null;
+        }
 
         if (remainingCapacity <= 50 && resType == RESOURCE_ENERGY) {
             //console.log('deliverer already exists between ', fromId, '->', toId);

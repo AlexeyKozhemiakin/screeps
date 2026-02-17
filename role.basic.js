@@ -26,6 +26,7 @@ var roleBasic = {
 
         var moveTarget;
 
+        //console.log(creep.name, " moving to room ", roomToGo);
         //var flag = creep.pos.findClosestByRange(FIND_FLAGS, {
         //            filter: flag => (flag.color == COLOR_ORANGE && flag.secondaryColor == COLOR_ORANGE)
         //       });
@@ -73,8 +74,8 @@ var roleBasic = {
 
         if (creep.fatigue > 0)
             return false;
-
-        var code = creep.moveTo(moveTarget, { visualizePathStyle: { stroke: '#ff0000' } });
+        
+        var code = creep.moveTo(moveTarget, { visualizePathStyle: { stroke: '#35bd1d' } });
         if (code != OK)
             console.log("err", code, " creep move to ", creep.name, " to ", roomToGo, " target ", moveTarget);
 
@@ -97,8 +98,10 @@ var roleBasic = {
         creep.memory.toGo = undefined;
 
         if (!spawn) {
+            console.log("no spawn in room ", creep.room.name, " for recycling" + creep.name);
             if(creep.memory.motherland)
                 this.moveToRoom(creep, creep.memory.motherland);
+            
             
             return;
         }

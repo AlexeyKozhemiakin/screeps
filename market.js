@@ -141,6 +141,7 @@ module.exports = {
 
             // Base compounds
             'OH': ['O', 'H'],
+            
             'ZK': ['Z', 'K'],
             'UL': ['U', 'L'],
             'G': ['ZK', 'UL'],
@@ -168,7 +169,7 @@ module.exports = {
             // 'KHO2': ['KO', 'OH'],
             //'LHO2': ['LO', 'OH'],
             //'ZHO2': ['ZO', 'OH'],
-            'GHO2': ['GO', 'OH'],
+            //'GHO2': ['GO', 'OH'],
             // Tier 3 - Catalyzed (X + Tier 2)
             //'XUH2O': ['X', 'UH2O'],
             //'XUHO2': ['X', 'UHO2'],
@@ -178,7 +179,7 @@ module.exports = {
             //'XLHO2': ['X', 'LHO2'],
             //'XZH2O': ['X', 'ZH2O'],
             //'XZHO2': ['X', 'ZHO2'],
-            // 'XGH2O': ['X', 'GH2O'],
+             'XGH2O': ['X', 'GH2O'],
             //'XGHO2': ['X', 'GHO2']
         };
 
@@ -215,8 +216,10 @@ module.exports = {
             const gapAmount = Math.min(highAmount - currentAmount, transferLimit);
 
             // If below threshold, try to acquire from external sources
-            if (currentAmount < highAmount) {
+            if (currentAmount < highAmount && gapAmount > 1000) {
                 let needAttention = true;
+
+                //console.log(`Room ${room.name} needs ${gapAmount} of ${targetRes} (current: ${currentAmount}), trying to acquire from other rooms or market...`);         
 
                 // First try: share from other rooms
                 for (const sourceRoomName in Game.rooms) {
@@ -226,7 +229,8 @@ module.exports = {
 
                     const sourceAmount = sourceRoom.terminal.store[targetRes];
 
-                    if (sourceAmount && sourceAmount > highAmount + gapAmount) {
+                    if (sourceAmount && sourceAmount > highAmount + gapAmount ) {
+                        console.log(`Sharing ${gapAmount} of ${targetRes} from ${sourceRoomName} to ${room.name}`);
                         this.shareResource(sourceRoomName, room.name, targetRes, gapAmount);
                         needAttention = false;
                         break;
@@ -450,7 +454,7 @@ module.exports = {
 
     exploreArbitrage: function (room) {
         // Arbitrage strategy: buy low-priced resources and sell at markup, using only our own terminal in 'room'
-        if (!room || !room.terminal || room.terminal.cooldown > 0) return;
+        if (!room || !room.terminal) return;
 
         const arbitrageThreshold = 1.15; // 15% profit margin
         const minProfitCredits = 5000;
@@ -463,7 +467,11 @@ module.exports = {
             RESOURCE_ENERGY
         ];
 
-        for (const res of resources) {
+        const energyPrice = 55;//this.recentPrice(RESOURCE_ENERGY) || 0.2;
+        var list = Object.keys(REAGENTS).concat(RESOURCE_ENERGY);
+
+        for (const res of list) {
+            
             const orders = Game.market.getAllOrders({ resourceType: res });
             const sellOrders = _.filter(orders, o => o.type === ORDER_SELL);
             const buyOrders = _.filter(orders, o => o.type === ORDER_BUY);
@@ -471,50 +479,50 @@ module.exports = {
             if (sellOrders.length === 0 || buyOrders.length === 0) continue;
 
             // Find the best sell order (lowest price, but also consider transfer cost to our room)
-            const bestSell = _.min(sellOrders, o => o.price + (Game.market.calcTransactionCost(1, o.roomName, room.name) * (this.recentPrice ? this.recentPrice(RESOURCE_ENERGY) : 0.2)));
+            const bestSell = _.min(sellOrders, o => o.price + (Game.market.calcTransactionCost(1, o.roomName, room.name) * energyPrice));
             // Find the best buy order (highest price, minus transfer cost from our room)
-            const bestBuy = _.max(buyOrders, o => o.price - (Game.market.calcTransactionCost(1, room.name, o.roomName) * (this.recentPrice ? this.recentPrice(RESOURCE_ENERGY) : 0.2)));
+            const bestBuy = _.max(buyOrders, o => o.price - (Game.market.calcTransactionCost(1, room.name, o.roomName) * energyPrice));
 
             if (!bestSell || !bestBuy) continue;
 
             // Calculate profit per unit, including transfer costs
-            const energyPrice = this.recentPrice ? this.recentPrice(RESOURCE_ENERGY) : 0.2;
-            const buyTransfer = Game.market.calcTransactionCost(1, bestSell.roomName, room.name) * energyPrice;
-            const sellTransfer = Game.market.calcTransactionCost(1, room.name, bestBuy.roomName) * energyPrice;
+            const buyTransfer = Game.market.calcTransactionCost(10000, bestSell.roomName, room.name)/10000* energyPrice;
+            const sellTransfer = Game.market.calcTransactionCost(10000, room.name, bestBuy.roomName)/10000 * energyPrice;
             const profitPerUnit = bestBuy.price - bestSell.price - buyTransfer - sellTransfer;
             const maxAmount = Math.min(bestSell.remainingAmount, bestBuy.remainingAmount, room.terminal.store.getFreeCapacity(res), 1000);
             const netProfit = profitPerUnit * maxAmount;
             const priceRatio = bestBuy.price / bestSell.price;
 
 
-            console.log(`Evaluating ${res} - Best Sell: ${bestSell.price} (total ${bestSell.price + buyTransfer}), Best Buy: ${bestBuy.price} (total ${bestBuy.price - sellTransfer}), Profit/Unit: ${profitPerUnit}, Max Amount: ${maxAmount}, Net Profit: ${netProfit}, Price Ratio: ${priceRatio}`);
+            //console.log(`${res} Arbitrage: buyPrice=${bestSell.price}, sellPrice=${bestBuy.price}, profitPerUnit=${Math.floor(profitPerUnit)}, maxAmount=${maxAmount}, netProfit=${Math.floor(netProfit)}, energyprice=${energyPrice}, buyTransfer=${Math.floor(buyTransfer)}, sellTransfer=${Math.floor(sellTransfer)}`);
+
             if (priceRatio > arbitrageThreshold && netProfit > minProfitCredits) {
                 console.log(`ARBITRAGE: ${res} - Buy at ${bestSell.price} from ${bestSell.roomName}, Sell at ${bestBuy.price} to ${bestBuy.roomName}, Profit: ${Math.floor(netProfit)} credits (room: ${room.name})`);
 
-                if(false)
-                if (Game.market.credits > netProfit * 2 && maxAmount > 0) {
-                    // Step 1: Buy from market to our terminal
-                    const buyAmount = Math.min(100, bestSell.remainingAmount, room.terminal.store.getFreeCapacity(res));
-                    const buyCode = Game.market.deal(bestSell.id, buyAmount, room.name);
-                    if (buyCode === OK) {
-                        console.log(`Bought ${buyAmount} ${res} to ${room.name} from ${bestSell.roomName}`);
-                        // Step 2: Immediately try to sell to best buy order (if we have enough in terminal)
-                        const canSell = room.terminal.store[res] >= buyAmount;
-                        if (canSell) {
-                            const sellAmount = Math.min(buyAmount, bestBuy.remainingAmount);
-                            const sellCode = Game.market.deal(bestBuy.id, sellAmount, room.name);
-                            if (sellCode === OK) {
-                                console.log(`Sold ${sellAmount} ${res} from ${room.name} to ${bestBuy.roomName}`);
+                if (false)
+                    if (Game.market.credits > netProfit * 2 && maxAmount > 0) {
+                        // Step 1: Buy from market to our terminal
+                        const buyAmount = Math.min(100, bestSell.remainingAmount, room.terminal.store.getFreeCapacity(res));
+                        const buyCode = Game.market.deal(bestSell.id, buyAmount, room.name);
+                        if (buyCode === OK) {
+                            console.log(`Bought ${buyAmount} ${res} to ${room.name} from ${bestSell.roomName}`);
+                            // Step 2: Immediately try to sell to best buy order (if we have enough in terminal)
+                            const canSell = room.terminal.store[res] >= buyAmount;
+                            if (canSell) {
+                                const sellAmount = Math.min(buyAmount, bestBuy.remainingAmount);
+                                const sellCode = Game.market.deal(bestBuy.id, sellAmount, room.name);
+                                if (sellCode === OK) {
+                                    console.log(`Sold ${sellAmount} ${res} from ${room.name} to ${bestBuy.roomName}`);
+                                } else {
+                                    console.log(`Failed to sell ${sellAmount} ${res}:`, sellCode);
+                                }
                             } else {
-                                console.log(`Failed to sell ${sellAmount} ${res}:`, sellCode);
+                                console.log(`Not enough ${res} in terminal to sell after buy, will try next tick.`);
                             }
                         } else {
-                            console.log(`Not enough ${res} in terminal to sell after buy, will try next tick.`);
+                            console.log(`Failed to buy ${buyAmount} ${res}:`, buyCode);
                         }
-                    } else {
-                        console.log(`Failed to buy ${buyAmount} ${res}:`, buyCode);
                     }
-                }
             }
         }
     },
@@ -567,7 +575,7 @@ module.exports = {
         // allow buying only raw materials for now, cause i want to control reactions myself and not rely on market for that, also cause i want to avoid situation when i buy expensive compound and then have no reagents for it
         if (orderType == ORDER_SELL &&
             resType != RESOURCE_UTRIUM &&
-            //resType != RESOURCE_LEMERGIUM && // too expensive
+            resType != RESOURCE_LEMERGIUM && // too expensive
             resType != RESOURCE_ZYNTHIUM &&
             resType != RESOURCE_KEANIUM &&
             resType != RESOURCE_OXYGEN &&
@@ -655,7 +663,7 @@ module.exports = {
     getReagents: function (resourceType) {
         return REAGENTS[resourceType];
     },
-    
+
     handleRoomReagents: function (room, targetRes, goals) {
         const targetAmount = goals[targetRes];
         const currentAmount = this.getTotalMineralAmount(room, targetRes);

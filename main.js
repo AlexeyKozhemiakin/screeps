@@ -35,10 +35,10 @@ module.exports.loop = function () {
 
 loopInner = function () {
 
-  
+
     try {
 
-        market.exploreArbitrage();
+        //market.exploreArbitrage(Game.rooms["E51S23"]);
         market.sellExcess();
         market.buyDemand();
         market.putBuyOrders()
@@ -48,10 +48,13 @@ loopInner = function () {
     catch (e) {
         console.log("Market error: ", e.stack, e.message);
     }
-    var roomsToClaim = ["E51S23", "E52S23", "E53S22",
+    var roomsToClaim = [
+        "E51S23", "E52S23", "E53S22",
         "E55S22", "E54S22", "E56S23",
         "E55S21", "E48S27", "E49S23",
-        "E52S22", "E47S26"
+
+        "E52S22", "E47S26", "E48S22",
+        //"E57S24"
     ];
 
     //"E48S24" was not able to pass because of rampart
@@ -68,7 +71,7 @@ loopInner = function () {
         Game.cpu.generatePixel();
     }
 
-    
+
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();

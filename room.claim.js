@@ -3,34 +3,30 @@ var roomClaiming = {
 
         // add safemode calculation threshold
 
-        var roomsNotClaimed = _.filter(requestedRooms, roomName => {
+        var roomsClaimed = _.filter(requestedRooms, roomName => {
             var room = Game.rooms[roomName];
             if (!room)
-                return false; // need visibility first
-
-            //console.log(roomName," controller is ", Game.rooms[roomName].controller.my);
-            var mine = room.controller.my;
-            var lvl = room.controller.level;
-            //console.log(room.name, mine, lvl, CONTROLLER_DOWNGRADE[lvl] ,room.controller.ticksToDowngrade );
-            if (room.controller.safeMode)
-                return true;
+                return false ; // need visibility first
 
             if (room.controller.my)
-                return false;
+                return true;
 
-            if (room.controller.ticksToDowngrade < CONTROLLER_DOWNGRADE[lvl] * 0.9)
-                return false;
-
-            return true;
-
+            return false;
         });
 
         //console.log("needScout", roomsNeedScout, "notClaimed", roomsNotClaimed);
 
         var spawnOrder = new Object();
-
+        console.log("roomsNotClaimed ", requestedRooms.filter(r => !roomsClaimed.includes(r)));
+        //console.log("requestedRooms ", requestedRooms);
         for (var i in requestedRooms) {
             var roomName = requestedRooms[i];
+
+            // already claimed
+            if(roomsClaimed.includes(roomName))
+                continue;
+
+            console.log("Processing claim for ", roomName);
 
             // todo - need to fix this to check dynamically
             var bigRooms = _.filter(Game.rooms,
@@ -65,7 +61,7 @@ var roomClaiming = {
                     return spawnOrder;
                 }
 
-                return null;
+                continue;
             }
 
             //  need to scout with agressive scout rooms with walls around controller
@@ -76,7 +72,10 @@ var roomClaiming = {
                     object.structureType == STRUCTURE_INVADER_CORE)
             });
 
-            room.memory.dangerous = enemyCreeps.length > 0 || enemyStructures.length > 0 || controllerWalls.length > 0;
+            var conquerFlag = room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
+
+
+            room.memory.dangerous = conquerFlag || enemyCreeps.length > 0 || enemyStructures.length > 0 || controllerWalls.length > 0;
 
             if (room.memory.dangerous) {
                 var numAttack = 1;
@@ -88,7 +87,7 @@ var roomClaiming = {
                     return spawnOrder;
                 }
                 
-                return null;
+                continue;
             }
 
             if (room.controller.reservation && room.controller.reservation.ticksToEnd > 100)
@@ -109,7 +108,7 @@ var roomClaiming = {
             }
 
 
-            if (roomsNotClaimed.includes(roomName)) {
+            if (!roomsClaimed.includes(roomName)) {
                 var claimers = _.filter(Game.creeps, c => c.memory.role == "claim" && (c.memory.toGo && c.memory.toGo[0] == roomName));
                 var numClaim = 1;
                 if (claimers.length < numClaim) {
@@ -117,7 +116,7 @@ var roomClaiming = {
                     return spawnOrder;
                 }
                 
-                return null;
+                continue;
             }
 
             // build only spawns in remote rooms for now

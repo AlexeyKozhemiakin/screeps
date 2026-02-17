@@ -15,15 +15,6 @@ var roleScout = {
             return;
         }
 
-        //if(target.owner)
-        //    err = creep.attackController(target);
-        //else
-        //    err = creep.claimController(target) ;
-
-
-        if (attack.attack(creep))
-            return;
-
         if (creep.room.controller.sign == null || creep.room.controller.sign.text != ROOM_SIGN_MESSAGE) {
             var err = creep.signController(target, ROOM_SIGN_MESSAGE);
 

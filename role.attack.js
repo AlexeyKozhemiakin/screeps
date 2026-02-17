@@ -72,42 +72,82 @@ var roleAttack = {
             }
         }
 
+        if (target == undefined) {
+           var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
+
+            if (flag)
+                target = flag;
+        }
+
         if (!target) {
-            //console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
-            basic.recycleCreep(creep);
+            console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
+            //basic.recycleCreep(creep);
             return false;
         }
         //console.log("this room");
-       // console.log("attack target ", target, " in room ", creep.room.name);
+        // console.log("attack target ", target, " in room ", creep.room.name);
 
         if (!creep.pos.isNearTo(target.pos)) {
-
-            var err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff0000' } });
-            if (err == ERR_NO_PATH)
-                err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff0000' }, ignoreDestructibleStructures: true });
-
-            if (err == OK) {
-                //creep.say("w" + err);
-                var walls = creep.pos.findInRange(FIND_STRUCTURES, 1, {
-                    filter: object => (
-                        object.structureType == STRUCTURE_WALL ||
-                        object.structureType == STRUCTURE_RAMPART)
-                });
-
-                walls = _.sortBy(walls, c => c.hits);
-                walls.forEach(wall => {
-                    //console.log(`Wall ID: ${wall.id}, Hits: ${wall.hits}`);
-                });
-                if (walls.length > 0) {
-                    creep.say("🧱")
-                    creep.attack(walls[0]);
-                }
-                return true;
+            // Stuck detection: track previous position and count stuck ticks
+            
+            var lastPos = creep.memory._lastPos;
+            if (lastPos && lastPos.x == creep.pos.x && lastPos.y == creep.pos.y && lastPos.room == creep.room.name) {
+                creep.memory._stuckTicks = (creep.memory._stuckTicks || 0) + 1;
+            } else {
+                creep.memory._stuckTicks = 0;
             }
-            if (OK != err)
+            creep.memory._lastPos = { x: creep.pos.x, y: creep.pos.y, room: creep.room.name };
+
+            var isStuck = creep.memory._stuckTicks >= 2;
+
+            // If stuck or no path, use ignoreDestructibleStructures to path through walls
+            var moveOpts = { visualizePathStyle: { stroke: '#1900ff' }, reusePath: isStuck ? 0 : 5 };
+            if (isStuck) {
+                moveOpts.ignoreDestructibleStructures = true;
+                moveOpts.visualizePathStyle.stroke = '#ff7700';
+            }
+
+            var err = creep.moveTo(target.pos, moveOpts);
+            if (err == ERR_NO_PATH) {
+                err = creep.moveTo(target.pos, { visualizePathStyle: { stroke: '#ff7700' }, ignoreDestructibleStructures: true, reusePath: 0 });
+            }
+
+            // Find the next step on the path toward the target to attack in that direction
+            if (isStuck) {
+                var path = creep.pos.findPathTo(target.pos, { ignoreDestructibleStructures: true, ignoreCreeps: true });
+                if (path.length > 0) {
+                    var nextStep = new RoomPosition(path[0].x, path[0].y, creep.room.name);
+                    var obstacles = nextStep.lookFor(LOOK_STRUCTURES);
+                    obstacles = _.filter(obstacles, function (s) {
+                        return (s.structureType == STRUCTURE_WALL ||
+                            s.structureType == STRUCTURE_RAMPART ||
+                            s.structureType == STRUCTURE_ROAD) &&
+                            !(s.structureType == STRUCTURE_RAMPART && s.my);
+                    });
+                    obstacles = _.sortBy(obstacles, function (c) { return c.hits; });
+                    if (obstacles.length > 0 && creep.pos.isNearTo(nextStep)) {
+                        creep.say("🧱 " + creep.memory._stuckTicks);
+                        creep.attack(obstacles[0]);
+                    }
+                }
+            }
+
+            if (OK != err && ERR_NO_PATH != err)
                 creep.say("a" + err);
 
             return true;
+        }
+
+        if (target instanceof Flag) {
+            if (creep.pos.isNearTo(target.pos)) {
+                //target.remove();
+                return false;
+            }
+            else{
+                //creep.moveTo(target, { visualizePathStyle: { stroke: '#ff0000' } });
+                return true;
+            }
+
         }
 
         var err = creep.attack(target);
