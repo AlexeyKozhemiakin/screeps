@@ -178,7 +178,7 @@ var utils = {
             //console.log("Source ", sourceId, " has ", attachedWorkParts, " work parts attached, slots=", slots, " creepsCount=", attachedCreeps.length, " in room ", room.name);
             var hasContainer = source.container || source.storage || source.link;
 
-            var needMore = attachedWorkParts < 4 && attachedCreeps.length < slots;
+            var needMore = attachedWorkParts <= 4 && attachedCreeps.length < slots;
             //var needMore2 = !hasContainer && attachedCreeps.length < 2 * slots;
 
 
@@ -226,7 +226,7 @@ var utils = {
 
         // UPGRADER PLANNING
         // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
-        var upgradePartsNeeded = 10; // for 2 sources 
+        var upgradePartsNeeded = 15; // for 2 sources 
 
         if (sources.length == 1)
             upgradePartsNeeded = 5;
@@ -257,7 +257,7 @@ var utils = {
 
         var hasEnoughSlots = room.name != "1E52S22";
         if (hasLotsOfEnergy && hasEnoughSlots && !needBuild)
-            upgradePartsNeeded += 5;
+            upgradePartsNeeded += 3;
 
         if (hasHugeEnergySurplus && room.controller.level < 8) {
             upgradePartsNeeded += 10;
@@ -265,17 +265,28 @@ var utils = {
 
         // always upgrade to level 2
         if (room.controller.level == 1)
-            upgradeParts = 5;
+            upgradePartsNeeded = 5;
 
         if (room.controller.level == 8)
             upgradePartsNeeded = 15; // throttled on 8th level
 
-        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
-            creep.ticksToLive > 100);
+
+
         // do not count creeps close to death, that will be replaced anyway
 
+        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader');
+
+        var upgradersLong = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
+            creep.ticksToLive > 150);
+        
+
         var existingUpgradeParts = _.sum(upgraders, u => u.getActiveBodyparts(WORK));
-        var gapUpgradeParts = upgradePartsNeeded - existingUpgradeParts;
+        var existingUpgradePartsLong = _.sum(upgradersLong, u => u.getActiveBodyparts(WORK));
+
+        var gapUpgradeParts = 0;
+
+        if(upgradePartsNeeded - existingUpgradeParts > 0)
+            gapUpgradeParts = upgradePartsNeeded - existingUpgradePartsLong;
 
 
         // around spawn local deliverer
@@ -285,12 +296,11 @@ var utils = {
             var size = 50; // rough estimage
 
 
-            size = (room.controller.level - 1) * 50;
+            size = (room.controller.level) * 50;
 
 
             if (room.storage && room.storage.store.energy > 100000)
                 size += 100;
-            
             // spawn
             // spawn.container
             // room.storage
@@ -299,7 +309,7 @@ var utils = {
             if (room.name == "E48S27")
                 numLocals = 2;
 
-            if (room.basecontainer || room.storage)
+            if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
                     var roomSwpawnRoaded = room.controller.level >= 3;
                     if (roomSwpawnRoaded)
@@ -391,8 +401,8 @@ var utils = {
 
                 if (room.storage)
                     src = room.storage.id;
-                else if (room.basecontainer)
-                    src = room.basecontainer.id;
+                else if (room.spawn.container)
+                    src = room.spawn.container.id;
 
                 var res = this.createDeliverer(src, room.controller.container.id, amnt, RESOURCE_ENERGY);
 
@@ -436,27 +446,33 @@ var utils = {
                 filter: (c => c.getActiveBodyparts(ATTACK) > 10 ||
                     c.getActiveBodyparts(RANGED_ATTACK) > 10 && (c.owner.username != ""))
             });
+
         if (largeEnemies.length > 0)
             needAttack = true;
 
+        var attackers = _.filter(roomCreeps, (creep) => creep.memory.role == 'attack');
 
         var energyBudget = room.energyCapacityAvailable; // max possible
 
 
         // only builders allowed in early game
         if (isEarlyGame) {
+
             mem = new Object();
-            if (builders.length < 3 * sources.length)
+
+            if (builders.length < 3 * sources.length && mem.role == null)
                 mem.role = "builder";
 
             if (upgraders.length < 1 && mem.role == null) {
                 mem.role = "upgrader";
             }
 
+
+
             if (roomCreeps.length == 0)
                 energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
-        else if (needAttack) {
+        else if (needAttack && attackers.length == 0) {
             mem = new Object();
             mem.role = "attack";
         }
@@ -492,17 +508,9 @@ var utils = {
             mem.role = 'scout';
             mem.parts = [MOVE];
 
-            var scoutRoomMemory = Memory.rooms[spawnOrders.scoutRoom];
-            var needAggressiveScout = scoutRoomMemory ? scoutRoomMemory.dangerous : false;
+            //var scoutRoomMemory = Memory.rooms[spawnOrders.scoutRoom];
 
-            console.log("Need aggressive scout for ", scoutRoomMemory, "=", needAggressiveScout);
-
-            if (needAggressiveScout)
-                mem.parts = [MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK,
-                    MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK,
-                    MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK
-                ];
-
+            //console.log("Need aggressive scout for ", scoutRoomMemory, "=", needAggressiveScout);
             mem.toGo = [spawnOrders.scoutRoom];
         }
         else if (repl) {
@@ -536,7 +544,12 @@ var utils = {
 
 
 
-        room.memory.coldStart = !isEarlyGame && room.energyAvailable <= 300;
+
+        // TODO : bug here - it can stuck when level 2 energy 356 and no creeps
+        // it's not early game and energy was <= 300 condition
+        // was stuck again with 450 energy and 0 creeps
+        room.memory.coldStart = !isEarlyGame && roomCreeps.length < 3;
+        
         if (room.memory.coldStart) {
 
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
@@ -585,7 +598,7 @@ var utils = {
             if (parts == undefined)
                 parts = utils.getBodyParts(energyBudget, mem.role);
 
-            mem.parts = parts;
+            mem.parts = undefined; // saving memory
             mem.motherland = room.name;
 
             if (parts.length != 0) {
@@ -735,7 +748,7 @@ var utils = {
             return null;
         }
 
-        if (remainingCapacity <= 50 && resType == RESOURCE_ENERGY) {
+        if (remainingCapacity <= 50 && resType == RESOURCE_ENERGY && existingCapacity > 0) {
             //console.log('deliverer already exists between ', fromId, '->', toId);
             return null;
         }
@@ -1093,7 +1106,7 @@ var utils = {
             }
 
             // Clear old events if list is larger than 30
-            if (room.memory.events[eventType].length > 30) {
+            if (room.memory.events[eventType].length > 10) {
                 room.memory.events[eventType] = room.memory.events[eventType].slice(-30);
             }
         }

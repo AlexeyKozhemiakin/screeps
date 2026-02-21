@@ -31,17 +31,11 @@ var roleHarvester = {
                 }
                 // pre harvest for builers and upgraders
                 // dont do it if there are no other creeps nearby - no one to use it                
-                else if(source.container.store.energy < 500){
+                else if(source.container.store.energy < 1500){
                     target = source.container;
                 }
                 else if (creep.room.controller.container && 
                     creep.room.controller.container == target) {
-                    target = source.container;
-                }
-                else if (nearbyDeliverers.length > 0) {
-                    target = source.container;
-                }
-                else if (source.container.isOperating()) {
                     target = source.container;
                 }
                 else if (creep.room.energyAvailable == creep.room.energyCapacityAvailable) {

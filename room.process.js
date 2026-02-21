@@ -10,8 +10,6 @@ var roleScout = require('role.scout');
 
 roomProcess = {
     roomMove: function (room) {
-        //var isRoaded = (this.isRoaded(room.spawn, room.controller.container, room));
-        //console.log("Room ", room.name, " roading to controller: ", isRoaded);
 
         var funcMap = {
             'harvester': roleHarvester,
@@ -36,7 +34,6 @@ roomProcess = {
             try {
                 var role = creep.memory.role;
                 var obj = funcMap[role];
-
 
                 obj.run(creep);
             }

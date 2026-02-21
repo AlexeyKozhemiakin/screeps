@@ -33,12 +33,12 @@ function collect_stats_end() {
             delete Memory.rooms[name];
             console.log('Clearing non-existing room memory:', name);
         }
-    }
-    */
+    }*/
+    
 
     // stats
     for (var roomName in Game.rooms) {
-        var n = 30;
+        var n = 10;
 
         var room = Game.rooms[roomName];
         if (!room.controller)
@@ -165,10 +165,6 @@ function summarize_room_internal(room) {
 
 
     const source_energy_wasted = _.reduce(sources, (acc, source) => { acc[source.id] = Memory.tmp[source.id]; return acc; }, {});
-    const source_energy_wasted2 = _.reduce(sources, (acc, source) => 
-        { acc[source.id] = 0.1 * source.energy / (source.ticksToRegeneration || 1); return acc; }, {});
-
-
 
     // Real-time ideal diff metric:
     // For each source assume ideal harvesting is 10 per tick
@@ -223,7 +219,6 @@ function summarize_room_internal(room) {
     const const_sites = room.find(FIND_CONSTRUCTION_SITES);
     const my_const_sites = room.find(FIND_CONSTRUCTION_SITES, { filter: cs => cs.my });
     const num_construction_sites = const_sites.length;
-    const num_my_construction_sites = my_const_sites.length;
     const construction_hits = _.sum(my_const_sites, s => s.progressTotal) - _.sum(my_const_sites, s => s.progress);
 
 

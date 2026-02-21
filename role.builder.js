@@ -68,19 +68,40 @@ var roleBuilder = {
         if (basic.runDropped(creep, 3, RESOURCE_ENERGY, 50))
             return;
 
-        var source;
+        // Withdraw from hostile structures
+        var hostileSource = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
+            filter: function (s) {
+                return creep.pos.getRangeTo(s) <= 10 && s.store && s.store[RESOURCE_ENERGY] > 0 && s.structureType != STRUCTURE_NUKER;
+            }
+        });
+        if (hostileSource) {
+            if (!creep.pos.isNearTo(hostileSource.pos) && creep.fatigue == 0) {
+                var err = creep.moveTo(hostileSource.pos, { visualizePathStyle: { stroke: '#ff0000' } });
+                if (err != OK)
+                    creep.say(err);
+                return;
+            }
+            var err = creep.withdraw(hostileSource, RESOURCE_ENERGY);
+            if (err == OK) {
+                creep.say('💀loot');
+                return;
+            }
+        }
 
-        var sourceDismantle;
 
-        var flagDismantle = creep.pos.findClosestByRange(FIND_FLAGS, {
-            filter: flag => (flag.color == COLOR_RED && flag.secondaryColor == COLOR_BROWN)
+
+
+        // Dismantle hostile structures that have no energy
+        var sourceDismantle = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
+            filter: function (s) {
+                return creep.pos.getRangeTo(s) <= 10 && (!s.store || s.store[RESOURCE_ENERGY] == 0);
+            }
         });
 
-        if (flagDismantle) {
-            var looks = creep.room.lookForAt(LOOK_STRUCTURES, flagDismantle);
-            sourceDismantle = looks[0];
-            console.log("dismantle source ", sourceDismantle, " in room ", creep.room.name);
-        }
+        sourceDismantle = undefined;
+
+        var source;
+
 
         // containers nearby
         if (source == undefined) {
@@ -235,7 +256,7 @@ var roleBuilder = {
             target = flag.pos.findClosestByPath(FIND_CONSTRUCTION_SITES, { ignoreCreeps: true });
 
             if (target != null)
-                console.log("building important object " + target.id);
+                console.log("building important object " + target.id, " at flag ", flag.name, " for creep ", creep.name);
         }
 
         if (target == undefined) {
@@ -302,7 +323,10 @@ var roleBuilder = {
                 return;
             }
 
-            basic.recycleCreep(creep);
+            if (creep.room.controller.level > 1)
+                basic.recycleCreep(creep);
+            else
+                creep.memory.role = "upgrader";
             return;
         }
         else {

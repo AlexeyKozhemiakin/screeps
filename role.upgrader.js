@@ -4,6 +4,7 @@ var roleBoost = require('role.boost');
 var roleUpgrader =
 {
     runUpgrade: function (creep) {
+        
         if (creep.pos.getRangeTo(creep.room.controller.pos) > 3) {
             if (creep.fatigue == 0)
                 creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: '#ffffff' }, range: 3 });
@@ -40,7 +41,7 @@ var roleUpgrader =
     
         if(creep.memory.preferredSourceId) {
             var source = Game.getObjectById(creep.memory.preferredSourceId);
-            if(source && source.store[RESOURCE_ENERGY] > 0){
+            if(source && source.store && source.store[RESOURCE_ENERGY] > 0){
                 creep.memory.preferredSourceId = source.id;
                 return source;
             }
@@ -49,20 +50,9 @@ var roleUpgrader =
         var source = undefined;
 
         // nearby up containers
-        if (source == undefined) {
+        if (source == undefined && creep.room.controller.level > 1) {
 
             var nearby = undefined;
-
-            //var nearby = creep.room.controller.pos.findClosestByRange(FIND_STRUCTURES, {
-            //    filter: (structure) => {
-            //        return ((
-            //            structure == creep.room.controller.container ||
-            //            structure == creep.room.controller.storage ||
-            //            structure == creep.room.controller.link) &&
-            //            //structure.isActive &&
-            //            structure.store[RESOURCE_ENERGY] > 0);
-            //    }
-            //});
 
             if (nearby == undefined)
                 nearby = creep.room.controller.container;
@@ -109,7 +99,7 @@ var roleUpgrader =
             });
         }
 
-        if(source && source.store[RESOURCE_ENERGY] > 0)
+        if(source && source.store[RESOURCE_ENERGY] > 0 & creep.room.controller.level > 2)
             creep.memory.preferredSourceId = source.id;
 
 
