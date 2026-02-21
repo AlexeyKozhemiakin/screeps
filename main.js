@@ -10,6 +10,7 @@ var roomPlanning = require('room.planning');
 var roomClaiming = require('room.claim');
 var roomRemoteHarvesting = require('room.remoteHarvesting');
 var roomProcess = require('room.process');
+require('console-commands');
 
 const profiler = require('screeps-profiler');
 //profiler.enable();
@@ -19,6 +20,11 @@ profiler.registerClass(roomPlanning, 'room.planning');
 profiler.registerClass(roomClaiming, 'room.claim');
 profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
 profiler.registerClass(roomProcess, 'room.process');
+profiler.registerClass(prototypes, 'prototypes');
+profiler.registerClass(roleBoost, 'role.boost');
+profiler.registerClass(market, 'market');
+profiler.registerClass(scp, 'scp');
+profiler.registerObject(utils, 'utils');
 
 
 module.exports.loop = function () {
@@ -37,25 +43,31 @@ loopInner = function () {
 
 
     try {
-
         //market.exploreArbitrage(Game.rooms["E51S23"]);
-        market.sellExcess();
-        market.buyDemand();
-        market.putBuyOrders()
+        if (Game.time % 5 == 0) {
+            market.sellExcess();
+            market.buyDemand();
+            market.shareEnergyInternal();
+            market.manageInventory();
+            market.setupReactions();
+        }
         market.runReactions();
-        market.shareEnergyInternal();
     }
     catch (e) {
         console.log("Market error: ", e.stack, e.message);
     }
-    var roomsToClaim = [
+    // Seed Memory.roomsToClaim once, then manage via console commands
+    //if (!Memory.roomsToClaim) {
+    Memory.roomsToClaim = [
         "E51S23", "E52S23", "E53S22",
         "E55S22", "E54S22", "E56S23",
         "E55S21", "E48S27", "E49S23",
-
         "E52S22", "E47S26", "E48S22",
-        //"E57S24"
+
+        "E48S23", "E57S23"
     ];
+    //}
+    var roomsToClaim = Memory.roomsToClaim;
 
     //"E48S24" was not able to pass because of rampart
 
@@ -72,6 +84,7 @@ loopInner = function () {
     }
 
 
+    
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();
@@ -89,7 +102,12 @@ loopInner = function () {
         utils.roomDraw(room);
         utils.safeModeIfDanger(room);
 
-        if (roomTime % 100 == 0)
+        var dT = 100;
+
+        if (room.controller && room.controller.level == 1)
+            dT = 1;
+
+        if (roomTime % dT == 0)
             roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU

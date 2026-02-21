@@ -14,19 +14,32 @@ var roomClaiming = {
             return false;
         });
 
+        var roomsFinalized = _.filter(requestedRooms, roomName => {
+            var room = Game.rooms[roomName];
+            if (!room)
+                return false ; // need visibility first
+
+            if (room.controller.my && room.spawn)
+                return true;
+
+            return false;
+        });
+
+
         //console.log("needScout", roomsNeedScout, "notClaimed", roomsNotClaimed);
 
         var spawnOrder = new Object();
-        console.log("roomsNotClaimed ", requestedRooms.filter(r => !roomsClaimed.includes(r)));
+        //console.log("roomsNotClaimed ", requestedRooms.filter(r => !roomsClaimed.includes(r)));
+        //console.log("roomsClaimed ", roomsClaimed);
         //console.log("requestedRooms ", requestedRooms);
         for (var i in requestedRooms) {
             var roomName = requestedRooms[i];
 
             // already claimed
-            if(roomsClaimed.includes(roomName))
+            if(roomsFinalized.includes(roomName))
                 continue;
 
-            console.log("Processing claim for ", roomName);
+            
 
             // todo - need to fix this to check dynamically
             var bigRooms = _.filter(Game.rooms,
