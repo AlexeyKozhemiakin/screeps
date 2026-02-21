@@ -26,7 +26,7 @@ var roomPlanning = {
             if (!strType)
                 continue;
 
-            var code = room.createConstructionSite(flag.pos, strType);
+            var code = room.createConstructionSite(flag.pos, strType, "spawn_" + Game.time);
 
             if (OK == code) {
                 flag.remove();
@@ -44,12 +44,24 @@ var roomPlanning = {
             return false;
 
 
-        var code = room.createConstructionSite(pos, structureType);
+        var name = undefined;
+
+        if (structureType == STRUCTURE_SPAWN)
+            name = "spawn_" + Game.time;
+
+        //if (room.name == "E48S23")
+        //    console.log("Trying to build ", structureType, " in ", room.name, " at ", pos, " with name ", name);
+
+        var code = pos.createConstructionSite(structureType, name);
 
         if (OK == code) {
             return true;
         }
         else {
+
+            //if (room.name == "E48S23")
+            //    console.log("Cant build", structureType, "in", room.name, " at ", pos, ":", utils.getError(code));
+
             //console.log("Cant build", structureType, "in", room.name, ":", utils.getError(code));
             return false;
         }
@@ -92,10 +104,6 @@ var roomPlanning = {
             }
         }
 
-        // need to repair roads still
-        if ((nearByContainer || nearByContainerSite) && !buildLink)
-            return;
-
         var nearByLink = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
             filter: s => s.structureType == STRUCTURE_LINK
         })[0];
@@ -107,6 +115,11 @@ var roomPlanning = {
 
         if (nearByLink)
             return;
+
+        // need to repair roads still
+        if ((nearByContainer || nearByContainerSite) && !buildLink)
+            return;
+
 
         var roadPath = utils.getPathMultiroom(from, to, range);
         //var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true });
@@ -167,7 +180,7 @@ var roomPlanning = {
     tryExtensions: function (room, point, buildEnabled = false) {
         var pos = point.pos;
         // 2D pattern array - each cell represents a position relative to spawn
-        // e - ExtensionP - spawn ( reference point)
+        // e - Extension P - spawn ( reference point)
         // s - Storage t - tower c - container . - empty space l - link
         // b - lab m - terminal
 
@@ -187,8 +200,8 @@ var roomPlanning = {
             "...r.r...",
             "..r.c.r..",
             "..erPre..",
-            "..eere...",
-            ".........",
+            "...ere...",
+            "....e....",
             ".........",
             "........."
         ];
@@ -199,21 +212,21 @@ var roomPlanning = {
             "..erPre..",
             "..eeree..",
             "..erere..",
-            ".........",
+            "....e....",
             ".........",
             "........."
         ];
 
         var pattern4 = [
-            ".........",
-            ".........",
-            "...r.r...",
-            "..rsr.rt.",
-            "..erPrer.",
-            ".eeereee.",
-            "..e.e.e..",
-            "...eee...",
-            "....e...."
+            "...........",
+            "...........",
+            "....r.r....",
+            "...rsr.rt..",
+            "...erPrer..",
+            "..eeereeer.",
+            "...ererere.",
+            "...reeeree.",
+            "....rer.r.."
         ];
 
         var pattern5 = [
@@ -247,7 +260,7 @@ var roomPlanning = {
 
         var pattern = patterns[room.controller.level];
         // find spawn or spawn construction site at pos 
-        var showAll = room.spawns.length == 0;
+        var showAll = !buildEnabled;
         if (!pattern || showAll)
             pattern = patterns[patterns.length - 1]; // default to max
 
@@ -280,9 +293,6 @@ var roomPlanning = {
                 if (cell == '.') // empty space
                     continue;
 
-                if (cell == 'P') // skip spawn position - just for reference
-                    continue;
-
                 // Calculate world position
                 var dx = x - centerX;
                 var dy = y - centerY;
@@ -309,6 +319,7 @@ var roomPlanning = {
 
                 // Determine structure type and color based on cell letter
                 const cellMap = {
+                    'P': STRUCTURE_SPAWN,
                     'e': STRUCTURE_EXTENSION,
                     's': STRUCTURE_STORAGE,
                     't': STRUCTURE_TOWER,
