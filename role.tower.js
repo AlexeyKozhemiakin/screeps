@@ -1,9 +1,13 @@
 module.exports = {
 
     run: function (room) {
+        if(!room)
+            return;
+        if(!room.controller)
+            return;
         if(!room.controller.my)
             return;
-        var towers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER });
+        var towers = room.find(FIND_MY_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER });
 
         _.forEach(towers, t => this.runInternal(t));
     },

@@ -39,7 +39,7 @@ var roleBasic = {
         var cacheKey = creep.room + roomToGo;
         var route = roleBasic._routeCache[cacheKey];
         // this was for case when there were consturcted walls on the way
-        var roomsToAvoid = ["E52S24", "E54S23"];
+        var roomsToAvoid = [];
 
         if (!route) {
             route = Game.map.findRoute(creep.room, roomToGo, {
@@ -60,14 +60,23 @@ var roleBasic = {
                     x %= 10;
                     y %= 10;
                     if ((x == 4 || x == 5 || x == 6) && (y == 4 || y == 5 || y == 6))
-                        return Infinity;
+                        return 10;
 
-                    return 1;
+
+                    // prefer highways
+                    if(x == 0 || y == 0)
+                        return 1;
+
+                    return 2;
                 }
             });
             roleBasic._routeCache[cacheKey] = route;
         }
 
+        if(route == ERR_NO_PATH) {
+            console.log("no route from ", creep.room.name, " to ", roomToGo);
+            return false;
+        }
         //console.log(creep.name, " route to ", roomToGo, ":", JSON.stringify(route));
         const exitDir = Game.map.findExit(creep.room, route[0].room);
         moveTarget = creep.pos.findClosestByPath(exitDir, { ignoreCreeps: true });
@@ -159,6 +168,9 @@ var roleBasic = {
     },
 
     runDropped: function (creep, range, resType, limit = 0) {
+
+
+        //return;
 
         if (creep.store.getFreeCapacity() == 0)
             return;
