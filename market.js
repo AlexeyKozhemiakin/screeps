@@ -59,7 +59,7 @@ module.exports = {
         // for all terminals above 100k send energy to those below 50k
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
-            if (!room || !room.terminal)
+            if (!room || !room.terminal || !room.storage)
                 continue;
 
             if (room.storage.store[RESOURCE_ENERGY] < 100000)
@@ -71,7 +71,7 @@ module.exports = {
             //console.log("Room ", roomName, " has excess energy ", room.terminal.store[RESOURCE_ENERGY]);
             for (const targetRoomName in Game.rooms) {
                 const targetRoom = Game.rooms[targetRoomName];
-                if (!targetRoom || !targetRoom.controller.my || !targetRoom.terminal || targetRoomName == roomName)
+                if (!targetRoom || !targetRoom.controller|| !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
                     continue;
 
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
@@ -153,7 +153,7 @@ module.exports = {
             // 'ZH': ['Z', 'H'],
             'GH': ['G', 'H'],
             // Tier 1 - Oxides
-            //'UO': ['U', 'O'],
+            'UO': ['U', 'O'],
             //'KO': ['K', 'O'],
             //'LO': ['L', 'O'],
             //'ZO': ['Z', 'O'],
@@ -165,14 +165,14 @@ module.exports = {
             //'ZH2O': ['ZH', 'OH'],
             'GH2O': ['GH', 'OH'],
             // Tier 2 - Alkalides (oxide + OH)
-            //'UHO2': ['UO', 'OH'],
+            'UHO2': ['UO', 'OH'],
             // 'KHO2': ['KO', 'OH'],
             //'LHO2': ['LO', 'OH'],
             //'ZHO2': ['ZO', 'OH'],
             //'GHO2': ['GO', 'OH'],
             // Tier 3 - Catalyzed (X + Tier 2)
             //'XUH2O': ['X', 'UH2O'],
-            //'XUHO2': ['X', 'UHO2'],
+            'XUHO2': ['X', 'UHO2'],
             //'XKH2O': ['X', 'KH2O'],
             //'XKHO2': ['X', 'KHO2'],
             //'XLH2O': ['X', 'LH2O'],
@@ -263,22 +263,34 @@ module.exports = {
             }
         }
 
+        // If no production target and all goals are satisfied, clear lab setup and mineral demands
+        if (!room.memory.productionTarget && Object.keys(goals).length === 0) {
+            // Clear labSetup and set all labs' mineralDemand to null
+            room.memory.labSetup = null;
+            let labs = room.find(FIND_MY_STRUCTURES, {
+                filter: (structure) => structure.structureType === STRUCTURE_LAB
+            });
+            for (let i = 0; i < labs.length; i++) {
+                labs[i].mineralDemand = null;
+            }
+        }
         //console.log("Room ", room.name, " goals: ", JSON.stringify(goals), " current: ", JSON.stringify(_.mapValues(manualReagents, r => this.getTotalMineralAmount(room, r))));
         return goals;
     }
     ,
     manageInventory(room) {
-        if (!room.terminal || !room.controller.my)
-            return null;
-
-
-        var goals = this.autoGenerateGoalsForRoom(room);
-
-
-        return goals;
-
+        // Update all rooms (cycle)
+        for (const roomName in Game.rooms) {
+            const r = Game.rooms[roomName];
+            if (!r || !r.terminal || !r.controller.my)
+                continue;
+            var goals = this.autoGenerateGoalsForRoom(r);
+            r.memory.inventoryGoal = goals;
+        }
+        return;
     },
-    runReactions() {
+
+    setupReactions() {
 
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
@@ -287,21 +299,36 @@ module.exports = {
                 console.log("Room ", roomName, " not accessible or doesn't exist");
                 continue;
             }
-            const goal = this.manageInventory(room);
+            const goal = room.memory.inventoryGoal;
             if (!goal)
                 continue;
 
-            this.runReactionsForRoom(room, goal);
+            this.setupReactionsForRoom(room, goal);
         }
     },
-    runReactionsForRoom(room, goals) {
-        for (const targetRes in goals) {
-            const requiredAmount = goals[targetRes];
-            const currentAmount = this.getTotalMineralAmount(room, targetRes);
+    
+    setupReactionsForRoom(room, goals) {
+        const targetRes = room.memory.productionTarget;
 
-            if (currentAmount < requiredAmount) {
-                this.handleRoomReagents(room, targetRes, goals, this);
-            }
+        // Only allow lab setup for the active production target.
+        // This prevents stale/secondary goal keys from reprogramming labs (e.g. back to GH).
+        if (!targetRes) {
+            room.memory.labSetup = null;
+            return;
+        }
+
+        // If setup target drifts from current production target, force reset first.
+        if (room.memory.labSetup && room.memory.labSetup.targetRes && room.memory.labSetup.targetRes !== targetRes) {
+            room.memory.labSetup = null;
+        }
+
+        const requiredAmount = goals[targetRes];
+        if (!requiredAmount)
+            return;
+
+        const currentAmount = this.getTotalMineralAmount(room, targetRes);
+        if (currentAmount < requiredAmount) {
+            this.setupRoomReagents(room, targetRes, goals, this);
         }
     }
 
@@ -339,7 +366,6 @@ module.exports = {
     runReaction(id1, id2, id3) {
         var lab1 = Game.getObjectById(id1);
         var lab2 = Game.getObjectById(id2);
-
         var lab3 = Game.getObjectById(id3);
 
         if (!lab3)
@@ -350,7 +376,17 @@ module.exports = {
 
         var code = lab3.runReaction(lab1, lab2);
         if (OK != code && code != -6) {
-            console.log('failed to run reacton', lab1.room.name, code);
+            let l1type = lab1 && lab1.mineralType ? lab1.mineralType : 'none';
+            let l2type = lab2 && lab2.mineralType ? lab2.mineralType : 'none';
+            let l1amt = lab1 && lab1.mineralType ? lab1.store[lab1.mineralType] : 0;
+            let l2amt = lab2 && lab2.mineralType ? lab2.store[lab2.mineralType] : 0;
+            let l3type = lab3 && lab3.mineralType ? lab3.mineralType : 'none';
+            let l3amt = lab3 && lab3.mineralType ? lab3.store[lab3.mineralType] : 0;
+            console.log('failed to run reacton', lab1 && lab1.room ? lab1.room.name : 'unknown', 'err', code,
+                'lab1:', l1type, l1amt,
+                'lab2:', l2type, l2amt,
+                'lab3:', l3type, l3amt
+            );
         }
     },
 
@@ -394,7 +430,18 @@ module.exports = {
     },
 
     putBuyOrders: function () {
+        // clear fulfilled orders
+        for (const order of Object.values(Game.market.orders)) {
+            var ticksInDay = 24*60*20;
+            if (order.remainingAmount == 0 || Game.time - order.created > 10*ticksInDay) { // 10 days
+                console.log("Removing fulfilled/expired order ", order.id);
+                Game.market.cancelOrder(order.id);
+            }
+        }
+        
         //sometimes i want to place orders to have more control over price and cause i can place order for 1000 and wait for it to fill instead of trying to buy 1000 with 10 different orders and risk filling only 500 at good price and 500 at bad price
+    
+        
         return;
 
         const orderConfigs = [
@@ -592,7 +639,7 @@ module.exports = {
         var energyHistoricalPrice = this.recentPrice(RESOURCE_ENERGY);
         var resHistoricalPrice = this.recentPrice(resType);
 
-        console.log("avg energy price ", energyHistoricalPrice, "avg", resType, "price ", resHistoricalPrice);
+        //console.log("avg energy price ", energyHistoricalPrice, "avg", resType, "price ", resHistoricalPrice);
         const energyPrice = energyHistoricalPrice;
 
         getTotalPrice = function (o) {
@@ -629,7 +676,7 @@ module.exports = {
             // order direction is flipped as i see it from their perspective,
 
             if (orderType == ORDER_SELL && totalPrice > resHistoricalPrice * (1 + acceptableMargin)) {
-                console.log("Skipping order because total price ", totalPrice, " is significantly higher than historical price ", resHistoricalPrice);
+                //console.log("Skipping order because total price ", totalPrice, " is significantly higher than historical price ", resHistoricalPrice);
 
                 // try to create a buy order at historical price to stimulate market and then break to avoid buying at bad price, cause if there is demand someone will fill it and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
                 this.tryCreateBuyOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3001, targetRoom);
@@ -664,78 +711,119 @@ module.exports = {
         return REAGENTS[resourceType];
     },
 
-    handleRoomReagents: function (room, targetRes, goals) {
+    setupRoomReagents: function (room, targetRes, goals) {
+        if (room.memory.productionTarget && room.memory.productionTarget !== targetRes)
+            return;
+
+        // Setup/check function: called less frequently
         const targetAmount = goals[targetRes];
         const currentAmount = this.getTotalMineralAmount(room, targetRes);
         if (currentAmount >= targetAmount)
             return;
 
         var gapAmount = targetAmount - currentAmount;
-
-        gapAmount = Math.min(gapAmount, 1000);// react in smaller batches to be more flexible and avoid overbuying reagents if something changes in the market or if reaction runs faster than expected
-
+        gapAmount = Math.min(gapAmount, 1000);
         const reagents = this.getReagents(targetRes);
-        //console.log("Current amount of ", targetRes, " in ", room.name, " is ", currentAmount, " target is ", targetAmount, " reagents are ", reagents);
         if (!reagents)
             return;
 
-        // buy reagents for production
         for (let i = 0; i < reagents.length; i++) {
             const reagent = reagents[i];
             const reagentAmount = this.getTotalMineralAmount(room, reagent);
-
             if (reagentAmount < gapAmount) {
-                //const transferAmount = Math.min(1000, gapAmount);
-                // Sharing is now handled in autoGenerateGoalsForRoom, so just buy what's needed
-                // this shouldnt happen as we are doing it in previous manageInventory cycle
                 console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name);
-
                 room.memory.productionTarget = null;
-                // reset production target to allow acquiring reagents and then setting production target again in next cycle, this is needed to avoid situation when we have production target for compound but no reagents and we are not trying to acquire them cause we are waiting for compound to be produced, but it will never be produced without reagents
                 return;
             }
         }
 
-        // find labs for reagents
         let labs = room.find(FIND_MY_STRUCTURES, {
             filter: (structure) => structure.structureType === STRUCTURE_LAB
         });
-
         labs = _.sortBy(labs, l => l.id);
         if (labs.length < 3)
             return;
 
-        // Use first two labs as input labs
-        const lab1 = labs[0];
-        const lab2 = labs[1];
+        const getLabMineralType = function (lab) {
+            if (lab.mineralType)
+                return lab.mineralType;
 
-        // Clear mineralDemand on all labs first to remove stale demands from previous reactions
+            return _.findKey(lab.store, (amount, key) => key !== RESOURCE_ENERGY && amount > 0) || null;
+        };
+
+        // Always clear stale demands before applying/validating next setup target.
+        // This avoids previous targets (e.g. GH) sticking when switching production.
         for (let i = 0; i < labs.length; i++) {
-            labs[i].mineralDemand = undefined;
+            labs[i].mineralDemand = null;
         }
 
-        // Set mineral demands for input labs
-        lab1.mineralDemand = reagents[0];
-        lab2.mineralDemand = reagents[1];
-
-        // Use all remaining labs as output labs for parallel production
-        const outputLabs = [];
-        for (let i = 2; i < labs.length; i++) {
+        // Only set labSetup if all input/output labs are empty or have correct mineral
+        let ready = true;
+        for (let i = 0; i < 2; i++) {
             const lab = labs[i];
-
-            // Check if suitable (empty or already has target mineral)
-            if (!lab.mineralType || lab.mineralType === targetRes) {
-                lab.mineralDemand = targetRes;
-                outputLabs.push(lab);
+            const expected = reagents[i];
+            const labMineralType = getLabMineralType(lab);
+            if (labMineralType && labMineralType !== expected) {
+                ready = false;
+                if ((lab.store[labMineralType] || 0) > 0) {
+                    console.log(`Lab ${lab.id} in ${room.name} has wrong mineral (${labMineralType}), needs to be emptied before switching to ${expected}`);
+                }
             }
         }
-
-        // Check if input labs are ready
-        if (lab1.store[reagents[0]] < LAB_REACTION_AMOUNT ||
-            lab2.store[reagents[1]] < LAB_REACTION_AMOUNT)
+        for (let i = 2; i < labs.length; i++) {
+            const lab = labs[i];
+            const labMineralType = getLabMineralType(lab);
+            if (labMineralType && labMineralType !== targetRes) {
+                ready = false;
+                if ((lab.store[labMineralType] || 0) > 0) {
+                    console.log(`Output lab ${lab.id} in ${room.name} has wrong mineral (${labMineralType}), needs to be emptied before producing ${targetRes}`);
+                }
+            }
+        }
+        if (!ready) {
+            // Keep setup disabled while labs are being emptied.
+            room.memory.labSetup = null;
             return;
+        }
 
-        // Run reactions on all available output labs
+        // Store lab IDs in memory for use in fast cycle
+        room.memory.labSetup = {
+            inputLab1: labs[0].id,
+            inputLab2: labs[1].id,
+            outputLabs: labs.slice(2).map(l => l.id),
+            reagents: reagents,
+            targetRes: targetRes
+        };
+
+        // Set mineral demands for input/output labs
+        labs[0].mineralDemand = reagents[0];
+        labs[1].mineralDemand = reagents[1];
+        for (let i = 2; i < labs.length; i++) {
+            labs[i].mineralDemand = targetRes;
+        }
+    },
+
+    runReactions(){
+        for (const roomName in Game.rooms) {
+            const room = Game.rooms[roomName];
+            if (!room || !room.controller || !room.controller.my || !room.memory.labSetup)
+                continue;
+
+            this.runRoomReactions(room);
+        }
+    },
+
+    runRoomReactions: function (room) {
+        // Fast cycle: run reactions using lab IDs from memory
+        const setup = room.memory.labSetup;
+        if (!setup) return;
+        const lab1 = Game.getObjectById(setup.inputLab1);
+        const lab2 = Game.getObjectById(setup.inputLab2);
+        const outputLabs = setup.outputLabs.map(id => Game.getObjectById(id)).filter(lab => !!lab);
+        const reagents = setup.reagents;
+        const targetRes = setup.targetRes;
+        if (!lab1 || !lab2 || !outputLabs.length || !reagents) return;
+        if (lab1.store[reagents[0]] < LAB_REACTION_AMOUNT || lab2.store[reagents[1]] < LAB_REACTION_AMOUNT) return;
         for (const outputLab of outputLabs) {
             if (outputLab.cooldown === 0) {
                 this.runReaction(lab1.id, lab2.id, outputLab.id);

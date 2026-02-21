@@ -1,26 +1,3 @@
-// Structure Prototypes
-StructureContainer.prototype.isOperating = function () {
-    var dels = _.filter(Game.creeps, d => d.memory.role == "deliverer" && d.memory.preferredTargetId == this.id);
-    var dels2 = _.filter(Game.creeps, d => d.memory.role == "deliverer" && d.memory.preferredSourceId == this.id);
-    var value = dels.length > 0 || dels2.length > 0
-
-    return value || this.store[RESOURCE_ENERGY] > 1000;
-};
-
-StructureLink.prototype.isOperating = function () {
-    return true;
-};
-
-StructureStorage.prototype.isOperating = function () {
-    return true;
-};
-
-Source.prototype.isOperating = function () {
-    var dels = _.filter(Game.creeps, d => d.memory.role == "harvester" && d.memory.preferredSourceId == this.id);
-
-    return dels.length > 0;
-};
-
 Source.prototype.slots = function () {
     var array = this.room.lookForAtArea(LOOK_TERRAIN, this.pos.y - 1, this.pos.x - 1, this.pos.y + 1, this.pos.x + 1, true);
 
@@ -33,6 +10,17 @@ Source.prototype.slots = function () {
 Object.defineProperty(Room.prototype, 'extractor', {
     get: function () {
         return this.find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_EXTRACTOR } })
+        [0];
+    },
+
+    enumerable: false,
+    configurable: true
+});
+
+// Room Prototypes
+Object.defineProperty(Room.prototype, 'terminal', {
+    get: function () {
+        return this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_TERMINAL } })
         [0];
     },
 
@@ -54,7 +42,7 @@ Object.defineProperty(RoomObject.prototype, 'isNearBase', {
 
 Object.defineProperty(Room.prototype, 'links', {
     get: function () {
-        return this.find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_LINK } });
+        return this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_LINK } });
     },
     enumerable: false,
     configurable: true
@@ -70,7 +58,7 @@ Object.defineProperty(Room.prototype, 'labs', {
 
 Object.defineProperty(Room.prototype, 'extensions', {
     get: function () {
-        return this.find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } });
+        return this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } });
     },
     enumerable: false,
     configurable: true
@@ -119,6 +107,23 @@ Object.defineProperty(RoomObject.prototype, 'container', {
     get: function () {
         var closest = this.pos.findInRange(FIND_STRUCTURES, 2, { filter: { structureType: STRUCTURE_CONTAINER } })[0]
 
+        //if (closest == undefined)
+        //    closest = this.pos.findInRange(FIND_STRUCTURES, 3, { filter: { structureType: STRUCTURE_CONTAINER } })[0]
+
+        //if (closest == undefined)
+        //    closest = this.pos.findInRange(FIND_STRUCTURES, 4, { filter: { structureType: STRUCTURE_CONTAINER } })[0]
+
+        return closest
+    },
+
+    enumerable: false,
+    configurable: true
+});
+
+Object.defineProperty(StructureController.prototype, 'container', {
+    get: function () {
+        var closest = this.pos.findInRange(FIND_STRUCTURES, 4, { filter: { structureType: STRUCTURE_CONTAINER } })[0]
+
         if (closest == undefined)
             closest = this.pos.findInRange(FIND_STRUCTURES, 3, { filter: { structureType: STRUCTURE_CONTAINER } })[0]
 
@@ -134,7 +139,7 @@ Object.defineProperty(RoomObject.prototype, 'container', {
 
 Object.defineProperty(RoomObject.prototype, 'storage', {
     get: function () {
-        return this.pos.findInRange(FIND_STRUCTURES, 2, { filter: { structureType: STRUCTURE_STORAGE } })
+        return this.pos.findInRange(FIND_MY_STRUCTURES, 2, { filter: { structureType: STRUCTURE_STORAGE } })
         [0];
     },
 
@@ -152,22 +157,10 @@ Object.defineProperty(Room.prototype, 'mineral', {
     configurable: true
 });
 
-Object.defineProperty(Room.prototype, 'basecontainer', {
-
-    get: function () {
-        return this.spawn.pos.findInRange(FIND_STRUCTURES, 4, { filter: { structureType: STRUCTURE_CONTAINER } })
-        [0];
-    },
-
-    enumerable: false,
-    configurable: true
-});
-
-
 Object.defineProperty(StructureController.prototype, "storage", {
 
     get: function () {
-        return this.pos.findInRange(FIND_STRUCTURES, 4, { filter: { structureType: STRUCTURE_STORAGE } })
+        return this.pos.findInRange(FIND_MY_STRUCTURES, 4, { filter: { structureType: STRUCTURE_STORAGE } })
         [0];
     },
 
@@ -178,7 +171,7 @@ Object.defineProperty(StructureController.prototype, "storage", {
 Object.defineProperty(StructureController.prototype, "link", {
 
     get: function () {
-        return this.pos.findInRange(FIND_STRUCTURES, 3, { filter: { structureType: STRUCTURE_LINK } })
+        return this.pos.findInRange(FIND_MY_STRUCTURES, 3, { filter: { structureType: STRUCTURE_LINK } })
         [0];
     },
 
@@ -189,7 +182,7 @@ Object.defineProperty(StructureController.prototype, "link", {
 Object.defineProperty(RoomObject.prototype, "link", {
 
     get: function () {
-        return this.pos.findInRange(FIND_STRUCTURES, 2, { filter: { structureType: STRUCTURE_LINK } })
+        return this.pos.findInRange(FIND_MY_STRUCTURES, 2, { filter: { structureType: STRUCTURE_LINK } })
         [0];
     },
 

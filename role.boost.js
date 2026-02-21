@@ -56,6 +56,8 @@ var roleBoost = {
     needsBoosting: function(creep) {
         // Don't boost if already boosted
         if (creep.memory.boosted) return false;
+
+        if(creep.ticksToLive < 1400) return false; 
         
         // Check if boosting is enabled for this room
         const room = Game.rooms[creep.memory.motherland];

@@ -8,6 +8,31 @@ const MINERAL_WATERMARK = 500;
 
 var roleDeliverer =
 {
+    getLabMineralType: function (lab) {
+        if (!lab || !lab.store)
+            return null;
+
+        if (lab.mineralType)
+            return lab.mineralType;
+
+        var mineralKey = _.findKey(lab.store, function (amount, key) {
+            return key !== RESOURCE_ENERGY && amount > 0;
+        });
+
+        return mineralKey || null;
+    },
+
+    getLabMineralAmount: function (lab, mineralType) {
+        if (!lab || !lab.store)
+            return 0;
+
+        var type = mineralType || this.getLabMineralType(lab);
+        if (!type)
+            return 0;
+
+        return lab.store[type] || 0;
+    },
+
     runDeliver: function (creep) {
         var target = this.selectTarget(creep);
 
@@ -43,8 +68,9 @@ var roleDeliverer =
         var iHave = creep.store[resType];
         var iHaveTotal = _.sum(creep.store);
 
+        // avoid overfill otherwise base deliverer can compete with  controller container filler
         if (creep.memory.preferredTargetId &&
-            target.store[resType] > target.store.getCapacity() - 300) {
+            target.store[resType] > target.store.getCapacity() - 200 - creep.store.getCapacity()) {
             creep.say("...");
             return false;
         }
@@ -100,8 +126,8 @@ var roleDeliverer =
         var key = _.findKey(creep.store, f => f > 0);
         if (key)
             resType = key;
-        else if (this.recentWithdrawResType)
-            resType = this.recentWithdrawResType;
+        else if (creep.memory.recentWithdrawResType && creep.memory.task == "deliver")
+            resType = creep.memory.recentWithdrawResType;
         return resType;
     },
 
@@ -160,8 +186,8 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
                         return (s.structureType == STRUCTURE_LINK) &&
-                            s.isActive &&
-                            s.isNearBase && creep.room.controller.link != s &&
+                            s == creep.room.spawn.link &&
+                            creep.room.controller.link != s &&
                             s.energy < linkLimitLow;
                     }
                 });
@@ -211,13 +237,13 @@ var roleDeliverer =
                             filter: (s) => {
                                 const desiredEnergy = creep.room.memory.labEnergyDemand[s.id];
                                 return s.structureType === STRUCTURE_LAB &&
-                                       s.store[RESOURCE_ENERGY] < desiredEnergy;
+                                    s.store[RESOURCE_ENERGY] < desiredEnergy;
                             }
                         }
                     );
                 }
             }
-            
+
             // terminals
             if (target == undefined) {
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
@@ -248,10 +274,13 @@ var roleDeliverer =
             if (target == undefined) {
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (lab) => {
+                        var labMineralType = this.getLabMineralType(lab);
+                        var labMineralAmount = this.getLabMineralAmount(lab, labMineralType);
+
                         return ((lab.structureType == STRUCTURE_LAB) && lab.isActive
-                            && lab.mineralAmount < MINERAL_WATERMARK && 
-                            lab.mineralDemand == resType && 
-                            (lab.mineralType == undefined || lab.mineralType == resType));
+                            && labMineralAmount < MINERAL_WATERMARK &&
+                            lab.mineralDemand == resType &&
+                            (labMineralType == undefined || labMineralType == resType));
                     }
                 });
             }
@@ -283,7 +312,7 @@ var roleDeliverer =
 
     runPickup: function (creep) {
         var source;
-        
+
         // limiting?
         if (creep.memory.preferredSourceId) {
             source = Game.getObjectById(creep.memory.preferredSourceId);
@@ -324,43 +353,51 @@ var roleDeliverer =
 
         //locallinks
         if (source == undefined) {
-            source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                filter: (structure) => {
-                    return (structure.structureType == STRUCTURE_LINK) &&
-                        structure.isActive &&
-                        structure.isNearBase &&
-                        structure.isNearBase && creep.room.controller.link != structure &&
-                        structure.energy > linkLimitHigh;
-                }
-            });
+            if (creep.room.spawn.link && creep.room.spawn.link.energy > linkLimitHigh)
+                source = creep.room.spawn.link;
         }
+
 
         // FIRST PRIORITY (after energy): Remove minerals from labs that shouldn't be there
         // This includes: wrong minerals (mineralDemand != mineralType) and unwanted minerals (no demand set)
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_LAB) &&
-                    o.mineralAmount > 0 &&
-                    (
-                        (o.mineralDemand && o.mineralDemand != o.mineralType) ||  // wrong mineral
-                        !o.mineralDemand  // no demand, should be empty
-                    )
+                filter: o => {
+                    if (o.structureType != STRUCTURE_LAB)
+                        return false;
+
+                    var mineralType = this.getLabMineralType(o);
+                    var mineralAmount = this.getLabMineralAmount(o, mineralType);
+
+                    return mineralAmount > 0 &&
+                        (
+                            (o.mineralDemand && o.mineralDemand != mineralType) ||  // wrong mineral
+                            !o.mineralDemand  // no demand, should be empty
+                        );
+                }
             });
 
             if (source) {
-                resType = source.mineralType;
+                resType = this.getLabMineralType(source);
             }
         }
 
         // Labs with minerals above watermark (take excess back to storage)
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_LAB) &&
-                    o.mineralAmount > MINERAL_WATERMARK + creep.store.getCapacity()
+                filter: o => {
+                    if (o.structureType != STRUCTURE_LAB)
+                        return false;
+
+                    var mineralType = this.getLabMineralType(o);
+                    var mineralAmount = this.getLabMineralAmount(o, mineralType);
+
+                    return mineralAmount > MINERAL_WATERMARK + creep.store.getCapacity();
+                }
             });
 
             if (source) {
-                resType = source.mineralType;
+                resType = this.getLabMineralType(source);
             }
         }
 
@@ -382,24 +419,27 @@ var roleDeliverer =
                 }
             }
         }
-        
+
         // local terminal or storage for mineral
         if (source == undefined) {
             var target = this.selectTarget(creep);
             if (target && target.structureType == STRUCTURE_STORAGE) {
                 var labs = creep.room.find(FIND_STRUCTURES, {
                     filter: (lab) => {
+                        var labMineralType = this.getLabMineralType(lab);
+                        var labMineralAmount = this.getLabMineralAmount(lab, labMineralType);
+
                         return ((lab.structureType == STRUCTURE_LAB) &&
                             lab.isActive &&
-                            lab.mineralAmount < MINERAL_WATERMARK &&
+                            labMineralAmount < MINERAL_WATERMARK &&
                             lab.mineralDemand);
                     }
                 });
 
                 //console.log("--",labs);
-                labs = _.sortBy(labs, ['mineralAmount'], ['asc']);
+                labs = _.sortBy(labs, lab => this.getLabMineralAmount(lab));
                 //console.log(labs);
-                
+
                 // Try each lab in priority order until we find one with available source
                 for (let i = 0; i < labs.length && source == undefined; i++) {
                     const lab = labs[i];
@@ -408,7 +448,7 @@ var roleDeliverer =
                         const tempSource = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                             filter: o => (o.structureType == STRUCTURE_TERMINAL || o.structureType == STRUCTURE_STORAGE) && o.store[tempResType] > 0
                         });
-                        
+
                         if (tempSource) {
                             resType = tempResType;
                             source = tempSource;
@@ -425,7 +465,7 @@ var roleDeliverer =
             });
         }
 
-      
+
 
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
@@ -455,7 +495,7 @@ var roleDeliverer =
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER) &&
-                    o.store[resType] > 2 * creep.store.getCapacity() &&
+                    o.store[resType] > 3 * creep.store.getCapacity() &&
                     !o.isNearBase &&
                     o != creep.room.controller.container
             });
@@ -465,7 +505,7 @@ var roleDeliverer =
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: o => o.structureType == STRUCTURE_CONTAINER &&
-                    o.store[resType] > 50 &&
+                    o.store[resType] > 500 &&
                     o != creep.room.controller.container
             });
         }
@@ -474,7 +514,7 @@ var roleDeliverer =
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: o => o.structureType == STRUCTURE_CONTAINER &&
-                    o.store[resType] > 0 &&
+                    o.store[resType] > 500 &&
                     o.isNearBase &&
                     o != creep.room.controller.container
             });
@@ -519,8 +559,8 @@ var roleDeliverer =
         var code = creep.withdraw(source, resType, amnt);
 
         if (OK == code) {
-            creep.memory.task == "deliver";
-            this.recentWithdrawResType = resType;
+            creep.memory.task = "deliver";
+            creep.memory.recentWithdrawResType = resType;
 
             return true;
         }
@@ -544,7 +584,7 @@ var roleDeliverer =
         if (creep.memory.task == "recycle")
             basic.recycleCreep(creep);
 
-        if(creep.memory.preferredTargetId == undefined)
+        if (creep.memory.preferredSourceId == undefined)
             creep.room.visual.circle(creep.pos, { fill: 'transparent', radius: 0.55, stroke: 'orange' });
 
         if (creep.memory.task == "deliver") {
@@ -562,6 +602,8 @@ var roleDeliverer =
                     return;
                 }
                 creep.memory.task = "pickup";
+                if (_.sum(creep.store) == 0)
+                    creep.memory.recentWithdrawResType = undefined;
 
 
                 // Only pick up dropped resources if completely empty
@@ -578,13 +620,13 @@ var roleDeliverer =
                     // Only run pickup when completely empty
                     this.runPickup(creep);
                 }
-                
+
                 return;
             }
         }
 
         if (creep.memory.task == "pickup") {
-            
+
 
             // and there is no other - then take advantage
             if (!creep.memory.preferredSourceId) {
