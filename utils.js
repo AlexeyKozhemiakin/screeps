@@ -245,7 +245,7 @@ var utils = {
         }
         
 
-        var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 200000;
+        var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 150000;
 
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
