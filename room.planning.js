@@ -40,6 +40,10 @@ var roomPlanning = {
     },
 
     tryBuild: function (structureType, pos, room) {
+        if (pos == undefined) {
+            console.log("Undefined position for building ", structureType, " in ", room.name);
+            return;
+        }
         if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).length > 0)
             return false;
 
@@ -51,8 +55,13 @@ var roomPlanning = {
 
         //if (room.name == "E48S23")
         //    console.log("Trying to build ", structureType, " in ", room.name, " at ", pos, " with name ", name);
-
+        try{
         var code = pos.createConstructionSite(structureType, name);
+        }catch(e)
+        {
+            console.log("Error creating construction site ", structureType, " in ", room.name, " at ", pos, " with name ", name, ":", e);
+             return false;
+        }
 
         if (OK == code) {
             return true;
@@ -222,11 +231,12 @@ var roomPlanning = {
             "...........",
             "....r.r....",
             "...rsr.rt..",
-            "...erPrer..",
-            "..eeereeer.",
-            "...ererere.",
-            "...reeeree.",
-            "....rer.r.."
+            "..rerPrer..",
+            ".reeereeer.",
+            ".erererere.",
+            "..ereeeree.",
+            "..r.rer.r..",
+            ".....r.....",
         ];
 
         var pattern5 = [
@@ -236,9 +246,9 @@ var roomPlanning = {
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            "...rerererer.",
-            "....reeereeer",
-            "...r.rer.rer.",
+            ".rererererer.",
+            "reeereeereeer",
+            ".rer.rer.rer.",
             "..r...r...r.."
         ];
 
@@ -404,6 +414,8 @@ var roomPlanning = {
         }
 
         // if there is no flag and spawn already exists use it
+        // need to determine spawn determnistically, so assume the first one is always with lower id or something
+
         if (!spawnPoint)
             spawnPoint = room.spawn;
 
@@ -457,7 +469,7 @@ var roomPlanning = {
         //room.storage && room.storage.store.energy > RICH_ROOM_ENERGY * 3) {
         {
             if (!room.extractor) {
-                this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral, room);
+                this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral.pos, room);
             }
 
             this.tryRoad(room.storage, room.mineral, room, 1, buildEnabled);

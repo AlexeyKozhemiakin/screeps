@@ -20,7 +20,10 @@ var linkMod = {
         
         if(amount <= 50)
             return;
-            
+
+        
+        
+        //console.log("Link transfer from ", fromLink, " to ", toLink, " amount ", amount);
         var code = fromLink.transferEnergy(toLink, amount);
         if(OK != code)
             console.log('Link Transfer Error = ', code);        

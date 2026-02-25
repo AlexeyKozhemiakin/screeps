@@ -44,7 +44,7 @@ loopInner = function () {
 
     try {
         //market.exploreArbitrage(Game.rooms["E51S23"]);
-        if (Game.time % 5 == 0) {
+        if (Game.time % 10 == 0) {
             market.sellExcess();
             market.buyDemand();
             market.shareEnergyInternal();
@@ -132,6 +132,7 @@ loopInner = function () {
 
         // Prepare labs for boosting (every 10 ticks)
         if (roomTime % 1 == 0) {
+            //console.log("Preparing labs for boosting in room ", roomName);
             roleBoost.prepareLabs(room);
         }
 

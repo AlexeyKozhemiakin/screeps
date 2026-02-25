@@ -124,8 +124,8 @@ module.exports = {
 
         // production and market sharing can happen independently
 
-        const lowAmount = 1000;
-        const highAmount = 3000;
+        const lowAmount = 500;
+        const highAmount = 4000;
         const goals = {};
         const transferLimit = highAmount;
 
@@ -153,7 +153,7 @@ module.exports = {
             // 'ZH': ['Z', 'H'],
             'GH': ['G', 'H'],
             // Tier 1 - Oxides
-            'UO': ['U', 'O'],
+            //'UO': ['U', 'O'],
             //'KO': ['K', 'O'],
             //'LO': ['L', 'O'],
             //'ZO': ['Z', 'O'],
@@ -165,21 +165,21 @@ module.exports = {
             //'ZH2O': ['ZH', 'OH'],
             'GH2O': ['GH', 'OH'],
             // Tier 2 - Alkalides (oxide + OH)
-            'UHO2': ['UO', 'OH'],
+            //'UHO2': ['UO', 'OH'],
             // 'KHO2': ['KO', 'OH'],
             //'LHO2': ['LO', 'OH'],
             //'ZHO2': ['ZO', 'OH'],
             //'GHO2': ['GO', 'OH'],
             // Tier 3 - Catalyzed (X + Tier 2)
             //'XUH2O': ['X', 'UH2O'],
-            'XUHO2': ['X', 'UHO2'],
+            //'XUHO2': ['X', 'UHO2'],
             //'XKH2O': ['X', 'KH2O'],
             //'XKHO2': ['X', 'KHO2'],
             //'XLH2O': ['X', 'LH2O'],
             //'XLHO2': ['X', 'LHO2'],
             //'XZH2O': ['X', 'ZH2O'],
             //'XZHO2': ['X', 'ZHO2'],
-             'XGH2O': ['X', 'GH2O'],
+            // 'XGH2O': ['X', 'GH2O'],
             //'XGHO2': ['X', 'GHO2']
         };
 
@@ -396,7 +396,7 @@ module.exports = {
     },
 
     shareResourcesInternal: function () {
-        //this.shareResource("W57S35", "W59S33", RESOURCE_ZYNTHIUM, 1000);
+        
 
         return;
 
@@ -470,15 +470,7 @@ module.exports = {
     },
 
     buyDemand: function () {
-
-
-
-        //if (Game.rooms['E53S22'].terminal.store[RESOURCE_ZYNTHIUM] < 1000)
-        //    this.matchOrderInternal("E53S22", RESOURCE_ZYNTHIUM, 1000, ORDER_SELL);
-
-
-        ///if(Game.rooms['W59S34'].terminal.store[RESOURCE_UTRIUM] == undefined || Game.rooms['W59S34'].terminal.store[RESOURCE_UTRIUM] < 10000)   
-        //     this.matchOrderInternal("W59S34", RESOURCE_UTRIUM, 1000, ORDER_SELL);
+      
     }
     ,
     recentPrice: function (res) {
@@ -731,8 +723,18 @@ module.exports = {
             const reagent = reagents[i];
             const reagentAmount = this.getTotalMineralAmount(room, reagent);
             if (reagentAmount < gapAmount) {
-                console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name);
-                room.memory.productionTarget = null;
+                // If missing reagent can be produced, switch production chain to that reagent
+                // instead of clearing target and getting stuck.
+                if (this.getReagents(reagent)) {
+                    if (room.memory.productionTarget !== reagent) {
+                        console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name, " switching production to reagent");
+                    }
+                    room.memory.productionTarget = reagent;
+                }
+                else {
+                    console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name);
+                    room.memory.productionTarget = null;
+                }
                 return;
             }
         }

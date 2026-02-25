@@ -4,7 +4,7 @@ var linkLimitHigh = 490;
 var linkLimitLow = 390;
 
 const TERMINAL_WATERMARK = 10000;
-const MINERAL_WATERMARK = 500;
+const MINERAL_WATERMARK = 1000;
 
 var roleDeliverer =
 {
@@ -38,6 +38,8 @@ var roleDeliverer =
 
         if (!creep.memory.preferredSourceId && !target) {
             creep.say("⏳");
+            if(creep.name != 'deliverer9637')
+                return;
             if (creep.ticksToLive < 1400 && creep.room.controller.level > 3)
                 basic.runRenew(creep);
             return;
@@ -84,6 +86,12 @@ var roleDeliverer =
 
             // && amnt==transferAmount was removed as link may accept less than calculated
             if (transferAmount == iHave && transferAmount == iHaveTotal) {
+                return true;
+            }
+
+            if (creep.store.getFreeCapacity() == 0) {
+                creep.memory.task = "pickup";
+                this.runPickup(creep);
                 return true;
             }
 
@@ -332,6 +340,30 @@ var roleDeliverer =
                 var keys = _.findKey(source.store, f => f > 0);
                 if (keys)
                     resType = keys;
+            }
+        }
+
+        // Prioritize lab cleanup to unblock reaction target switches.
+        // Only generic deliverers (without fixed source) should do this.
+        if (source == undefined && !creep.memory.preferredSourceId) {
+            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: o => {
+                    if (o.structureType != STRUCTURE_LAB)
+                        return false;
+
+                    var mineralType = this.getLabMineralType(o);
+                    var mineralAmount = this.getLabMineralAmount(o, mineralType);
+
+                    return mineralAmount > 0 &&
+                        (
+                            (o.mineralDemand && o.mineralDemand != mineralType) ||
+                            !o.mineralDemand
+                        );
+                }
+            });
+
+            if (source) {
+                resType = this.getLabMineralType(source);
             }
         }
 

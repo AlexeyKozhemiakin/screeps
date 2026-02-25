@@ -9,7 +9,7 @@ var basic = require("role.basic");
  * @returns {boolean} true if still moving, false if adjacent
  */
 function moveToTargetWithStuckDetection(creep, target) {
-    if(target == undefined) {
+    if (target == undefined) {
         return false;
     }
     if (creep.pos.isNearTo(target.pos)) {
@@ -180,13 +180,51 @@ var roleAttack = {
     attack: function (creep) {
         var target = undefined;
 
+
+        if(false)
+        if (target == undefined)
+            if (creep.hits < 0.7*creep.hitsMax) {
+                creep.heal(creep);
+            } else {
+                var needHeal = creep.room.find(FIND_MY_CREEPS, { filter: c => c.hits < 0.7*c.hitsMax });
+                if (needHeal.length > 0) {
+                    var heal = needHeal[0];
+                    if (!creep.pos.isNearTo(heal)) {
+                        creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
+                    } else {
+                        creep.heal(heal);
+
+                    }
+                    return;
+                }
+
+            }
+
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS,
                 {
-                    filter: (c) => c.getActiveBodyparts(MOVE) > 0 &&
-                        (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
+                    filter: (c) => c.body.some(part => part.type === MOVE) &&
+                        (c.body.some(part => part.type === ATTACK) || c.body.some(part => part.type === RANGED_ATTACK))
                 });
         }
+
+         if (target == undefined)
+            if (creep.hits < 0.9*creep.hitsMax) {
+                creep.heal(creep);
+            } else {
+                var needHeal = creep.room.find(FIND_MY_CREEPS, { filter: c => c.hits < 0.9*c.hitsMax });
+                if (needHeal.length > 0) {
+                    var heal = needHeal[0];
+                    if (!creep.pos.isNearTo(heal)) {
+                        creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
+                    } else {
+                        creep.heal(heal);
+
+                    }
+                    return;
+                }
+
+            }
 
 
         if (target == undefined) {
@@ -230,7 +268,9 @@ var roleAttack = {
         }
 
         if (target == undefined) {
-            target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
+            target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
+                filter: (c) => c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0
+            });
         }
 
         if (target == undefined) {
@@ -238,6 +278,10 @@ var roleAttack = {
                 filter: object => (
                     object.structureType == STRUCTURE_INVADER_CORE)
             });
+        }
+
+        if (target == undefined) {
+            target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
         }
 
         if (target == undefined) {
@@ -282,7 +326,7 @@ var roleAttack = {
             }
         }
 
-        
+
         //console.log("this room");
         // console.log("attack target ", target, " in room ", creep.room.name);
 
@@ -306,8 +350,14 @@ var roleAttack = {
         }
 
         if (!target) {
-            console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
+            //console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
+            if (creep.memory.dangerous) {
+                creep.say("🛡️");
+
+                return true;
+            }
             basic.recycleCreep(creep);
+
             return false;
         }
 
@@ -337,7 +387,22 @@ var roleAttack = {
         }
 
         if (creep.memory.attacking) {
-            this.attack(creep);
+            if (this.attack(creep)) {
+                // Attack successful
+            }
+            else {
+                if (creep.hits < creep.hitsMax) {
+                    creep.heal(creep);
+                } else {
+                    var adjacentCreeps = creep.pos.findInRange(FIND_MY_CREEPS, 3);
+                    for (var i = 0; i < adjacentCreeps.length; i++) {
+                        if (adjacentCreeps[i].hits < adjacentCreeps[i].hitsMax) {
+                            creep.heal(adjacentCreeps[i]);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 };

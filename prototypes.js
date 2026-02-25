@@ -171,8 +171,10 @@ Object.defineProperty(StructureController.prototype, "storage", {
 Object.defineProperty(StructureController.prototype, "link", {
 
     get: function () {
-        return this.pos.findInRange(FIND_MY_STRUCTURES, 3, { filter: { structureType: STRUCTURE_LINK } })
-        [0];
+        
+        
+        return this.pos.findInRange(FIND_MY_STRUCTURES, 4, { filter: { structureType: STRUCTURE_LINK } })
+         [0];
     },
 
     enumerable: false,

@@ -8,6 +8,9 @@ var utils = {
     roomDraw: function (room) {
         //room.visual.clear();
 
+        if(room.controller && room.controller.link)
+            room.visual.circle(room.controller.link.pos, { radius: 0.5, stroke: 'green', strokeWidth: 0.1 });
+
         room.spawns.forEach(spawn => {
             if (spawn.spawning) {
                 var spawningCreep = Game.creeps[spawn.spawning.name];
@@ -83,9 +86,6 @@ var utils = {
             return;
         }
 
-        if (spawn.id == '699238eb227166a800e1279a')
-            return;
-
         var roomCreeps = _.filter(Game.creeps, cr => cr.room.name == room.name); // cannot use FIND_MY_CREEPS cause it's use spawning
 
         var harvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'harvester');
@@ -104,6 +104,7 @@ var utils = {
         var oldest;
 
         // replacement prep
+        if(false)
         if (roomCreeps.length > 0 && room.controller.level >= 4) {
             var ups = _.filter(roomCreeps, (cr) =>
                 (cr.memory.role == "harvester") &&
@@ -141,7 +142,8 @@ var utils = {
         var sources = room.find(FIND_SOURCES);
 
         var sortedSources = _.sortBy(sources, function (source) {
-            var path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true }); // TODO:interoom path
+            var path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true }); 
+            
             //console.log(path.length);
             return path.length;
         });
@@ -192,10 +194,8 @@ var utils = {
                 }
 
                 mem.role = 'harvester';
-                mem.parts = this.getBodyParts(room.energyAvailable, hasContainer ? "harvesterContainer" : "harvester");
-
-                //if (source.room.name != room.name)
-                //    mem.parts = this.getBodyParts(1000, "remoteHarvester");
+                mem.parts = this.getBodyParts(room.energyAvailable, 
+                    hasContainer ? "harvesterContainer" : "harvester");
 
                 mem.preferredSourceId = sourceId;
 
@@ -224,42 +224,49 @@ var utils = {
 
 
 
-        // UPGRADER PLANNING
-        // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
-        var upgradePartsNeeded = 15; // for 2 sources 
-
-        if (sources.length == 1)
-            upgradePartsNeeded = 5;
+       
 
         // do not upgrade if need build for small levels 
         // in reality it has to be more complex - check actual energy capacity
         // building is really killing rooms dont increaase it PLEASE
         var hasLowEnergy =
             (room.controller.container ? room.controller.container.store.energy < 1000 : false) ||
-            (room.spawn.container ? room.spawn.container.store.energy < 1000 : false) ||
-            (room.storage ? room.storage.store.energy < 2000 : false);
+            (room.spawn.container ? room.spawn.container.store.energy < 1000 : false);
+
 
         var hasLotsOfEnergy =
-            (room.controller.container && room.controller.container.store.energy > 1500) ||
-            (room.spawn.container && room.spawn.container.store.energy > 1500) ||
-            (room.storage && room.storage.store.energy > 15000);
+            (room.controller.container ? room.controller.container.store.energy > 1500 : true) &&
+            (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
+        
+        if(room.storage)
+        {
+            hasLowEnergy = room.storage.store.energy < 5000;
+            hasLotsOfEnergy = room.storage.store.energy > 10000;
+        }
+        
 
         var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 200000;
 
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
 
+
+        // UPGRADER PLANNING
+        // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
+        var upgradePartsNeeded = 10; 
+
         // do not upgrade if need build for poor rooms
         if (hasLowEnergy && needBuild &&
             room.controller.ticksToDowngrade > 2 * CREEP_LIFE_TIME) {
             upgradePartsNeeded = 0;
         }
+        else if (hasLowEnergy)
+            upgradePartsNeeded = 0; // only one upgrader with 5 parts, that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
+        
+        if (hasLotsOfEnergy && !needBuild)
+            upgradePartsNeeded += 7;
 
-        var hasEnoughSlots = room.name != "1E52S22";
-        if (hasLotsOfEnergy && hasEnoughSlots && !needBuild)
-            upgradePartsNeeded += 3;
-
-        if (hasHugeEnergySurplus && room.controller.level < 8) {
+        if (hasHugeEnergySurplus) {
             upgradePartsNeeded += 10;
         }
 
@@ -267,8 +274,9 @@ var utils = {
         if (room.controller.level == 1)
             upgradePartsNeeded = 5;
 
+        // throttled on 8th level
         if (room.controller.level == 8)
-            upgradePartsNeeded = 15; // throttled on 8th level
+            upgradePartsNeeded = 15; 
 
 
 
@@ -285,7 +293,7 @@ var utils = {
 
         var gapUpgradeParts = 0;
 
-        if(upgradePartsNeeded - existingUpgradeParts > 0)
+        if (upgradePartsNeeded - existingUpgradeParts > 0)
             gapUpgradeParts = upgradePartsNeeded - existingUpgradePartsLong;
 
 
@@ -380,7 +388,14 @@ var utils = {
 
         }
 
-        // FROM BASE TO CONTROLLER
+        /*if(mem.role == null && room.name == "E56S23") {
+            var res = this.createDeliverer(room.storage.id, '699a57d991dbb30b375267d5', 10, RESOURCE_ENERGY);
+            if (res != null) {
+                mem = res;
+            }
+
+        }*/
+            // FROM BASE TO CONTROLLER
 
         if (mem.role == null && upgradePartsNeeded > 0) {
             if (room.controller.container &&
@@ -534,6 +549,8 @@ var utils = {
         }
         else if (spawnOrders && spawnOrders.memory) {
             mem = spawnOrders.memory;
+            if (spawnOrders.memory.role == "attack")
+                energyBudget = room.energyAvailable
         }
         else if (room.controller.safeModeAvailabe < 6) {
             if (room.storage && room.storage.store[RESOURCE_GHODIUM] > 1000) {
@@ -549,7 +566,7 @@ var utils = {
         // it's not early game and energy was <= 300 condition
         // was stuck again with 450 energy and 0 creeps
         room.memory.coldStart = !isEarlyGame && roomCreeps.length < 3;
-        
+
         if (room.memory.coldStart) {
 
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
@@ -860,11 +877,12 @@ var utils = {
 
         var attackParts =
             [
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE],                
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
                 [MOVE, TOUGH, MOVE, TOUGH, MOVE, TOUGH],
                 [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
                 [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE]
-
             ];
 
 
@@ -935,8 +953,8 @@ var utils = {
 
         var upgraderLightParts = [
             [CARRY, MOVE, WORK, WORK, WORK, WORK, WORK],
-            [WORK, WORK, WORK, WORK, WORK],
-            [WORK, WORK, WORK, WORK, WORK]];
+            [MOVE, MOVE, WORK, WORK, WORK, WORK, WORK],
+            [MOVE, MOVE, WORK, WORK, WORK, WORK, WORK]];
 
 
 
@@ -944,7 +962,7 @@ var utils = {
             [CARRY, MOVE],
             [WORK, MOVE],
             [WORK, MOVE],
-            [WORK, WORK],
+            [WORK, MOVE],
             [WORK, MOVE],
             [WORK, MOVE]
         ];
@@ -952,7 +970,11 @@ var utils = {
         var harvesterContainerParts = [CARRY, MOVE, WORK, WORK, WORK, WORK, WORK,
             MOVE, MOVE];
 
-        var remoteHarvesterParts = [MOVE, CARRY, WORK, WORK, WORK, WORK, WORK, WORK, MOVE, MOVE, MOVE, MOVE, MOVE];
+        var remoteHarvesterParts =
+            [MOVE, CARRY,
+                WORK, WORK, WORK, WORK, WORK, WORK,
+                MOVE, MOVE, MOVE, MOVE, MOVE];
+
         var mineralHarvesterParts = [MOVE, MOVE, MOVE, MOVE, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, CARRY];
 
         var parts = [MOVE, CARRY, WORK, WORK, WORK,
@@ -1024,6 +1046,7 @@ var utils = {
 
     prefillParts: function (budget, parts) {
         var res = [];
+        var maxBodySize = typeof MAX_CREEP_SIZE !== 'undefined' ? MAX_CREEP_SIZE : 50;
 
         // clone parts so we don't mutate caller's template arrays
         parts = parts.slice();
@@ -1031,6 +1054,10 @@ var utils = {
         while (budget > 0) {
             var next = parts[0];
             if (!next)
+                break;
+
+            var nextPartsCount = Array.isArray(next) ? next.length : 1;
+            if (res.length + nextPartsCount > maxBodySize)
                 break;
 
             // next can be either a single part (e.g. MOVE) or an array of parts (group)

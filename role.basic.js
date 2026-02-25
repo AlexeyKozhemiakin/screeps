@@ -6,8 +6,8 @@ var roleBasic = {
     moveToRoom: function (creep, roomToGo = undefined) {
         if (!roomToGo && creep.memory.toGo)
             roomToGo = creep.memory.toGo[0];
-        
-        if(!roomToGo)
+
+        if (!roomToGo)
             return true;
 
         if (roomToGo == creep.room.name) {
@@ -64,7 +64,7 @@ var roleBasic = {
 
 
                     // prefer highways
-                    if(x == 0 || y == 0)
+                    if (x == 0 || y == 0)
                         return 1;
 
                     return 2;
@@ -73,7 +73,7 @@ var roleBasic = {
             roleBasic._routeCache[cacheKey] = route;
         }
 
-        if(route == ERR_NO_PATH) {
+        if (route == ERR_NO_PATH) {
             console.log("no route from ", creep.room.name, " to ", roomToGo);
             return false;
         }
@@ -83,7 +83,7 @@ var roleBasic = {
 
         if (creep.fatigue > 0)
             return false;
-        
+
         var code = creep.moveTo(moveTarget, { visualizePathStyle: { stroke: '#35bd1d' } });
         if (code != OK)
             console.log("err", code, " creep move to ", creep.name, " to ", roomToGo, " target ", moveTarget);
@@ -102,21 +102,21 @@ var roleBasic = {
     },
 
     recycleCreep: function (creep) {
-        
+
         var spawn = creep.room.spawn;
         creep.memory.toGo = undefined;
 
         if (!spawn) {
-            console.log("no spawn in room ", creep.room.name, " for recycling" + creep.name);
-            if(creep.memory.motherland)
+            //console.log("no spawn in room ", creep.room.name, " for recycling" + creep.name);
+            if (creep.memory.motherland)
                 this.moveToRoom(creep, creep.memory.motherland);
-            
-            
+
+
             return;
         }
 
         creep.say("recycle");
-        
+
         if (creep.pos.inRangeTo(spawn, 1)) {
             var code = spawn.recycleCreep(creep);
         }
@@ -175,7 +175,7 @@ var roleBasic = {
         if (creep.store.getFreeCapacity() == 0)
             return;
 
-  
+
         var fRes = (res) => { return res.resourceType == resType && res.amount > limit; }
         if (!resType)
             fRes = (res) => { return res.amount > limit; }
@@ -237,28 +237,64 @@ var roleBasic = {
 
             // stick creep to the source to avoid switching like headless chicken
             // but not always only in busy room - what can be a criteria
-            if (source)
+
+            // without this creeps run to remote part of room howevere there is source nearby
+            var needToCacheSource = creep.room.controller.my && creep.room.controller.level <= 2;
+
+            if (source && needToCacheSource)
                 creep.memory.preferredSourceId = source.id;
 
             return source;
         }
     },
+
     runRenew: function (creep) {
         var spawn = creep.room.spawn;
         if (!spawn) {
             return;
         }
 
+        if(creep.memory.renewCounter && creep.memory.renewCounter >= 5)
+            return;
+
         // magic number from API reference
         var toRegen = Math.floor(600 / creep.body.length);
         if (creep.ticksToLive > CREEP_LIFE_TIME - toRegen)
             return;
 
+        var creep_cost = _.sum(creep.body, (p) => BODYPART_COST[p.type]);
+        var body_size = creep.body.length;
+
+        var energyNeeded = Math.ceil(creep_cost / 2.5 / body_size);
+
+
         creep.say("renew");
+
+        if (creep.store.energy < energyNeeded) {
+            if (!creep.room.storage || creep.room.storage.store.energy < energyNeeded)
+                return;
+
+            if (!creep.pos.isNearTo(creep.room.storage)) {
+                creep.moveTo(creep.room.storage);
+                return;
+            }
+
+            var err = creep.withdraw(creep.room.storage, RESOURCE_ENERGY, energyNeeded);
+
+            if (err != OK) {
+                creep.say("wd " + err);
+                return;
+            }
+
+        }
+
+        
         if (creep.pos.isNearTo(spawn)) {
             var code = spawn.renewCreep(creep);
             if (code != OK)
                 creep.say("rn " + code);
+            else
+                creep.memory.renewCounter = creep.memory.renewCounter ? creep.memory.renewCounter + 1 : 1;
         }
         else {
             creep.moveTo(creep.room.spawn);
@@ -267,7 +303,7 @@ var roleBasic = {
 
     repairEmergency: function (creep, range = 1) {
         var N = 0.5;
-        if(creep.store.energy < 20)
+        if (creep.store.energy < 20)
             return false;
 
         // Find all damaged roads/containers in the room, then filter by range

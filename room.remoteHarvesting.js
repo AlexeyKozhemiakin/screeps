@@ -9,36 +9,65 @@ var roomRemoteHarvesting = {
 
         for (let roomName of parentRoom.config.remoteHarvest) {
             var remoteRoom = Game.rooms[roomName];
-            if (!remoteRoom)
+            if (!remoteRoom) {
+
+                var numScout = 1;
+
+                var scouts = _.filter(Game.creeps, c => c.memory.role == "scout" &&
+                    (c.memory.toGo && c.memory.toGo[0] == roomName));
+
+                if (scouts.length < numScout) {
+
+                    return { "scoutRoom": roomName };
+                }
+
                 continue;
+            }
+
+
+            var enemies = remoteRoom.find(FIND_HOSTILE_CREEPS,
+                {
+                    filter: (c => c.getActiveBodyparts(ATTACK) > 0 ||
+                        c.getActiveBodyparts(RANGED_ATTACK) && (c.owner.username != ""))
+                });
 
             var numAttack = 1;
-            var enemies = remoteRoom.find(FIND_HOSTILE_CREEPS,
-                { filter: (c => c.getActiveBodyparts(ATTACK) > 0 || 
-                    c.getActiveBodyparts(RANGED_ATTACK) && (c.owner.username != "")) });
+
+            if (enemies.length > 1)
+                numAttack = enemies.length; // need one attacker per enemy in remote room, cause they can be far apart and we want to kill them all as fast as possible
 
             var invaderCore = remoteRoom.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_INVADER_CORE })[0];
             if (invaderCore) {
                 enemies = enemies.concat(invaderCore);
                 numAttack = 3;
             }
-            
-            var attackers = _.filter(Game.creeps, 
+
+            var enemyReservation = remoteRoom.controller.reservation &&
+                !(remoteRoom.controller.reservation.username == "Zenga" ||
+                    remoteRoom.controller.reservation.username == "Invader") &&
+                remoteRoom.controller.reservation.ticksToEnd > 100;
+
+            if (enemyReservation)
+                numAttack = 3;
+
+            var attackers = _.filter(Game.creeps,
                 c => c.memory.role == "attack" &&
                     c.memory.toGo && c.memory.toGo.includes(roomName));
-            
-           // if(enemies.length > 0)
-           //  console.log("Remote room ", roomName, " has ", enemies.length, " enemies and ", attackers.length, " attackers");
 
-            remoteRoom.memory.dangerous = enemies.length > 0;
-            if (enemies.length > 0 && attackers.length < numAttack) {
+            // if(enemies.length > 0)
+            //  console.log("Remote room ", roomName, " has ", enemies.length, " enemies and ", attackers.length, " attackers");
+            var conquerFlag = remoteRoom.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
+
+            remoteRoom.memory.dangerous = conquerFlag || enemies.length > 0 || enemyReservation;
+
+            if (remoteRoom.memory.dangerous && attackers.length < numAttack) {
                 var memory = {
                     role: "attack",
                     toGo: [roomName]
                 };
 
-                return {"memory": memory};
-            }            
+                return { "memory": memory };
+            }
         }
 
         var externalSources = [];
@@ -52,13 +81,13 @@ var roomRemoteHarvesting = {
 
             var remoteBuild = remoteRoom.find(FIND_CONSTRUCTION_SITES).length > 0;
 
-             if (remoteBuild) {
+            if (remoteBuild) {
                 var remoteBuilders = _.filter(Game.creeps, c => c.memory.role == "builder" && c.memory.toGo && c.memory.toGo.includes(roomName));
                 if (remoteBuilders.length == 0) {
-                    return {"buildRoom": roomName};
+                    return { "buildRoom": roomName };
                 }
 
-                
+
                 continue;
             }
             var remoteSources = remoteRoom.find(FIND_SOURCES);
@@ -87,7 +116,7 @@ var roomRemoteHarvesting = {
 
             //console.log(room.name, needReserve, reservers);
             if (reservers.length == 0 && needReserve) {
-                return {"reserveRoom": roomName}
+                return { "reserveRoom": roomName }
             }
 
             if (!remoteRoom)
@@ -98,10 +127,10 @@ var roomRemoteHarvesting = {
             for (var source of sources) {
                 const sourceId = source.id;
 
-                if (!source.container)
-                {
+                if (!source.container) {
+                    //console.log("Source ", sourceId, " does not have container in remote room ", roomName);
                     roomPlanning.tryRoad(parentRoom.spawn, source, remoteRoom, 1, true);
-                    
+
                     continue;
                 }
                 // Get all attached harvesters for this source
@@ -110,30 +139,37 @@ var roomRemoteHarvesting = {
                         cr.memory.preferredSourceId == sourceId;
                 });
 
+                var remoteHarvesterParts =
+                    [MOVE, CARRY,
+                        WORK, WORK, WORK, WORK, WORK, WORK,
+                        MOVE, MOVE, MOVE, MOVE, MOVE];
+
+
                 if (attachedCreeps.length == 0) {
                     var memory = {
                         role: "harvester",
                         preferredSourceId: sourceId,
-                        toGo: roomName
+                        toGo: roomName,
+                        parts: remoteHarvesterParts
                     };
 
-                    return {"memory": memory};
+                    return { "memory": memory };
                 }
 
                 var amnt = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME; // 3000/300 = 10 per sec
-                
+
                 var memory = utils.createDeliverer(source.container.id, parentRoom.storage.id, amnt, RESOURCE_ENERGY);
-                
-                if(memory){
-                    return {"memory": memory};
+
+                if (memory) {
+                    return { "memory": memory };
                 }
             }
         }
 
 
-       
-        
-        
+
+
+
 
     }
 };

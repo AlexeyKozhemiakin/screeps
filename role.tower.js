@@ -44,6 +44,7 @@ module.exports = {
                 var wallHealth = 10000;
                 var rampartHealth = RAMPART_HITS_MAX[tower.room.controller.level]/50 || 300000;
 
+                rampartHealth = Math.min(1000000, rampartHealth);
                 //console.log(tower.room.name, " wallHealth ", wallHealth, " rampartHealth ", rampartHealth);
                 var repairK = 0.90;
 
@@ -56,7 +57,7 @@ module.exports = {
                 });
 
 
-                var sorted = _.sortBy(tgts, c => c.hits/c.hitsMax);
+                var sorted = _.sortBy(tgts, c => c.hits/Math.min(c.hitsMax, wallHealth));
 
                 if (sorted.length > 0) {
                     var tgt = sorted[0];

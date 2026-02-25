@@ -1,13 +1,43 @@
-// Enable boosting in all rooms by setting a flag in memory
-global.enableBoostingAllRooms = function() {
-    for (const roomName in Game.rooms) {
-        const room = Game.rooms[roomName];
-        if (room && room.controller && room.controller.my) {
-            room.memory.boostingEnabled = true;
-            console.log(`Boosting enabled in room ${roomName}`);
-        }
+// --- Enable boosting in a specific room ---
+// Usage: enableBoosting("E51S23")
+global.enableBoosting = function (roomName) {
+    if (!Memory.rooms) {
+        Memory.rooms = {};
     }
-    console.log('Boosting enabled in all owned rooms.');
+    if (!Memory.rooms[roomName]) {
+        Memory.rooms[roomName] = {};
+    }
+    Memory.rooms[roomName].enableBoosting = true;
+    delete Memory.rooms[roomName].boostingEnabled;
+    return "Boosting enabled in room " + roomName;
+};
+
+// --- Disable boosting in a specific room ---
+// Usage: disableBoosting("E51S23")
+global.disableBoosting = function (roomName) {
+    if (!Memory.rooms || !Memory.rooms[roomName]) {
+        return "No Memory.rooms entry for " + roomName;
+    }
+    Memory.rooms[roomName].enableBoosting = false;
+    delete Memory.rooms[roomName].boostingEnabled;
+    return "Boosting disabled in room " + roomName;
+};
+
+// --- Check boosting status for a specific room ---
+// Usage: checkBoosting("E51S23")
+global.checkBoosting = function (roomName) {
+    if (!Memory.rooms || !Memory.rooms[roomName]) {
+        return "No Memory.rooms entry for " + roomName;
+    }
+    var roomMemory = Memory.rooms[roomName];
+    if (roomMemory.enableBoosting === undefined && roomMemory.boostingEnabled !== undefined) {
+        roomMemory.enableBoosting = roomMemory.boostingEnabled;
+    }
+    if (roomMemory.enableBoosting === undefined) {
+        roomMemory.enableBoosting = true;
+    }
+    var status = roomMemory.enableBoosting ? "enabled" : "disabled";
+    return "Boosting is " + status + " in room " + roomName;
 };
 /**
  * Useful Console Commands
