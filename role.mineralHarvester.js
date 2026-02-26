@@ -1,172 +1,106 @@
- /** @param {Creep} creep **/
+/** @param {Creep} creep **/
 var basic = require("role.basic");
 var roleMineralHarvester = {
 
-    needHarvester : function(room)
-    {
-        if(!room.extractor)
-        {
+    needHarvester: function (room) {
+        if (!room.extractor) {
             return false;
         }
-        
-        var minerals = room.lookForAt(LOOK_MINERALS, room.extractor.pos);
-        if(!minerals)
-        {
+
+        if (!room.extractor.container) {
             return false;
         }
-        
-        var mineral = minerals[0];
-        
-        if(mineral.mineralAmount > 0 && room.extractor.container)
-        {
-            return true;
+
+        var mineral = room.mineral;
+        if (!mineral) {
+            return false;
         }
-            
-        return false;
+
+        return mineral.mineralAmount > 0;
     },
-    
-    findSource : function(creep)
-    {
-        //console.log(extractor.pos);
-        if(!creep.room.extractor)
-            return undefined;
-            
-        var minerals = creep.room.lookForAt(LOOK_MINERALS, creep.room.extractor.pos);
-        
-        if(minerals == undefined)
-        {
-            return undefined;
+
+    runHarvest: function (creep) {
+        var mineral = creep.room.mineral;
+        if (!mineral || mineral.mineralAmount <= 0) {
+            if (creep.store.getUsedCapacity() > 0) {
+                creep.memory.task = "deliver";
+                return;
+            }
+
+            basic.recycleCreep(creep);
+            return;
         }
-        
-        var mineral = minerals[0];
-        
-        if(mineral && mineral.mineralAmount > 0)
-        {
-            creep.memory.mineral = mineral.mineralType;
-            return mineral;
+
+        if (!creep.pos.isNearTo(mineral.pos)) {
+            if (creep.fatigue == 0) {
+                basic.goTo(creep, mineral, 1, '#ffaa00');
+            }
+            return;
         }
+
+        var extractor = creep.room.extractor;
         
-        return undefined;
-        
+        if (!extractor || extractor.cooldown != 0) {
+            return;
+        }
+
+        var harvestCode = creep.harvest(mineral);
+        if (harvestCode != OK) {
+            creep.say("mnrl " + harvestCode);
+        }
     },
-    
+
+    runDeliver: function (creep) {
+        var extractor = creep.room.extractor;
+        var target = extractor ? extractor.container : undefined;
+
+        if (!target) {
+            creep.say("no where to put");
+            return;
+        }
+
+        if (!target.pos.isNearTo(creep.pos)) {
+            basic.goTo(creep, target, 1, '#ffffff');
+            return;
+        }
+
+        var resourceType = _.findKey(creep.store, function (v) { return v > 0; });
+        if (!resourceType) {
+            creep.memory.task = "harvest";
+            return;
+        }
+
+        var transferCode = creep.transfer(target, resourceType);
+        if (transferCode != OK) {
+            creep.say("error " + transferCode);
+            return;
+        }
+
+        if (creep.store.getUsedCapacity() == 0) {
+            creep.memory.task = "harvest";
+        }
+    },
+
     /** @param {Creep} creep **/
-    run : function(creep) {
-	    if(creep.memory.task == undefined)
-	    {
-	        creep.memory.task = "harvest";
-	        
-	    }
-	    
-	    if(creep.memory.task == "harvest")
-	    {
-    	    var source = roleMineralHarvester.findSource(creep);
-    	    if(source == undefined)
-    	    {
-     	        basic.recycleCreep(creep);
-                return;   
-    	    }
-    	    else{
-        	    if(_.sum(creep.store) < creep.store.getCapacity()) {
-                    if(source.mineralAmount == 0)
-                    {
-                        basic.recycleCreep(creep);
-                        return;
-                    }
-                    var extractor = creep.room.lookForAt(LOOK_STRUCTURES, source.pos)[0];
-                    if(!creep.pos.isNearTo(source.pos))
-                    {
-                        if(creep.fatigue == 0)
-                        {
-                            var code2 = creep.moveTo(source, {visualizePathStyle: {stroke: '#ffaa00'}});
-                            if(OK != code2)
-                            {
-                                creep.say("move  " + code2);
-                                
-                            }
-                        }
-                    }
-                    else if(extractor.cooldown==0)
-                    {
-                        var code = creep.harvest(source);
-                        if(OK != code) 
-                        {
-                            creep.say("harvest"+code);
-                        }
-                    }
-                    else{
-                        //sleep
-                    }
-                }
-                else
-                {
-                    creep.memory.task = "deliver";
-                    creep.say("done charging");
-                }
-    	    }
+    run: function (creep) {
+        if (creep.memory.task == undefined) {
+            creep.memory.task = "harvest";
         }
-        
-        if(creep.memory.task == "deliver")
-        {
-            var source = roleMineralHarvester.findSource(creep);
-            var target;
-            
-            if(!target)
-            {
-                target = creep.room.extractor.container;
-            }
-            
-            if(!target)
-            { 
-                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                    filter: (structure) => {
-                        return (structure.structureType == STRUCTURE_STORAGE)
-                        && structure.isActive
-                        &&  _.sum(structure.store) < structure.storeCapacity;
-                    }
-                });
-            
-            }
-            
-            if(target) {
-                
-                if(!target.pos.isNearTo(creep.pos))
-                {
-                    var err = creep.moveTo(target, {visualizePathStyle: {stroke: '#ffffff'}});
-                    
-                    if(err != OK)
-                        creep.say(err);
-                } 
-                else{
-                    var transferCode = creep.transfer(target, creep.memory.mineral);
-                    
-                    if(OK == transferCode)
-                    {
-                        
-                    }
-                    else if(ERR_NOT_ENOUGH_RESOURCES == transferCode)
-                    {
-                        creep.memory.task = "harvest";
-                        creep.say("harvest");
-                    }
-                    else
-                    {
-                        creep.say("error " + transferCode);
-                    }
-                }
-                
-                if(_.sum(creep.energy) == 0)
-        	    {
-        	        creep.memory.task = "harvest";;
-        	    }
-                    
-                
-            }
-            else{
-                creep.say("no where to put");
-            }
+
+        if (creep.store.getFreeCapacity() == 0) {
+            creep.memory.task = "deliver";
         }
-	}
+
+        if (creep.memory.task == "harvest") {
+            roleMineralHarvester.runHarvest(creep);
+            return;
+        }
+
+        if (creep.memory.task == "deliver") {
+            roleMineralHarvester.runDeliver(creep);
+            return;
+        }        
+    }
 };
 
 module.exports = roleMineralHarvester;
