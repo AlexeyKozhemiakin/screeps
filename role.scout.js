@@ -43,11 +43,9 @@ var roleScout = {
 
                 var oppositeDir = directionOpposites[path[0].direction];
 
-                console.log("oppositeDir ", oppositeDir, " creep ", creep.name);
                 creep.move(oppositeDir)
             }
         }
-
     }
 }
 
