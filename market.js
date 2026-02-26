@@ -157,7 +157,7 @@ module.exports = {
             //'KO': ['K', 'O'],
             //'LO': ['L', 'O'],
             //'ZO': ['Z', 'O'],
-            'GO': ['G', 'O'],
+            //'GO': ['G', 'O'],
             // Tier 2 - Acids (hydride + OH)
             //'UH2O': ['UH', 'OH'],
             //'KH2O': ['KH', 'OH'],
