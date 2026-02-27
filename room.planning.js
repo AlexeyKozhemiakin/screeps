@@ -463,10 +463,7 @@ var roomPlanning = {
             }
         }
 
-
-        if (room.controller.level >= 6 &&
-            room.mineral)// && 
-        //room.storage && room.storage.store.energy > RICH_ROOM_ENERGY * 3) {
+        if (room.controller.level >= 6 && room.mineral)
         {
             if (!room.extractor) {
                 this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral.pos, room);
@@ -474,7 +471,6 @@ var roomPlanning = {
 
             this.tryRoad(room.storage, room.mineral, room, 1, buildEnabled);
         }
-
     }
 };
 

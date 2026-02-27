@@ -72,6 +72,7 @@ When adding or modifying gameplay logic, follow this order:
 - Do not introduce speculative abstractions.
 - If a constant exists in Screeps typings, do not duplicate it in docs.
 - Prefer concrete, testable acceptance criteria in backlog items.
+- Prefer early-return control flow to reduce nestedness; for movement branches around `basic.goTo`, use `if (...) { basic.goTo(...); return; }` instead of `if/else` nesting.
 
 ## 8) Immediate Improvement Themes
 

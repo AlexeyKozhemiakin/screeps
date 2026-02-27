@@ -176,9 +176,9 @@ var roleHarvester = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
-        //if (!basic.moveToRoom(creep)) {
-        //    return;
-        //}
+        if (!basic.moveToRoom(creep)) {
+            return;
+        }
 
         if (creep.memory.task == undefined) {
             creep.memory.task = "harvest";

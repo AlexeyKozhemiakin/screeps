@@ -8,7 +8,7 @@ var utils = {
     roomDraw: function (room) {
         //room.visual.clear();
 
-        if(room.controller && room.controller.link)
+        if (room.controller && room.controller.link)
             room.visual.circle(room.controller.link.pos, { radius: 0.5, stroke: 'green', strokeWidth: 0.1 });
 
         room.spawns.forEach(spawn => {
@@ -104,46 +104,46 @@ var utils = {
         var oldest;
 
         // replacement prep
-        if(false)
-        if (roomCreeps.length > 0 && room.controller.level >= 4) {
-            var ups = _.filter(roomCreeps, (cr) =>
-                (cr.memory.role == "harvester") &&
-                (cr.getActiveBodyparts(WORK) >= 5) &&
-                cr.memory.replaced != true
-                && !cr.spawning);
+        if (false)
+            if (roomCreeps.length > 0 && room.controller.level >= 4) {
+                var ups = _.filter(roomCreeps, (cr) =>
+                    (cr.memory.role == "harvester") &&
+                    (cr.getActiveBodyparts(WORK) >= 5) &&
+                    cr.memory.replaced != true
+                    && !cr.spawning);
 
-            //console.log(room.name, ups);
+                //console.log(room.name, ups);
 
-            oldest = _.sortBy(ups, ['ticksToLive'], ['asc'])[0];
+                oldest = _.sortBy(ups, ['ticksToLive'], ['asc'])[0];
 
-            if (oldest && oldest.ticksToLive < 100) {
-                var ticksToCreate = CREEP_SPAWN_TIME * oldest.body.length;
+                if (oldest && oldest.ticksToLive < 100) {
+                    var ticksToCreate = CREEP_SPAWN_TIME * oldest.body.length;
 
-                var speed = 1.0; //TODO:calc based on parts - we assume it's roaded always
-                var ticksToTravel = oldest.pos.findPathTo(spawn.pos, { ignoreCreeps: true }).length * speed;
-                var estimate = oldest.ticksToLive - ticksToCreate - ticksToTravel;
+                    var speed = 1.0; //TODO:calc based on parts - we assume it's roaded always
+                    var ticksToTravel = oldest.pos.findPathTo(spawn.pos, { ignoreCreeps: true }).length * speed;
+                    var estimate = oldest.ticksToLive - ticksToCreate - ticksToTravel;
 
-                //if(estimate < 100)
-                room.memory.planReplace = ticksToCreate + " + toTravel=" + ticksToTravel + " oldest=" + oldest.ticksToLive + " to replace " + oldest.name + " in=" + estimate;
+                    //if(estimate < 100)
+                    room.memory.planReplace = ticksToCreate + " + toTravel=" + ticksToTravel + " oldest=" + oldest.ticksToLive + " to replace " + oldest.name + " in=" + estimate;
 
-                if (oldest.ticksToLive <= ticksToCreate + ticksToTravel) {
-                    //console.log("Preparing replacement for", oldest.name, oldest.ticksToLive);
-                    //console.log(oldest.memory);
-                    repl = Object.assign({}, oldest.memory); // shallow copy of current mem
+                    if (oldest.ticksToLive <= ticksToCreate + ticksToTravel) {
+                        //console.log("Preparing replacement for", oldest.name, oldest.ticksToLive);
+                        //console.log(oldest.memory);
+                        repl = Object.assign({}, oldest.memory); // shallow copy of current mem
+                    }
+                }
+                else {
+                    //console.log(room.name, " nothing matches replacement criteria");
                 }
             }
-            else {
-                //console.log(room.name, " nothing matches replacement criteria");
-            }
-        }
 
 
 
         var sources = room.find(FIND_SOURCES);
 
         var sortedSources = _.sortBy(sources, function (source) {
-            var path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true }); 
-            
+            var path = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true });
+
             //console.log(path.length);
             return path.length;
         });
@@ -194,7 +194,7 @@ var utils = {
                 }
 
                 mem.role = 'harvester';
-                mem.parts = this.getBodyParts(room.energyAvailable, 
+                mem.parts = this.getBodyParts(room.energyAvailable,
                     hasContainer ? "harvesterContainer" : "harvester");
 
                 mem.preferredSourceId = sourceId;
@@ -224,7 +224,7 @@ var utils = {
 
 
 
-       
+
 
         // do not upgrade if need build for small levels 
         // in reality it has to be more complex - check actual energy capacity
@@ -237,13 +237,12 @@ var utils = {
         var hasLotsOfEnergy =
             (room.controller.container ? room.controller.container.store.energy > 1500 : true) &&
             (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
-        
-        if(room.storage)
-        {
+
+        if (room.storage) {
             hasLowEnergy = room.storage.store.energy < 5000;
             hasLotsOfEnergy = room.storage.store.energy > 10000;
         }
-        
+
 
         var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 150000;
 
@@ -253,7 +252,7 @@ var utils = {
 
         // UPGRADER PLANNING
         // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
-        var upgradePartsNeeded = 10; 
+        var upgradePartsNeeded = 10;
 
         // do not upgrade if need build for poor rooms
         if (hasLowEnergy && needBuild &&
@@ -262,7 +261,7 @@ var utils = {
         }
         else if (hasLowEnergy)
             upgradePartsNeeded = 0; // only one upgrader with 5 parts, that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
-        
+
         if (hasLotsOfEnergy && !needBuild)
             upgradePartsNeeded += 7;
 
@@ -276,7 +275,7 @@ var utils = {
 
         // throttled on 8th level
         if (room.controller.level == 8)
-            upgradePartsNeeded = 15; 
+            upgradePartsNeeded = 15;
 
 
 
@@ -286,7 +285,7 @@ var utils = {
 
         var upgradersLong = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
             creep.ticksToLive > 150);
-        
+
 
         var existingUpgradeParts = _.sum(upgraders, u => u.getActiveBodyparts(WORK));
         var existingUpgradePartsLong = _.sum(upgradersLong, u => u.getActiveBodyparts(WORK));
@@ -315,7 +314,7 @@ var utils = {
             // room.terminal
             var numLocals = 1;
             if (room.name == "E48S27")
-                numLocals = 2;
+                numLocals = 1;
 
             if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
@@ -395,7 +394,7 @@ var utils = {
             }
 
         }*/
-            // FROM BASE TO CONTROLLER
+        // FROM BASE TO CONTROLLER
 
         if (mem.role == null && upgradePartsNeeded > 0) {
             if (room.controller.container &&
@@ -689,6 +688,14 @@ var utils = {
             if (usedEnergy + workCost > energyBudget) break;
             workParts.push(WORK);
             usedEnergy += workCost;
+
+            if (workParts.length % 3 === 0) {
+                var moveCost = BODYPART_COST[MOVE];
+                if (usedEnergy + moveCost <= energyBudget) {
+                    workParts.push(MOVE);
+                    usedEnergy += moveCost;
+                }
+            }
         }
         parts = parts.concat(workParts);
         return parts;
@@ -877,7 +884,7 @@ var utils = {
 
         var attackParts =
             [
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE],                
+                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE],
                 [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
                 [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
                 [MOVE, TOUGH, MOVE, TOUGH, MOVE, TOUGH],
