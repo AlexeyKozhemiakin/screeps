@@ -698,7 +698,7 @@ var utils = {
             }
         }
         parts = parts.concat(workParts);
-        return parts;
+        return parts.sort().reverse();
     },
 
     getPathMultiroom: function (from, to, r = 1) {
