@@ -49,8 +49,8 @@ var roleBoost = {
             // Find labs that have both the mineral AND energy needed for boosting
             const labs = room.find(FIND_MY_STRUCTURES, {
                 filter: (s) => s.structureType === STRUCTURE_LAB &&
-                    s.store[boost.resource] >= LAB_BOOST_MINERAL &&
-                    s.store[RESOURCE_ENERGY] >= LAB_BOOST_ENERGY &&
+                    s.store[boost.resource] > 0 &&
+                    s.store[RESOURCE_ENERGY] > 0 &&
                     (!s.mineralType || s.mineralType === boost.resource)
             });
 
@@ -73,7 +73,7 @@ var roleBoost = {
         // Don't boost if already boosted
         if (creep.memory.boosted) return false;
 
-        if(creep.ticksToLive < 1400) return false; 
+        if (creep.ticksToLive < 1400) return false;
         
         // Check if boosting is enabled for this room
         const room = Game.rooms[creep.memory.motherland];
@@ -88,13 +88,17 @@ var roleBoost = {
 
         // Calculate how much mineral is needed to boost all body parts of this type
         const bodyPartCount = creep.body.filter(p => p.type === availableBoost.bodyPart && !p.boost).length;
-        const mineralNeeded = bodyPartCount * LAB_BOOST_MINERAL;
-        const energyNeeded = bodyPartCount * LAB_BOOST_ENERGY;
+        if (bodyPartCount <= 0) return false;
 
         // Check if lab has enough materials
         const lab = availableBoost.lab;
-        if (lab.store[availableBoost.resource] < mineralNeeded) return false;
-        if (lab.store[RESOURCE_ENERGY] < energyNeeded) return false;
+        const availableMineral = lab.store[availableBoost.resource] || 0;
+        const availableEnergy = lab.store[RESOURCE_ENERGY] || 0;
+        const boostableByMineral = Math.floor(availableMineral / LAB_BOOST_MINERAL);
+        const boostableByEnergy = Math.floor(availableEnergy / LAB_BOOST_ENERGY);
+        const boostableParts = Math.min(bodyPartCount, boostableByMineral, boostableByEnergy);
+
+        if (boostableParts <= 0) return false;
 
         return true;
     },
@@ -111,6 +115,14 @@ var roleBoost = {
         }
 
         const lab = availableBoost.lab;
+        const unboostedParts = creep.body.filter(p => p.type === availableBoost.bodyPart && !p.boost).length;
+        const availableMineral = lab.store[availableBoost.resource] || 0;
+        const availableEnergy = lab.store[RESOURCE_ENERGY] || 0;
+        const boostableByMineral = Math.floor(availableMineral / LAB_BOOST_MINERAL);
+        const boostableByEnergy = Math.floor(availableEnergy / LAB_BOOST_ENERGY);
+        const bodyPartsCount = Math.min(unboostedParts, boostableByMineral, boostableByEnergy);
+
+        if (bodyPartsCount <= 0) return false;
 
         // Move to lab
         if (!creep.pos.isNearTo(lab)) {
@@ -119,7 +131,7 @@ var roleBoost = {
         }
 
         // Apply boost
-        const result = lab.boostCreep(creep);
+        const result = lab.boostCreep(creep, bodyPartsCount);
         if (result === OK) {
             creep.say('💪');
             creep.memory.boosted = true;
