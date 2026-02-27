@@ -79,20 +79,32 @@ var roleBasic = {
         }
         //console.log(creep.name, " route to ", roomToGo, ":", JSON.stringify(route));
         const exitDir = Game.map.findExit(creep.room, route[0].room);
-        moveTarget = creep.pos.findClosestByPath(exitDir, { ignoreCreeps: true });
+        if (exitDir < 0) {
+            console.log("no exit from ", creep.room.name, " to ", route[0].room, " for ", creep.name);
+            delete roleBasic._routeCache[cacheKey];
+            return false;
+        }
+
+        moveTarget = creep.pos.findClosestByRange(exitDir);
 
         if (creep.fatigue > 0)
             return false;
 
-        var code = creep.moveTo(moveTarget, { visualizePathStyle: { stroke: '#35bd1d' } });
+        var code = creep.moveTo(moveTarget, {
+            visualizePathStyle: { stroke: '#35bd1d' },
+            ignoreCreeps: false,
+            reusePath: 5,
+            maxRooms: 1
+        });
+
+        if (code == ERR_NO_PATH || code == ERR_INVALID_TARGET)
+            code = creep.move(exitDir);
+
+        if (code == ERR_NO_PATH && (creep.pos.x == 0 || creep.pos.x == 49 || creep.pos.y == 0 || creep.pos.y == 49))
+            code = creep.moveTo(25, 25, { visualizePathStyle: { stroke: '#35bd1d' }, reusePath: 0, maxRooms: 1 });
+
         if (code != OK)
             console.log("err", code, " creep move to ", creep.name, " to ", roomToGo, " target ", moveTarget);
-
-
-        // very strange case when creep is at the edge but exitDir doesn't return proper target
-        // happens when multiple creeps exist
-        if (code == ERR_NO_PATH)
-            code = creep.moveTo(5, 5);
 
         //console.log(creep.name, " moving to room ", roomToGo, " code ", code);
 
@@ -164,7 +176,6 @@ var roleBasic = {
             });
         }
         return err;
-
     },
 
     runDropped: function (creep, range, resType, limit = 0) {

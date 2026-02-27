@@ -149,7 +149,7 @@ var roomRemoteHarvesting = {
                     var memory = {
                         role: "harvester",
                         preferredSourceId: sourceId,
-                        toGo: roomName,
+                        toGo: [roomName],
                         parts: remoteHarvesterParts
                     };
 
