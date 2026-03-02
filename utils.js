@@ -73,6 +73,13 @@ var utils = {
                 lab.pos.x, lab.pos.y);
         });
 
+        // factory demand
+        if (room.memory.factoryDemand) {
+            var fd = room.memory.factoryDemand;
+            var factoryStruct = Game.getObjectById(fd.factoryId);
+            if (factoryStruct)
+                room.visual.resource(fd.type, factoryStruct.pos.x, factoryStruct.pos.y);
+        }
 
 
     },

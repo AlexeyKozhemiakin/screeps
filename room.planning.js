@@ -189,9 +189,10 @@ var roomPlanning = {
     tryExtensions: function (room, point, buildEnabled = false) {
         var pos = point.pos;
         // 2D pattern array - each cell represents a position relative to spawn
-        // e - Extension P - spawn ( reference point)
-        // s - Storage t - tower c - container . - empty space l - link
-        // b - lab m - terminal
+        // e - Extension P - sPawn ( reference point) a - other spAwns
+        // s - Storage t - tower c - container  l - link
+        // b - lab m - terminal f - factory
+        // . - empty space
 
         var pattern1 = [
             ".........",
@@ -255,7 +256,7 @@ var roomPlanning = {
         var pattern6 = [
             ".............",
             "..r...rbb.r..",
-            ".rer.rmrbrer.",
+            ".rerfrmrbrer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
@@ -265,10 +266,24 @@ var roomPlanning = {
             "..r...r...r.."
         ];
 
-        // for 1
-        const patterns = [pattern5, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6];
+        var pattern7 = [
+            ".............",
+            "..r...rbb.r..",
+            ".rerfrmrbrer.",
+            "reetrsrlrteer",
+            ".rererPrerer.",
+            "..reeereeer..",
+            ".rererererer.",
+            "reeereeereeer",
+            ".rer.rer.rer.",
+            "..r...r...r.."
+        ];
+
+        
+        const patterns = [pattern7, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7];
 
         var pattern = patterns[room.controller.level];
+
         // find spawn or spawn construction site at pos 
         var showAll = !buildEnabled;
         if (!pattern || showAll)
@@ -337,7 +352,8 @@ var roomPlanning = {
                     'r': STRUCTURE_ROAD,
                     'l': STRUCTURE_LINK,
                     'b': STRUCTURE_LAB,
-                    'm': STRUCTURE_TERMINAL
+                    'm': STRUCTURE_TERMINAL,
+                    'f': STRUCTURE_FACTORY
                 };
                 var structureType = cellMap[cell];
 

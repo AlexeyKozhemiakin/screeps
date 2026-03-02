@@ -2,9 +2,22 @@ var utils = require('utils');
 var roleTower = require('role.tower');
 var roleLink = require('role.link');
 var roleBoost = require('role.boost');
+var roleFactory = require('role.factory');
 var scp = require('screepsplus');
 var market = require('market');
+
 var prototypes = require('prototypes');
+//
+//var roleBasic = require('role.basic');
+//var roleHarvester = require('role.harvester');
+//var roleUpgrader = require('role.upgrader');
+//var roleBuilder = require('role.builder');
+//var roleDeliverer = require('role.deliverer');
+//var roleClaim = require('role.claim');
+//var roleAttack = require('role.attack');
+//var roleReserve = require('role.reserve');
+//var roleScout = require('role.scout');
+//var roleMineralHarvester = require('role.mineralHarvester');
 
 var roomPlanning = require('room.planning');
 var roomClaiming = require('room.claim');
@@ -12,31 +25,43 @@ var roomRemoteHarvesting = require('room.remoteHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
 
-const profiler = require('screeps-profiler');
+//const profiler = require('screeps-profiler');
 //profiler.enable();
-profiler.registerClass(roleTower, 'role.tower');
-profiler.registerClass(roleLink, 'role.link');
-profiler.registerClass(roomPlanning, 'room.planning');
-profiler.registerClass(roomClaiming, 'room.claim');
-profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
-profiler.registerClass(roomProcess, 'room.process');
-profiler.registerClass(prototypes, 'prototypes');
-profiler.registerClass(roleBoost, 'role.boost');
-profiler.registerClass(market, 'market');
-profiler.registerClass(scp, 'scp');
-profiler.registerObject(utils, 'utils');
+//profiler.registerClass(roleTower, 'role.tower');
+//profiler.registerClass(roleLink, 'role.link');
+//profiler.registerClass(roomPlanning, 'room.planning');
+//profiler.registerClass(roomClaiming, 'room.claim');
+//profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
+//profiler.registerClass(roomProcess, 'room.process');
+//profiler.registerClass(prototypes, 'prototypes');
+//profiler.registerClass(roleBoost, 'role.boost');
+//profiler.registerObject(roleFactory, 'role.factory');
+//profiler.registerClass(market, 'market');
+//profiler.registerClass(scp, 'scp');
+//profiler.registerObject(utils, 'utils');
+//
+//profiler.registerObject(roleBasic, 'role.basic');
+//profiler.registerObject(roleHarvester, 'role.harvester');
+//profiler.registerObject(roleUpgrader, 'role.upgrader');
+//profiler.registerObject(roleBuilder, 'role.builder');
+//profiler.registerObject(roleDeliverer, 'role.deliverer');
+//profiler.registerObject(roleClaim, 'role.claim');
+//profiler.registerObject(roleAttack, 'role.attack');
+//profiler.registerObject(roleReserve, 'role.reserve');
+//profiler.registerObject(roleScout, 'role.scout');
+//profiler.registerObject(roleMineralHarvester, 'role.mineralHarvester');
 
 
 module.exports.loop = function () {
 
-    profiler.wrap(function () {
+    //profiler.wrap(function () {
         try {
 
             loopInner();
         } catch (e) {
             console.log("Loop error: ", e.stack, e.message);
         }
-    });
+    //});
 }
 
 loopInner = function () {
@@ -129,15 +154,15 @@ loopInner = function () {
 
         roleLink.run(room);
         roleTower.run(room);
+        roleFactory.run(room);
 
         // Prepare labs for boosting (every 10 ticks)
-        if (roomTime % 1 == 0) {
+        if (roomTime % 5 == 0) {
             //console.log("Preparing labs for boosting in room ", roomName);
             roleBoost.prepareLabs(room);
         }
 
         var elapsed = Game.cpu.getUsed() - cpuStart;
-
         room.memory.cputime = elapsed;
     }
     //roleLink.runManual();
