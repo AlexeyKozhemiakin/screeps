@@ -3,6 +3,7 @@ var roleTower = require('role.tower');
 var roleLink = require('role.link');
 var roleBoost = require('role.boost');
 var roleFactory = require('role.factory');
+var roleLab = require('role.lab');
 var scp = require('screepsplus');
 var market = require('market');
 
@@ -74,11 +75,11 @@ loopInner = function () {
             market.sellExcess();
 
             market.shareEnergyInternal();
-            market.manageInventory();
-            market.setupReactions();
+            roleLab.manageInventory();
+            roleLab.setupReactions();
             market.adjustOrders();
         }
-        market.runReactions();
+        roleLab.runReactions();
     }
     catch (e) {
         console.log("Market error: ", e.stack, e.message);
