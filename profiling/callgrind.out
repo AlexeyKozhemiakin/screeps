@@ -1,0 +1,1588 @@
+events: ns
+summary: 15700318178
+
+fn=market.runRoomReactions
+1 24562524
+cfn=market.runReaction
+calls=229 1
+1 74600933
+cfn=Game.getObjectById
+calls=54 1
+1 134783
+
+fn=market.runReactions
+1 11388707
+cfn=market.runRoomReactions
+calls=660 1
+1 99298240
+
+fn=RoomPosition.getRangeTo
+1 54460933
+
+
+fn=StructureLab.runReaction
+1 70640884
+cfn=RoomPosition.getRangeTo
+calls=458 1
+1 1796241
+
+fn=market.runReaction
+1 2121085
+cfn=StructureLab.runReaction
+calls=229 1
+1 72437125
+cfn=Game.getObjectById
+calls=24 1
+1 42723
+
+fn=(tick)
+1 412164467
+cfn=market.runReactions
+calls=100 1
+1 110686947
+cfn=room.claim.roomGetSpawnOrders
+calls=100 1
+1 73347024
+cfn=room.process.roomMove
+calls=3000 1
+1 10386250354
+cfn=utils.roomDraw
+calls=3000 1
+1 922013747
+cfn=utils.safeModeIfDanger
+calls=3000 1
+1 104683452
+cfn=role.link.run
+calls=3000 1
+1 198300257
+cfn=role.tower.run
+calls=3000 1
+1 697132510
+cfn=role.factory.run
+calls=3000 1
+1 97708703
+cfn=room.remoteHarvesting.getOrder
+calls=600 1
+1 300327214
+cfn=utils.roomSpawn
+calls=600 1
+1 451412498
+cfn=role.boost.prepareLabs
+calls=300 1
+1 18504087
+cfn=scp.collect_stats
+calls=100 1
+1 1047047625
+cfn=scp.collect_stats_end
+calls=100 1
+1 77066908
+cfn=room.planning.roomPlan
+calls=30 1
+1 510484195
+cfn=market.sellExcess
+calls=10 1
+1 43023743
+cfn=market.shareEnergyInternal
+calls=10 1
+1 11924162
+cfn=market.manageInventory
+calls=10 1
+1 214735225
+cfn=market.setupReactions
+calls=10 1
+1 22734726
+cfn=market.clearOrders
+calls=10 1
+1 770333
+
+fn=Room.find
+1 2822764097
+cfn=Structure.isActive
+calls=76362 1
+1 1821612801
+cfn=Room.spawn:get
+calls=5651 1
+1 38248181
+cfn=RoomObject.link:get
+calls=5651 1
+1 34194852
+cfn=StructureController.link:get
+calls=1678 1
+1 40813991
+cfn=StructureLab.mineralDemand:get
+calls=7400 1
+1 23060275
+cfn=StructureController.container:get
+calls=1970 1
+1 84412948
+cfn=Room.getPositionAt
+calls=924 1
+1 2728166
+cfn=RoomPosition.getRangeTo
+calls=311 1
+1 854954
+
+fn=Room.spawns:get
+1 47171228
+cfn=Room.find
+calls=3000 1
+1 57570818
+
+fn=Room.spawn:get
+1 60137432
+cfn=Room.spawns:get
+calls=14644 1
+1 88161337
+
+fn=room.claim.roomGetSpawnOrders
+1 6457568
+cfn=Room.spawn:get
+calls=1400 1
+1 66889456
+
+fn=role.basic.moveToRoom
+1 50671397
+cfn=Room.toString
+calls=154 1
+1 395301
+cfn=RoomPosition.findClosestByRange
+calls=154 1
+1 14444677
+cfn=Creep.moveTo
+calls=141 1
+1 46208481
+cfn=Creep.say
+calls=141 1
+1 579154
+cfn=Creep.move
+calls=8 1
+1 1657243
+
+fn=role.reserve.run
+1 17026720
+cfn=role.basic.moveToRoom
+calls=1012 1
+1 10023872
+cfn=Creep.signController
+calls=1004 1
+1 206106883
+cfn=Creep.reserveController
+calls=1004 1
+1 211008687
+cfn=Creep.moveTo
+calls=40 1
+1 14517845
+
+fn=RoomPosition.isNearTo
+1 76952762
+
+
+fn=Creep.signController
+1 204441135
+cfn=RoomPosition.isNearTo
+calls=1084 1
+1 2502877
+
+fn=Creep.reserveController
+1 209015099
+cfn=RoomPosition.isNearTo
+calls=1004 1
+1 1993588
+
+fn=room.process.roomMove
+1 245756879
+cfn=role.reserve.run
+calls=1012 1
+1 458684006
+cfn=role.harvester.run
+calls=4342 1
+1 1840639551
+cfn=role.deliverer.run
+calls=5880 1
+1 6346787099
+cfn=role.upgrader.run
+calls=2685 1
+1 1145591107
+cfn=role.mineralHarvester.run
+calls=800 1
+1 121063531
+cfn=role.attack.run
+calls=165 1
+1 135615344
+cfn=role.builder.run
+calls=100 1
+1 61981349
+cfn=role.scout.run
+calls=100 1
+1 30131489
+
+fn=role.harvester.run
+1 81007688
+cfn=role.basic.moveToRoom
+calls=4342 1
+1 37226418
+cfn=role.basic.repairEmergency
+calls=4241 1
+1 251536456
+cfn=role.harvester.runHarvest
+calls=4034 1
+1 1138833434
+cfn=role.harvester.runDeliver
+calls=986 1
+1 332035556
+
+fn=RoomPosition.findClosestByPath
+1 308247161
+cfn=Room.find
+calls=21182 1
+1 3031538062
+cfn=RoomPosition.isEqualTo
+calls=3837 1
+1 23260945
+cfn=RoomPosition.isNearTo
+calls=3656 1
+1 14316687
+
+fn=role.basic.repairEmergency
+1 77074416
+cfn=RoomPosition.findClosestByPath
+calls=4741 1
+1 288204885
+cfn=RoomPosition.isNearTo
+calls=207 1
+1 412208
+cfn=Creep.repair
+calls=207 1
+1 46026410
+
+fn=RoomPosition.findClosestByRange
+1 200321551
+cfn=Room.find
+calls=30000 1
+1 271634282
+cfn=RoomPosition.getRangeTo
+calls=2879 1
+1 7268699
+
+fn=role.basic.runDropped
+1 148087738
+cfn=RoomPosition.findClosestByRange
+calls=15106 1
+1 149117591
+cfn=RoomPosition.getRangeTo
+calls=7755 1
+1 18316208
+cfn=Creep.pickup
+calls=3 1
+1 671829
+cfn=Creep.say
+calls=12 1
+1 41664
+cfn=Creep.withdraw
+calls=13 1
+1 2108815
+cfn=Creep.moveTo
+calls=4 1
+1 1687376
+
+fn=role.harvester.runHarvest
+1 77694661
+cfn=role.basic.runDropped
+calls=4028 1
+1 150002158
+cfn=role.basic.findSource
+calls=4025 1
+1 18867887
+cfn=RoomPosition.isNearTo
+calls=4025 1
+1 9074781
+cfn=Creep.harvest
+calls=3732 1
+1 820402627
+cfn=RoomPosition.getRangeTo
+calls=196 1
+1 479790
+cfn=Creep.moveTo
+calls=198 1
+1 61128276
+cfn=Creep.say
+calls=112 1
+1 580592
+cfn=role.basic.repairEmergency
+calls=97 1
+1 602662
+
+fn=role.basic.findSource
+1 19429744
+cfn=RoomPosition.findClosestByPath
+calls=41 1
+1 8113113
+cfn=Game.getObjectById
+calls=81 1
+1 166149
+
+fn=Creep.harvest
+1 846288365
+cfn=RoomPosition.isNearTo
+calls=3902 1
+1 8490521
+cfn=RoomPosition.lookFor
+calls=133 1
+1 2101778
+cfn=Structure.isActive
+calls=133 1
+1 922377
+
+fn=RoomPosition.findInRange
+1 373541661
+cfn=Room.find
+calls=16399 1
+1 207088844
+cfn=RoomPosition.inRangeTo
+calls=133879 1
+1 220458194
+
+fn=StructureController.link:get
+1 -1257248115
+cfn=RoomPosition.findInRange
+calls=4700 1
+1 87527883
+
+fn=utils.roomDraw
+1 1530427064
+cfn=StructureController.link:get
+calls=4500 1
+1 -1213437182
+cfn=Room.spawns:get
+calls=3000 1
+1 15341434
+cfn=Room.find
+calls=6000 1
+1 338067493
+cfn=RoomVisual.circle
+calls=1500 1
+1 24149835
+cfn=RoomVisual.text
+calls=35464 1
+1 154568040
+cfn=StructureLab.mineralDemand:get
+calls=3120 1
+1 8482072
+cfn=RoomVisual.resource
+calls=3131 1
+1 60953360
+cfn=StructureSpawn.Spawning
+calls=464 1
+1 3461631
+
+fn=Room.getEventLog
+1 66002301
+
+
+fn=utils.safeModeIfDanger
+1 38681150
+cfn=Room.getEventLog
+calls=3000 1
+1 66002301
+
+fn=role.link.run
+1 72610467
+cfn=Room.spawn:get
+calls=1500 1
+1 8592423
+cfn=RoomObject.link:get
+calls=1500 1
+1 30074076
+cfn=StructureController.link:get
+calls=1500 1
+1 2668253
+cfn=Room.links:get
+calls=12825 1
+1 48628499
+cfn=role.link.runInternal
+calls=1166 1
+1 35726540
+
+fn=role.tower.run
+1 24759665
+cfn=Room.find
+calls=1500 1
+1 14593094
+cfn=role.tower.runInternal
+calls=3600 1
+1 657779751
+
+fn=role.factory.run
+1 21190671
+cfn=role.factory.getFactory
+calls=1500 1
+1 19036802
+cfn=Structure.isActive
+calls=1000 1
+1 16240489
+cfn=role.factory.selectProduction
+calls=1000 1
+1 39436276
+cfn=role.factory.updateDemand
+calls=10 1
+1 198435
+cfn=role.factory.attemptProduce
+calls=10 1
+1 1606030
+
+fn=role.deliverer.runDeliver
+1 86470444
+cfn=RoomPosition.isNearTo
+calls=5391 1
+1 12251239
+cfn=role.basic.goTo
+calls=2026 1
+1 740629269
+cfn=role.deliverer.selectTarget
+calls=1606 1
+1 2030655143
+cfn=role.deliverer.storeResType
+calls=1342 1
+1 10734040
+cfn=Creep.transfer
+calls=1328 1
+1 176835095
+cfn=Game.getObjectById
+calls=44 1
+1 94632
+
+fn=role.basic.goTo
+1 36692921
+cfn=RoomPosition.getRangeTo
+calls=4251 1
+1 12285247
+cfn=Creep.moveTo
+calls=4251 1
+1 1553630347
+cfn=Creep.say
+calls=53 1
+1 280545
+
+fn=RoomVisual.poly
+1 85945777
+
+
+fn=Creep.moveTo
+1 279604640
+cfn=RoomVisual.poly
+calls=4740 1
+1 85945777
+cfn=Creep.moveByPath
+calls=3576 1
+1 750102932
+cfn=RoomPosition.findPathTo
+calls=1268 1
+1 392905669
+cfn=Creep.move
+calls=1266 1
+1 248817385
+cfn=RoomPosition.isNearTo
+calls=95 1
+1 184045
+
+fn=Creep.move
+1 972628527
+
+
+fn=Creep.moveByPath
+1 28155417
+cfn=Creep.move
+calls=3576 1
+1 721947515
+
+fn=role.deliverer.run
+1 105226068
+cfn=role.deliverer.runDeliver
+calls=3368 1
+1 3057669863
+cfn=RoomVisual.circle
+calls=1600 1
+1 15436532
+cfn=role.deliverer.runPickup
+calls=3766 1
+1 3028199250
+cfn=role.basic.runDropped
+calls=3145 1
+1 139033591
+cfn=role.basic.recycleCreep
+calls=3 1
+1 1221796
+
+fn=RoomVisual.circle
+1 46057214
+
+
+fn=role.deliverer.storeResType
+1 46391257
+
+
+fn=role.deliverer.selectTarget
+1 119963455
+cfn=role.deliverer.storeResType
+calls=2493 1
+1 35657216
+cfn=RoomPosition.findClosestByPath
+calls=14117 1
+1 2966255856
+cfn=Room.spawn:get
+calls=3142 1
+1 15583755
+cfn=RoomObject.container:get
+calls=1571 1
+1 35219543
+cfn=Room.labs:get
+calls=367 1
+1 4112870
+cfn=Structure.isActive
+calls=2183 1
+1 62911185
+cfn=StructureLab.mineralDemand:get
+calls=1822 1
+1 6675711
+cfn=Game.getObjectById
+calls=18 1
+1 34025
+
+fn=Structure.isActive
+1 1988069017
+
+
+fn=RoomPosition.inRangeTo
+1 226765130
+
+
+fn=RoomObject.link:get
+1 40183450
+cfn=RoomPosition.findInRange
+calls=2843 1
+1 90394147
+
+fn=RoomPosition.isEqualTo
+1 28805468
+
+
+fn=Creep.transfer
+1 378392538
+cfn=RoomPosition.isNearTo
+calls=2272 1
+1 6156706
+
+fn=Room.labs:get
+1 15467369
+cfn=Room.find
+calls=1075 1
+1 13545337
+
+fn=role.deliverer.runPickup
+1 335653054
+cfn=Room.labs:get
+calls=3461 1
+1 24899836
+cfn=StructureLab.mineralDemand:get
+calls=16800 1
+1 47878546
+cfn=RoomPosition.findClosestByPath
+calls=1536 1
+1 96064830
+cfn=Room.spawn:get
+calls=1816 1
+1 11672775
+cfn=RoomObject.link:get
+calls=1816 1
+1 22153719
+cfn=Room.terminal:get
+calls=865 1
+1 14611359
+cfn=RoomPosition.findClosestByRange
+calls=3524 1
+1 145435154
+cfn=role.deliverer.selectTarget
+calls=887 1
+1 1215758472
+cfn=RoomPosition.isNearTo
+calls=4558 1
+1 10771381
+cfn=Creep.withdraw
+calls=960 1
+1 151181255
+cfn=role.basic.goTo
+calls=2225 1
+1 862259791
+cfn=Structure.isActive
+calls=3008 1
+1 86382165
+cfn=Creep.say
+calls=581 1
+1 3344973
+cfn=Game.getObjectById
+calls=69 1
+1 131940
+
+fn=StructureLab.mineralDemand:get
+1 86361580
+
+
+fn=Room.terminal:get
+1 83597218
+cfn=Room.find
+calls=1622 1
+1 23469035
+
+fn=Creep.withdraw
+1 306642193
+cfn=RoomPosition.isNearTo
+calls=1700 1
+1 3804635
+
+fn=role.upgrader.run
+1 63100112
+cfn=role.basic.moveToRoom
+calls=2685 1
+1 9074338
+cfn=role.boost.needsBoosting
+calls=2685 1
+1 16006658
+cfn=role.basic.repairEmergency
+calls=2675 1
+1 159578800
+cfn=role.upgrader.runUpgrade
+calls=2675 1
+1 668173020
+cfn=Creep.getActiveBodyparts
+calls=2675 1
+1 7925463
+cfn=role.upgrader.runPickup
+calls=738 1
+1 216765191
+cfn=role.boost.boostCreep
+calls=10 1
+1 4967525
+
+fn=role.boost.needsBoosting
+1 11811235
+cfn=role.boost.isBoostingEnabled
+calls=69 1
+1 334972
+cfn=role.boost.getAvailableBoost
+calls=69 1
+1 3860451
+
+fn=role.upgrader.runUpgrade
+1 40899810
+cfn=RoomPosition.getRangeTo
+calls=2675 1
+1 12454129
+cfn=Creep.getActiveBodyparts
+calls=2647 1
+1 11960607
+cfn=Creep.upgradeController
+calls=2647 1
+1 591615576
+cfn=Creep.say
+calls=16 1
+1 94797
+cfn=Creep.moveTo
+calls=20 1
+1 11148101
+
+fn=Creep.getActiveBodyparts
+1 27753365
+
+
+fn=Creep.upgradeController
+1 585910226
+cfn=RoomPosition.inRangeTo
+calls=2631 1
+1 5705350
+
+fn=role.upgrader.runPickup
+1 9398841
+cfn=role.basic.runDropped
+calls=738 1
+1 28690653
+cfn=role.upgrader.getSource
+calls=738 1
+1 12400495
+cfn=RoomPosition.isNearTo
+calls=738 1
+1 1923410
+cfn=Creep.withdraw
+calls=724 1
+1 156495527
+cfn=Creep.say
+calls=11 1
+1 33508
+cfn=Creep.moveTo
+calls=13 1
+1 7822758
+
+fn=role.upgrader.getSource
+1 11314046
+cfn=StructureController.container:get
+calls=11 1
+1 827034
+cfn=StructureController.link:get
+calls=11 1
+1 234706
+cfn=Game.getObjectById
+calls=11 1
+1 24709
+
+fn=RoomObject.storage:get
+1 9591394
+cfn=RoomPosition.findInRange
+calls=1298 1
+1 26349159
+
+fn=role.harvester.selectTarget
+1 36787251
+cfn=RoomObject.storage:get
+calls=986 1
+1 27975113
+cfn=RoomObject.link:get
+calls=2630 1
+1 31890902
+cfn=RoomObject.container:get
+calls=2040 1
+1 14623170
+cfn=RoomPosition.findInRange
+calls=75 1
+1 1587925
+cfn=RoomPosition.findClosestByPath
+calls=70 1
+1 1027540
+cfn=Room.spawn:get
+calls=70 1
+1 864257
+cfn=RoomPosition.findClosestByRange
+calls=140 1
+1 1619985
+cfn=StructureController.container:get
+calls=79 1
+1 3975851
+cfn=Creep.say
+calls=5 1
+1 20896
+cfn=Game.getObjectById
+calls=22 1
+1 39448
+
+fn=role.harvester.runDeliver
+1 9965732
+cfn=role.harvester.selectTarget
+calls=986 1
+1 120412337
+cfn=Creep.transfer
+calls=916 1
+1 201250040
+cfn=Creep.Say
+calls=73 1
+1 407446
+
+fn=RoomVisual.text
+1 171004483
+
+
+fn=RoomVisual._compound
+1 14178393
+cfn=RoomVisual.text
+calls=2456 1
+1 13140979
+
+fn=RoomVisual.resource
+1 15189641
+cfn=RoomVisual._compound
+calls=2456 1
+1 27319371
+cfn=RoomVisual._mineral
+calls=675 1
+1 18444348
+
+fn=RoomVisual._mineral
+1 9052972
+cfn=RoomVisual.circle
+calls=1350 1
+1 6217583
+cfn=RoomVisual.text
+calls=675 1
+1 3173793
+
+fn=Room.config:get
+1 3338810
+
+
+fn=room.remoteHarvesting.getOrder
+1 144281076
+cfn=Room.config:get
+calls=1200 1
+1 3338810
+cfn=Room.find
+calls=1786 1
+1 7173188
+cfn=RoomObject.container:get
+calls=682 1
+1 11000136
+cfn=utils.createDeliverer
+calls=336 1
+1 134534005
+
+fn=RoomObject.container:get
+1 27565010
+cfn=RoomPosition.findInRange
+calls=2453 1
+1 74632119
+
+fn=utils.createDeliverer
+1 58785791
+cfn=Creep.getActiveBodyparts
+calls=714 1
+1 3386815
+cfn=utils.getPathMultiroom
+calls=396 1
+1 79750371
+cfn=utils.isPathRoaded
+calls=396 1
+1 6906220
+cfn=utils.getBodyParts
+calls=15 1
+1 2209310
+cfn=Game.getObjectById
+calls=8 1
+1 14755
+
+fn=utils.getPathMultiroom
+1 74701435
+cfn=RoomPosition.findPathTo
+calls=60 1
+1 5048936
+
+fn=Room.lookForAt
+1 18013091
+
+
+fn=utils.isPathRoaded
+1 4092738
+cfn=Room.lookForAt
+calls=456 1
+1 2813482
+
+fn=utils.roomSpawn
+1 151220911
+cfn=Room.spawns:get
+calls=600 1
+1 1239276
+cfn=Room.find
+calls=1310 1
+1 5762826
+cfn=RoomPosition.findPathTo
+calls=471 1
+1 102136780
+cfn=Creep.getActiveBodyparts
+calls=1384 1
+1 4480480
+cfn=Source.slots
+calls=468 1
+1 9360984
+cfn=RoomObject.container:get
+calls=1967 1
+1 26355637
+cfn=RoomObject.storage:get
+calls=408 1
+1 7965439
+cfn=RoomObject.link:get
+calls=469 1
+1 12264048
+cfn=StructureController.container:get
+calls=824 1
+1 11736772
+cfn=Room.spawn:get
+calls=784 1
+1 4132625
+cfn=RoomObject.isNearBase:get
+calls=465 1
+1 72979050
+cfn=utils.createDeliverer
+calls=60 1
+1 16519256
+cfn=role.mineralHarvester.needHarvester
+calls=262 1
+1 21357862
+cfn=Room.extractor:get
+calls=132 1
+1 222565
+cfn=utils.getBodyParts
+calls=2 1
+1 104068
+cfn=StructureSpawn.spawnCreep
+calls=11 1
+1 3273666
+cfn=utils.createUpgraderBody
+calls=1 1
+1 300252
+
+fn=Room.findPath
+1 470303789
+cfn=RoomPosition.isEqualTo
+calls=2866 1
+1 5544522
+cfn=RoomPosition.isNearTo
+calls=1067 1
+1 2803748
+
+fn=RoomPosition.findPathTo
+1 26604117
+cfn=Room.findPath
+calls=1816 1
+1 478652058
+
+fn=Room.lookForAtArea
+1 5746458
+
+
+fn=Source.slots
+1 3614526
+cfn=Room.lookForAtArea
+calls=468 1
+1 5746458
+
+fn=StructureController.container:get
+1 19028027
+cfn=RoomPosition.findInRange
+calls=2999 1
+1 81924578
+
+fn=RoomObject.isNearBase:get
+1 3875409
+cfn=RoomPosition.findInRange
+calls=465 1
+1 69103641
+
+fn=Room.extractor:get
+1 10693543
+cfn=Room.find
+calls=929 1
+1 28220440
+
+fn=role.mineralHarvester.needHarvester
+1 4683015
+cfn=Room.extractor:get
+calls=524 1
+1 4469153
+cfn=RoomObject.container:get
+calls=262 1
+1 10362069
+cfn=Room.mineral:get
+calls=262 1
+1 1843626
+
+fn=Room.mineral:get
+1 8365226
+cfn=Room.find
+calls=887 1
+1 3616270
+
+fn=Room.links:get
+1 30418738
+cfn=Room.find
+calls=1500 1
+1 18209762
+
+fn=role.tower.runInternal
+1 82522097
+cfn=RoomPosition.findClosestByRange
+calls=10800 1
+1 163687337
+cfn=Room.find
+calls=3487 1
+1 346410548
+cfn=RoomPosition.getRangeTo
+calls=271 1
+1 829353
+cfn=StructureTower.repair
+calls=271 1
+1 64330416
+
+fn=role.factory.getFactory
+1 6734710
+cfn=Room.find
+calls=1500 1
+1 12302092
+
+fn=role.boost.isBoostingEnabled
+1 1980324
+
+
+fn=role.boost.prepareLabs
+1 12949032
+cfn=role.boost.isBoostingEnabled
+calls=300 1
+1 1645351
+cfn=Room.find
+calls=300 1
+1 2181507
+cfn=StructureLab.mineralDemand:get
+calls=57 1
+1 264976
+cfn=StructureLab.mineralDemand:set
+calls=464 1
+1 1463220
+
+fn=Creep.say
+1 5654866
+
+
+fn=role.mineralHarvester.runHarvest
+1 14204111
+cfn=Room.mineral:get
+calls=744 1
+1 9907583
+cfn=RoomPosition.isNearTo
+calls=744 1
+1 1685949
+cfn=Room.extractor:get
+calls=744 1
+1 31289171
+cfn=Creep.harvest
+calls=133 1
+1 34072117
+
+fn=RoomPosition.lookFor
+1 9710310
+cfn=Room.lookForAt
+calls=2377 1
+1 10045005
+
+fn=role.mineralHarvester.run
+1 16704740
+cfn=role.mineralHarvester.runHarvest
+calls=744 1
+1 91158931
+cfn=role.mineralHarvester.runDeliver
+calls=56 1
+1 13199860
+
+fn=role.link.runInternal
+1 8853959
+cfn=StructureLink.transferEnergy
+calls=108 1
+1 26872580
+
+fn=StructureLink.transferEnergy
+1 26872580
+
+
+fn=StructureSpawn.Spawning
+1 3461631
+
+
+fn=role.attack.run
+1 4041368
+cfn=role.basic.moveToRoom
+calls=165 1
+1 928867
+cfn=role.attack.attack
+calls=165 1
+1 119115189
+cfn=RoomPosition.findInRange
+calls=134 1
+1 3759422
+cfn=Creep.heal
+calls=87 1
+1 7770498
+
+fn=role.attack.attack
+1 10188640
+cfn=RoomPosition.findClosestByPath
+calls=1047 1
+1 9943612
+cfn=Room.find
+calls=294 1
+1 1828879
+cfn=RoomPosition.isNearTo
+calls=18 1
+1 49617
+cfn=Creep.moveTo
+calls=9 1
+1 3465569
+cfn=Creep.heal
+calls=27 1
+1 2196371
+cfn=RoomPosition.findClosestByRange
+calls=441 1
+1 4919790
+cfn=RoomPosition.findInRange
+calls=147 1
+1 13560780
+cfn=role.basic.recycleCreep
+calls=147 1
+1 72961931
+
+fn=Creep.heal
+1 9683373
+cfn=RoomPosition.isNearTo
+calls=114 1
+1 283496
+
+fn=role.basic.recycleCreep
+1 3546204
+cfn=Room.spawn:get
+calls=185 1
+1 1809881
+cfn=role.basic.moveToRoom
+calls=111 1
+1 56023422
+cfn=Creep.say
+calls=39 1
+1 271292
+cfn=RoomPosition.inRangeTo
+calls=39 1
+1 78272
+cfn=StructureSpawn.recycleCreep
+calls=4 1
+1 963827
+cfn=Creep.moveTo
+calls=35 1
+1 11490830
+
+fn=Room.toString
+1 395301
+
+
+fn=Room.getPositionAt
+1 2728166
+
+
+fn=role.factory.selectProduction
+1 30354388
+cfn=Room.terminal:get
+calls=980 1
+1 9081888
+
+fn=Creep.repair
+1 45608112
+cfn=RoomPosition.inRangeTo
+calls=207 1
+1 418298
+
+fn=role.boost.getAvailableBoost
+1 691912
+cfn=Room.find
+calls=79 1
+1 3429387
+
+fn=role.builder.run
+1 1968950
+cfn=role.basic.moveToRoom
+calls=100 1
+1 328028
+cfn=role.builder.runBuild
+calls=46 1
+1 15289010
+cfn=role.builder.runHarvest
+calls=54 1
+1 44395361
+
+fn=role.builder.selectTarget
+1 399931
+
+
+fn=role.builder.runBuild
+1 799859
+cfn=role.builder.selectTarget
+calls=46 1
+1 399931
+cfn=RoomPosition.getRangeTo
+calls=46 1
+1 114900
+cfn=Creep.moveTo
+calls=6 1
+1 1708920
+cfn=Creep.build
+calls=40 1
+1 12265400
+
+fn=StructureTower.repair
+1 64330416
+
+
+fn=role.scout.run
+1 3175514
+cfn=role.basic.moveToRoom
+calls=100 1
+1 351309
+cfn=Creep.signController
+calls=80 1
+1 837129
+cfn=Creep.moveTo
+calls=79 1
+1 25455853
+cfn=RoomPosition.isNearTo
+calls=20 1
+1 44486
+cfn=RoomPosition.findPathTo
+calls=1 1
+1 60814
+cfn=Creep.move
+calls=1 1
+1 206384
+
+fn=scp.collect_stats
+1 579004250
+cfn=Room.find
+calls=37000 1
+1 458583939
+cfn=Room.terminal:get
+calls=4316 1
+1 9459436
+
+fn=scp.collect_stats_end
+1 77066908
+
+
+fn=room.planning.roomPlan
+1 5108484
+cfn=Room.find
+calls=85 1
+1 935434
+cfn=Room.spawn:get
+calls=14 1
+1 65283
+cfn=room.planning.tryExtensions
+calls=14 1
+1 123235273
+cfn=RoomPosition.getRangeTo
+calls=22 1
+1 61411
+cfn=room.planning.tryRoad
+calls=56 1
+1 34858370
+cfn=RoomPosition.findInRange
+calls=1072 1
+1 345719447
+cfn=Room.mineral:get
+calls=28 1
+1 230286
+cfn=Room.extractor:get
+calls=14 1
+1 270206
+
+fn=StructureLab.mineralDemand:set
+1 4752202
+
+
+fn=role.factory.updateDemand
+1 198435
+
+
+fn=StructureFactory.produce
+1 1354402
+
+
+fn=role.factory.attemptProduce
+1 251628
+cfn=StructureFactory.produce
+calls=5 1
+1 1354402
+
+fn=Room.Terrain
+1 274708
+
+
+fn=Room.getTerrain
+1 119652
+cfn=Room.Terrain
+calls=14 1
+1 274708
+
+fn=room.planning.tryExtensions
+1 14242349
+cfn=Room.getTerrain
+calls=14 1
+1 394360
+cfn=RoomPosition.lookFor
+calls=2244 1
+1 17653537
+cfn=room.planning.tryBuild
+calls=1054 1
+1 89616176
+cfn=RoomVisual.circle
+calls=23 1
+1 253265
+cfn=RoomVisual.text
+calls=23 1
+1 121672
+cfn=RoomObject.container:get
+calls=13 1
+1 953914
+
+fn=room.planning.tryBuild
+1 8550231
+cfn=Room.lookForAt
+calls=1370 1
+1 5154604
+cfn=RoomPosition.createConstructionSite
+calls=1368 1
+1 98747524
+
+fn=Room.createConstructionSite
+1 92986046
+
+
+fn=RoomPosition.createConstructionSite
+1 5761478
+cfn=Room.createConstructionSite
+calls=1368 1
+1 92986046
+
+fn=room.planning.tryRoad
+1 2630563
+cfn=RoomPosition.findInRange
+calls=159 1
+1 4287648
+cfn=RoomPosition.findPathTo
+calls=16 1
+1 5103976
+cfn=room.planning.tryBuild
+calls=316 1
+1 22836183
+
+fn=utils.prefillParts
+1 1150444
+
+
+fn=utils.getBodyParts
+1 1162933
+cfn=utils.prefillParts
+calls=17 1
+1 1150444
+
+fn=role.mineralHarvester.runDeliver
+1 1578911
+cfn=Room.extractor:get
+calls=56 1
+1 2662887
+cfn=RoomObject.container:get
+calls=56 1
+1 2365720
+cfn=RoomPosition.isNearTo
+calls=56 1
+1 128231
+cfn=Creep.transfer
+calls=28 1
+1 6464110
+
+fn=role.boost.boostCreep
+1 388679
+cfn=role.boost.getAvailableBoost
+calls=10 1
+1 260848
+cfn=RoomPosition.isNearTo
+calls=10 1
+1 37224
+cfn=Creep.moveTo
+calls=10 1
+1 4280774
+
+fn=Creep.build
+1 12160385
+cfn=RoomPosition.inRangeTo
+calls=40 1
+1 105015
+
+fn=market.sellExcess
+1 20937370
+cfn=Room.terminal:get
+calls=5626 1
+1 21258978
+cfn=market.matchOrderInternal
+calls=1 1
+1 827396
+
+fn=market.shareEnergyInternal
+1 7663318
+cfn=Room.terminal:get
+calls=1941 1
+1 3810968
+cfn=market.shareResource
+calls=1 1
+1 449876
+
+fn=market.manageInventory
+1 1771409
+cfn=Room.terminal:get
+calls=300 1
+1 458806
+cfn=market.autoGenerateGoalsForRoom
+calls=140 1
+1 212505010
+
+fn=market.getTotalMineralAmount
+1 59360197
+cfn=Room.terminal:get
+calls=7685 1
+1 11789371
+cfn=Room.find
+calls=2641 1
+1 21320762
+
+fn=market.autoGenerateGoalsForRoom
+1 73303197
+cfn=market.getTotalMineralAmount
+calls=2321 1
+1 83730261
+cfn=Room.terminal:get
+calls=21637 1
+1 34994873
+cfn=market.matchOrderInternal
+calls=503 1
+1 18214210
+cfn=Room.find
+calls=60 1
+1 626582
+cfn=StructureLab.mineralDemand:set
+calls=360 1
+1 1079871
+cfn=market.shareResource
+calls=1 1
+1 556015
+
+fn=market.matchOrderInternal
+1 12664624
+cfn=Room.terminal:get
+calls=1008 1
+1 1539516
+cfn=market.recentPrice
+calls=84 1
+1 3478836
+cfn=market.tryCreateOrder
+calls=21 1
+1 1358630
+
+fn=market.recentPrice
+1 3478836
+
+
+fn=market.tryCreateOrder
+1 1316550
+cfn=Room.terminal:get
+calls=21 1
+1 42080
+
+fn=market.setupReactionsForRoom
+1 1100637
+cfn=market.getTotalMineralAmount
+calls=80 1
+1 3004318
+cfn=market.setupRoomReagents
+calls=80 1
+1 17557613
+
+fn=market.setupRoomReagents
+1 8821910
+cfn=market.getTotalMineralAmount
+calls=240 1
+1 5735751
+cfn=market.getReagents
+calls=80 1
+1 209157
+cfn=Room.find
+calls=80 1
+1 581684
+cfn=StructureLab.mineralDemand:set
+calls=636 1
+1 2209111
+
+fn=market.getReagents
+1 209157
+
+
+fn=market.setupReactions
+1 1072158
+cfn=market.setupReactionsForRoom
+calls=140 1
+1 21662568
+
+fn=market.clearOrders
+1 770333
+
+
+fn=StructureSpawn.spawnCreep
+1 3273666
+
+
+fn=role.builder.runHarvest
+1 2471015
+cfn=role.basic.runDropped
+calls=54 1
+1 2304819
+cfn=RoomPosition.findClosestByPath
+calls=257 1
+1 7753021
+cfn=RoomPosition.findInRange
+calls=54 1
+1 2241950
+cfn=Room.spawn:get
+calls=82 1
+1 440132
+cfn=RoomObject.container:get
+calls=41 1
+1 1316940
+cfn=role.basic.findSource
+calls=41 1
+1 8841119
+cfn=Creep.moveTo
+calls=70 1
+1 15015319
+cfn=Creep.harvest
+calls=37 1
+1 3328297
+cfn=RoomPosition.isNearTo
+calls=13 1
+1 21518
+cfn=Creep.withdraw
+calls=3 1
+1 661231
+
+fn=market.shareResource
+1 387473
+cfn=Room.terminal:get
+calls=10 1
+1 18977
+cfn=StructureTerminal.send
+calls=2 1
+1 599441
+
+fn=StructureTerminal.send
+1 599441
+
+
+fn=Creep.pickup
+1 666413
+cfn=RoomPosition.isNearTo
+calls=3 1
+1 5416
+
+fn=Game.getObjectById
+1 683164
+
+
+fn=StructureSpawn.recycleCreep
+1 952828
+cfn=RoomPosition.isNearTo
+calls=4 1
+1 10999
+
+fn=utils.createUpgraderBody
+1 300252
+
+
+fn=(root)
+1 0
+cfn=(tick)
+calls=122 1
+1 15700318178
