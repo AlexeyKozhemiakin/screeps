@@ -118,6 +118,9 @@ function summarize_room_internal(room) {
     if (!room.controller) {
         return null;
     }
+
+    if(!room.controller.my)
+        return null
     
     var owner = room.controller.owner ? room.controller.owner.username : "none";
     var reserv = room.controller.reservation ? room.controller.reservation.username : "none"
@@ -269,27 +272,30 @@ function summarize_room_internal(room) {
         controller_safemode,
         controller_safemode_avail,
         controller_safemode_cooldown,
+
         energy_avail,
         energy_cap,
+        
         source_energy,
         source_energy_reduced,
+        
         source_energy_wasted,
         source_energy_diff,
         minerals: {
             [mineral_type]: mineral_amount
         },
         mineral_amount,
-        mineral_ticksToRegeneration,
-        num_extractors,
+        //mineral_ticksToRegeneration,
+        //num_extractors,
         
         storage_details,
                 
-        has_terminal,
+        //has_terminal,
                 
         terminal_details,
 
-        container_energy,
-        container_energy_reduced,
+        //container_energy,
+        //container_energy_reduced,
         container_details,
         link_energy,
         link_energy_reduced,
@@ -305,7 +311,7 @@ function summarize_room_internal(room) {
         structure_info,
         num_construction_sites,
         construction_hits,
-        ground_resources: reduced_resources,
+        //ground_resources: reduced_resources,
         cput
     };
 

@@ -144,7 +144,7 @@ global.listRoomsToClaim = function () {
 // give console command to find which creep has togo to E56S28
 // example usage: findCreepToGo("E56S28")
 global.findCreepToGo = function (roomName) {
-    var creeps = _.filter(Game.creeps, c => c.memory.toGo && c.memory.toGo[0] == roomName); 
+    var creeps = _.filter(Game.creeps, c => c.memory.toGo && c.memory.toGo[0] == roomName);
     if (creeps.length == 0) {
         return "No creeps with toGo to " + roomName;
     }
@@ -173,3 +173,210 @@ global.clearRoomMemory = function (roomName) {
     delete Memory.rooms[roomName];
     return "Cleared Memory.rooms[\"" + roomName + "\"].";
 };
+
+// add function to calculate price of materials and store them in memory
+// Usage: calculateAndStorePrices()
+global.calculateAndStorePrices = function () {
+
+
+
+    // Example: calculate price of energy based on market data
+    //for each in RESOURCES_ALL
+    var raw_prices = {};
+    RESOURCES_ALL.forEach(resource => {
+        var history = Game.market.getHistory(resource);
+        if (!Array.isArray(history) || history.length == 0)
+            return;
+
+        // Take the average price from the last 10 days
+        var recentHistory = history.slice(-10);
+        var avgPrice = recentHistory.reduce((sum, entry) => sum + entry.avgPrice, 0) / recentHistory.length;
+
+        raw_prices[resource] = avgPrice;
+        
+        console.log(" " + resource + ": " + avgPrice.toFixed(2));
+    });
+
+
+    // Primitive resources – use market price directly; never recurse into these
+    // to avoid circular loops through _bar recipes.
+    var PRIMITIVE_SET = {};
+    [
+        RESOURCE_ENERGY,    // 'energy'
+        RESOURCE_POWER,     // 'power'
+        RESOURCE_HYDROGEN,  // 'H'
+        RESOURCE_OXYGEN,    // 'O'
+        RESOURCE_UTRIUM,    // 'U'
+        RESOURCE_LEMERGIUM, // 'L'
+        RESOURCE_KEANIUM,   // 'K'
+        RESOURCE_ZYNTHIUM,  // 'Z'
+        RESOURCE_CATALYST,  // 'X'
+        RESOURCE_GHODIUM,   // 'G'
+        RESOURCE_OPS,       // 'ops'
+        RESOURCE_SILICON,   // 'silicon'
+        RESOURCE_METAL,     // 'metal'
+        RESOURCE_BIOMASS,   // 'biomass'
+        RESOURCE_MIST,      // 'mist'
+    ].forEach(function(r) { PRIMITIVE_SET[r] = true; });
+
+    // Recursively compute the production cost of a resource using only
+    // primitive market prices at the leaves.
+    var deepCache = {};
+    function getDeepCost(resource) {
+        if (deepCache[resource] !== undefined) return deepCache[resource];
+        if (PRIMITIVE_SET[resource]) {
+            deepCache[resource] = raw_prices[resource] || 0;
+            return deepCache[resource];
+        }
+        var commodity = COMMODITIES[resource];
+        if (!commodity || !commodity.components) {
+            deepCache[resource] = raw_prices[resource] || 0;
+            return deepCache[resource];
+        }
+        var componentCost = 0;
+        for (var comp in commodity.components) {
+            componentCost += getDeepCost(comp) * commodity.components[comp];
+        }
+        var result = componentCost / commodity.amount;
+        deepCache[resource] = result;
+        return result;
+    }
+
+    console.log("resource          |  market $ | shallow $ |   deep $  | shallowMargin | deepMargin | level | reagents");
+
+    RESOURCES_ALL.forEach(resource => {
+        if (!raw_prices[resource])
+            return;
+
+        var commodity = COMMODITIES[resource];
+        if (!commodity || !commodity.components)
+            return;
+
+        var marketPrice = raw_prices[resource];
+
+        // Shallow cost: direct component market prices (one level)
+        var shallowCost = 0;
+        for (var comp in commodity.components) {
+            shallowCost += (raw_prices[comp] || 0) * commodity.components[comp];
+        }
+        shallowCost = shallowCost / commodity.amount;
+
+        // Deep cost: recursive from primitives, always computed for any commodity with a recipe
+        var level = commodity.level || 0;
+        var deepCost = getDeepCost(resource);
+
+        var shallowMargin = shallowCost > 0 ? ((marketPrice - shallowCost) / shallowCost * 100).toFixed(1) : "N/A";
+        var deepMarginStr = deepCost > 0 ? ((marketPrice - deepCost) / deepCost * 100).toFixed(1) : "-";
+        var deepCostStr   = deepCost > 0 ? deepCost.toFixed(2).padStart(10) : "         -";
+
+        var padResource    = resource.padEnd(17);
+        var padMarket      = marketPrice.toFixed(1).padStart(10);
+        var padShallow     = shallowCost.toFixed(1).padStart(10);
+        var padShallowM    = shallowMargin.padStart(14);
+        var padDeepM       = deepMarginStr.padStart(11);
+        var reagents       = Object.keys(commodity.components).join(", ");
+
+        console.log(padResource + " | " + padMarket + " | " + padShallow + " | " + deepCostStr + " | " + padShallowM + "% | " + padDeepM + "% | " + level + " | " + reagents);
+    });
+
+    //Memory.prices = undefined;
+    return "Done.";
+} 
+
+// Analyze market history for past days, what i was selling and buying by what price
+// Usage: analyzeMarketHistory()
+// Usage: analyzeMarketHistory("energy")   — filter by resource
+global.analyzeMarketHistory = function (filterResource) {
+    var incoming = Game.market.incomingTransactions || [];
+    var outgoing = Game.market.outgoingTransactions || [];
+
+    // Only market trades (have an order with a price)
+    var buys  = incoming.filter(function(t) { return t.order; });
+    var sells = outgoing.filter(function(t) { return t.order; });
+
+    if (filterResource) {
+        buys  = buys.filter(function(t)  { return t.resourceType === filterResource; });
+        sells = sells.filter(function(t) { return t.resourceType === filterResource; });
+    }
+
+    if (buys.length === 0 && sells.length === 0) {
+        return "No market transactions found." + (filterResource ? " (filter: " + filterResource + ")" : "");
+    }
+
+    // Aggregate by direction + resource
+    var agg = {};
+    function addTx(t, dir) {
+        var key = dir + '|' + t.resourceType;
+        if (!agg[key]) {
+            agg[key] = {
+                direction: dir, resource: t.resourceType,
+                amount: 0, totalCredits: 0, count: 0,
+                minTick: t.time, maxTick: t.time
+            };
+        }
+        var r = agg[key];
+        r.amount       += t.amount;
+        r.totalCredits += t.order.price * t.amount;
+        r.count        += 1;
+        r.minTick       = Math.min(r.minTick, t.time);
+        r.maxTick       = Math.max(r.maxTick, t.time);
+    }
+
+    buys.forEach(function(t)  { addTx(t, 'BUY'); });
+    sells.forEach(function(t) { addTx(t, 'SELL'); });
+
+    var rows = Object.values(agg);
+    rows.sort(function(a, b) {
+        if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
+        return a.resource.localeCompare(b.resource);
+    });
+
+    // Build printable data
+    var now = Game.time;
+    var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Last Trade Ago'];
+    var widths  = headers.map(function(h) { return h.length; });
+
+    var data = rows.map(function(r) {
+        var avgP  = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+        var total = r.totalCredits.toFixed(2);
+        var ago   = String(now - r.maxTick) + ' ticks';
+        return [r.direction, r.resource, String(r.count), String(r.amount), avgP, total, ago];
+    });
+
+    data.forEach(function(d) {
+        for (var i = 0; i < d.length; i++) {
+            widths[i] = Math.max(widths[i], d[i].length);
+        }
+    });
+
+    function pad(s, w)  { return String(s).padEnd(w); }
+    function rpad(s, w) { return String(s).padStart(w); }
+    var sep = '+' + widths.map(function(w) { return '-'.repeat(w + 2); }).join('+') + '+';
+
+    console.log('\n=== Market Transaction History ===\n');
+    console.log(sep);
+    console.log('| ' + headers.map(function(h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
+    console.log(sep);
+
+    data.forEach(function(d) {
+        console.log('| ' + d.map(function(v, i) {
+            return i <= 1 ? pad(v, widths[i]) : rpad(v, widths[i]);
+        }).join(' | ') + ' |');
+    });
+    console.log(sep);
+
+    // Summary totals
+    var totalBought = 0, totalSold = 0;
+    rows.forEach(function(r) {
+        if (r.direction === 'BUY') totalBought += r.totalCredits;
+        else totalSold += r.totalCredits;
+    });
+
+    console.log('\nTotal spent (buys):   ' + totalBought.toFixed(2) + ' credits');
+    console.log('Total earned (sells): ' + totalSold.toFixed(2) + ' credits');
+    console.log('Net:                  ' + (totalSold - totalBought).toFixed(2) + ' credits');
+
+    return "Analyzed " + buys.length + " buy and " + sells.length + " sell transactions.";
+};  
+
+
