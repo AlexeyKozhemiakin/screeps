@@ -112,6 +112,17 @@ var roleLab = {
         var goals = {};
         var transferLimit = highAmount;
 
+        // Per-compound target overrides (default is highAmount)
+        var targetOverrides = {
+            'GH': 10000,
+            'GH2O': 10000
+        };
+
+        // Helper: get target amount for a compound
+        var getTargetAmount = function (res) {
+            return targetOverrides[res] || highAmount;
+        };
+
         var manualReagents = {
             // Base minerals (no reagents needed)
             'U': null,
@@ -174,18 +185,19 @@ var roleLab = {
         // If there's a current production target, check if it's done
         if (room.memory.productionTarget) {
             // can be removed this was fixed below
-            if (REAGENTS[room.memory.productionTarget] == null)
+            if (REAGENTS[room.memory.productionTarget] == null) {
                 room.memory.productionTarget = null;
+            }
 
-            var currentAmount = this.getTotalMineralAmount(room, room.memory.productionTarget);
-            if (currentAmount >= highAmount) {
+            var _tgt = room.memory.productionTarget;
+            var _tgtAmt = getTargetAmount(_tgt);
+            var currentAmount = this.getTotalMineralAmount(room, _tgt);
+            if (currentAmount >= _tgtAmt) {
                 // Target reached, clear it and continue to reshare existing reserves
                 room.memory.productionTarget = null;
-                // Don't return here, allow resharing of completed minerals to other rooms
-            } else {
+            } else if (room.memory.productionTarget) {
                 // Still producing current target, block other production
-                goals[room.memory.productionTarget] = highAmount;
-                // Don't return here, allow resharing of other completed minerals while producing
+                goals[room.memory.productionTarget] = _tgtAmt;
             }
         }
 
@@ -195,11 +207,12 @@ var roleLab = {
             if (targetRes == room.memory.productionTarget)
                 continue;
 
+            var resTarget = getTargetAmount(targetRes);
             var currentAmount = this.getTotalMineralAmount(room, targetRes);
-            var gapAmount = Math.min(highAmount - currentAmount, transferLimit);
+            var gapAmount = Math.min(resTarget - currentAmount, transferLimit);
 
             // If below threshold, try to acquire from external sources
-            if (currentAmount < highAmount && gapAmount > 1000) {
+            if (currentAmount < resTarget && gapAmount > 1000) {
                 var needAttention = true;
 
                 //console.log(`Room ${room.name} needs ${gapAmount} of ${targetRes} (current: ${currentAmount}), trying to acquire from other rooms or market...`);         
@@ -212,7 +225,7 @@ var roleLab = {
 
                     var sourceAmount = sourceRoom.terminal.store[targetRes];
 
-                    if (sourceAmount && sourceAmount > highAmount + gapAmount ) {
+                    if (sourceAmount && sourceAmount > resTarget + gapAmount ) {
                         console.log('Sharing ' + gapAmount + ' of ' + targetRes + ' from ' + sourceRoomName + ' to ' + room.name);
                         market.shareResource(sourceRoomName, room.name, targetRes, gapAmount);
                         needAttention = false;
@@ -225,7 +238,7 @@ var roleLab = {
                     market.matchOrderInternal(room.name, targetRes, gapAmount, ORDER_SELL);
                     // Check if market matching succeeded
                     var newAmount = this.getTotalMineralAmount(room, targetRes);
-                    if (newAmount >= highAmount) {
+                    if (newAmount >= resTarget) {
                         needAttention = false;
                         break;
                     }
@@ -236,22 +249,24 @@ var roleLab = {
 
         }
 
-        // Pick the producible compound with the lowest stock (below highAmount)
+        // Pick the producible compound with the largest deficit (below its target)
         // so we always produce the scarcest resource first.
         if (room.memory.productionTarget == null) {
             var bestRes = null;
-            var bestAmount = highAmount;
+            var bestDeficit = 0;
             for (var res in manualReagents) {
                 if (REAGENTS[res] == null) continue; // skip base minerals
                 var amt = this.getTotalMineralAmount(room, res);
-                if (amt < bestAmount) {
-                    bestAmount = amt;
+                var rTarget = getTargetAmount(res);
+                var deficit = rTarget - amt;
+                if (deficit > bestDeficit) {
+                    bestDeficit = deficit;
                     bestRes = res;
                 }
             }
             if (bestRes) {
                 room.memory.productionTarget = bestRes;
-                goals[bestRes] = highAmount;
+                goals[bestRes] = getTargetAmount(bestRes);
             }
         }
 
@@ -371,8 +386,9 @@ var roleLab = {
                     room.memory.productionTarget = reagent;
                 }
                 else {
-                    console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name);
-                    room.memory.productionTarget = null;
+                    // Base mineral missing — keep productionTarget so sharing/market
+                    // logic can acquire it next tick instead of wiping the target.
+                    console.log("Waiting for base mineral ", reagent, " for producing ", targetRes, " in ", room.name);
                 }
                 return;
             }
@@ -429,7 +445,6 @@ var roleLab = {
             room.memory.labSetup = null;
             return;
         }
-
         // Store lab IDs in memory for use in fast cycle
         room.memory.labSetup = {
             inputLab1: labs[0].id,
