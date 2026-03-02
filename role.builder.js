@@ -317,7 +317,6 @@ var roleBuilder = {
         }
         else if (!creep.memory.toGo) {
 
-
             if (basic.repairEmergency(creep, 15)) {
                 creep.say("e1");
                 return;
@@ -338,7 +337,7 @@ var roleBuilder = {
             return;
         }
 
-        console.log(creep.room, "nothing to build going to room below");
+        //console.log(creep.room, "nothing to build going to room below");
 
         return;
     }

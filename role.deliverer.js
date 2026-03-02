@@ -383,9 +383,6 @@ var roleDeliverer =
         }
 
         // do minerals only after room is filled
-        if(creep.room.name == "E51S24")
-            console.log("pickup source ", source, " resType ", resType, creep.room.energyAvailable);
-        
         if (creep.room.energyAvailable > 0.9 * creep.room.energyCapacityAvailable) {
 
             // FIRST PRIORITY (after energy): Remove minerals from labs that shouldn't be there
