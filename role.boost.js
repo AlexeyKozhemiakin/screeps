@@ -42,13 +42,35 @@ var roleBoost = {
         const config = this.boostConfigs[role];
         if (!config) return null;
 
+        // When a production target is active, setupRoomReagents claims every lab
+        // in the room for reactions (2 inputs + remaining outputs). No labs are
+        // available for boosting. Returning null lets deliverers clean leftover
+        // boost compounds so production can start without deadlock.
+        if (room.memory.productionTarget) {
+            return null;
+        }
+
+        // Build a set of lab IDs currently allocated to reactions so we never
+        // pull boost compounds out of production labs.
+        var reactionLabIds = {};
+        if (room.memory.labSetup) {
+            if (room.memory.labSetup.inputLab1) reactionLabIds[room.memory.labSetup.inputLab1] = true;
+            if (room.memory.labSetup.inputLab2) reactionLabIds[room.memory.labSetup.inputLab2] = true;
+            if (room.memory.labSetup.outputLabs) {
+                for (var ol = 0; ol < room.memory.labSetup.outputLabs.length; ol++) {
+                    reactionLabIds[room.memory.labSetup.outputLabs[ol]] = true;
+                }
+            }
+        }
+
         // Find labs with available boosts (prioritize better boosts)
         for (let i = config.boosts.length - 1; i >= 0; i--) {
             const boost = config.boosts[i];
 
-            // Find labs that have both the mineral AND energy needed for boosting
+            // Find non-reaction labs that have both the mineral AND energy needed for boosting
             const labs = room.find(FIND_MY_STRUCTURES, {
                 filter: (s) => s.structureType === STRUCTURE_LAB &&
+                    !reactionLabIds[s.id] &&
                     s.store[boost.resource] > 0 &&
                     s.store[RESOURCE_ENERGY] > 0 &&
                     (!s.mineralType || s.mineralType === boost.resource)

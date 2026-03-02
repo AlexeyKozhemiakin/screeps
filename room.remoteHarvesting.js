@@ -27,8 +27,8 @@ var roomRemoteHarvesting = {
 
             var enemies = remoteRoom.find(FIND_HOSTILE_CREEPS,
                 {
-                    filter: (c => c.getActiveBodyparts(ATTACK) > 0 ||
-                        c.getActiveBodyparts(RANGED_ATTACK) && (c.owner.username != ""))
+                    filter: (c => (c.getActiveBodyparts(ATTACK) > 0 ||
+                        c.getActiveBodyparts(RANGED_ATTACK) > 0) && (c.owner.username != ""))
                 });
 
             var numAttack = 1;
@@ -42,7 +42,8 @@ var roomRemoteHarvesting = {
                 numAttack = 3;
             }
 
-            var enemyReservation = remoteRoom.controller.reservation &&
+            var enemyReservation = remoteRoom.controller &&
+                remoteRoom.controller.reservation &&
                 !(remoteRoom.controller.reservation.username == "Zenga" ||
                     remoteRoom.controller.reservation.username == "Invader") &&
                 remoteRoom.controller.reservation.ticksToEnd > 100;
@@ -101,13 +102,15 @@ var roomRemoteHarvesting = {
             var remoteRoom = Game.rooms[roomName];
             var needReserve = false;
 
-            if (remoteRoom && remoteRoom.controller.reservation) {
+            // some rooms dont have controller like with spawns
+            if (remoteRoom && remoteRoom.controller && remoteRoom.controller.reservation) {
                 if (remoteRoom.controller.reservation.ticksToEnd < 1000) {
                     needReserve = true;
                 }
             }
             else {
-                needReserve = true;
+                if (remoteRoom && remoteRoom.controller)
+                    needReserve = true;
             }
 
             var reservers = _.filter(Game.creeps,

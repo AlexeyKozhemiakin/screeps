@@ -41,7 +41,7 @@ var roleBuilder = {
         var target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
             filter: (s) => {
                 return (s.structureType == STRUCTURE_EXTENSION || s.structureType == STRUCTURE_SPAWN) &&
-                    s.isActive &&
+                    s.isActive() &&
                     s.energy < s.energyCapacity;
             }
         })

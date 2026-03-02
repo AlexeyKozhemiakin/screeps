@@ -14,8 +14,7 @@ var roleHarvester = {
         if (creep.memory.preferredSourceId) {
             var source = Game.getObjectById(creep.memory.preferredSourceId);
 
-            var nearbyDeliverers = creep.room.find(FIND_MY_CREEPS, { filter: c => c.memory.role == "deliverer" && c.room.name == creep.room.name && c.memory.preferredSourceId == undefined });
-
+            
             if (source.storage) {
                 target = source.storage;
             }
@@ -42,6 +41,16 @@ var roleHarvester = {
                     target = source.container;
                 }
             }
+            
+            
+            if (target == undefined) {
+                var nearbyDeliverers = creep.pos.findInRange(FIND_MY_CREEPS, 1, { filter: c => c.memory.role == "deliverer" });
+                
+                if (nearbyDeliverers.length > 0) {
+                    creep.say("handoff");
+                    target = nearbyDeliverers[0];
+                }
+            }
 
             //console.log("locked on " , target);
         }
@@ -51,7 +60,7 @@ var roleHarvester = {
             target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (s) => {
                     return (s.structureType == STRUCTURE_EXTENSION || s.structureType == STRUCTURE_SPAWN) &&
-                        s.isActive &&
+                        s.isActive() &&
                         s.energy < s.energyCapacity &&
                         creep.room.energyAvailable <= 800;
                 }

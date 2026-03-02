@@ -69,12 +69,14 @@ loopInner = function () {
 
     try {
         //market.exploreArbitrage(Game.rooms["E51S23"]);
-        if (Game.time % 10 == 0) {
+        if (Game.time % 2 == 0) {
+
             market.sellExcess();
-            market.buyDemand();
+
             market.shareEnergyInternal();
             market.manageInventory();
             market.setupReactions();
+            market.adjustOrders();
         }
         market.runReactions();
     }
@@ -89,7 +91,7 @@ loopInner = function () {
         "E55S21", "E48S27", "E49S23",
         "E52S22", "E47S26", "E48S22",
 
-        "E48S23", "E57S23"
+        "E48S23", "E57S23", "E45S29"
     ];
     //}
     var roomsToClaim = Memory.roomsToClaim;
@@ -109,7 +111,7 @@ loopInner = function () {
     }
 
 
-    
+
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();

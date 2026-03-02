@@ -4,7 +4,7 @@ var roleBoost = require('role.boost');
 var roleUpgrader =
 {
     runUpgrade: function (creep) {
-        
+
         if (creep.pos.getRangeTo(creep.room.controller.pos) > 3) {
             if (creep.fatigue == 0)
                 creep.moveTo(creep.room.controller, { visualizePathStyle: { stroke: '#ffffff' }, range: 3 });
@@ -38,10 +38,10 @@ var roleUpgrader =
     },
 
     getSource: function (creep) {
-    
-        if(creep.memory.preferredSourceId) {
+
+        if (creep.memory.preferredSourceId) {
             var source = Game.getObjectById(creep.memory.preferredSourceId);
-            if(source && source.store && source.store[RESOURCE_ENERGY] > 0){
+            if (source && source.store && source.store[RESOURCE_ENERGY] > 0) {
                 creep.memory.preferredSourceId = source.id;
                 return source;
             }
@@ -58,23 +58,13 @@ var roleUpgrader =
                 nearby = creep.room.controller.container;
 
             if (nearby == undefined)
-                nearby = creep.room.controller.storage;
+                nearby = creep.room.controller.link;
 
             if (nearby == undefined)
-                nearby = creep.room.controller.link;
+                nearby = creep.room.controller.storage;
 
-            if(creep.room.name == "E51S24")    
-                nearby = creep.room.controller.link;
-            
-            // this is strange check
             if (nearby != undefined) {
                 source = nearby;
-
-                // commented to test - since for storage it was not true
-
-                //if (!source.isOperating()) {
-                //    source = undefined;
-                // }
             }
         }
 
@@ -83,7 +73,7 @@ var roleUpgrader =
                 filter: (structure) => {
                     return ((structure.structureType == STRUCTURE_CONTAINER ||
                         structure.structureType == STRUCTURE_STORAGE) &&
-                        structure.isActive &&
+                        structure.isActive() &&
                         structure.store[RESOURCE_ENERGY] > 0);
                 }
             });
@@ -93,13 +83,13 @@ var roleUpgrader =
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return ((structure.structureType == STRUCTURE_STORAGE) &&
-                        structure.isActive &&
+                        structure.isActive() &&
                         structure.store[RESOURCE_ENERGY] > 0);
                 }
             });
         }
 
-        if(source && source.store[RESOURCE_ENERGY] > 0 & creep.room.controller.level > 2)
+        if (source && source.store[RESOURCE_ENERGY] > 0 & creep.room.controller.level > 2)
             creep.memory.preferredSourceId = source.id;
 
 
@@ -123,7 +113,7 @@ var roleUpgrader =
             else {
                 var err = creep.withdraw(source, RESOURCE_ENERGY);
                 if (OK != err) {
-                    if(err != ERR_NOT_ENOUGH_RESOURCES)
+                    if (err != ERR_NOT_ENOUGH_RESOURCES)
                         creep.memory.preferredSourceId = undefined;
 
                     creep.say(err);
@@ -140,7 +130,7 @@ var roleUpgrader =
 
             if (err == ERR_NOT_IN_RANGE) {
                 if (creep.fatigue == 0)
-                    creep.moveTo(source,  { range:1, visualizePathStyle: { stroke: '#ffaa00' } });
+                    creep.moveTo(source, { range: 1, visualizePathStyle: { stroke: '#ffaa00' } });
             }
             else if (err == ERR_FULL) {
                 upgrading = true;

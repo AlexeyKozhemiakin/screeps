@@ -8,6 +8,8 @@ var utils = {
     roomDraw: function (room) {
         //room.visual.clear();
 
+
+
         if (room.controller && room.controller.link)
             room.visual.circle(room.controller.link.pos, { radius: 0.5, stroke: 'green', strokeWidth: 0.1 });
 
@@ -252,6 +254,7 @@ var utils = {
 
 
         var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 150000;
+        //var hasHugeEnergySurplus2 = room.storage && room.storage.store.energy > 500000;
 
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
@@ -309,8 +312,9 @@ var utils = {
             var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId);
             var size = 50; // rough estimage
 
+            var remoteHarvest = room.memory.config ? room.memory.config.remoteHarvest : [];
 
-            size = (room.controller.level) * 50;
+            size = (room.controller.level) * 50 + (remoteHarvest ? remoteHarvest.length * 100 : 0);
 
 
             if (room.storage && room.storage.store.energy > 100000)
@@ -321,7 +325,7 @@ var utils = {
             // room.terminal
             var numLocals = 1;
             if (room.name == "E48S27")
-                numLocals = 1;
+                numLocals = 2;
 
             if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
@@ -635,6 +639,9 @@ var utils = {
                     if (repl && oldest) {
                         oldest.memory.replaced = true;
                     }
+                }
+                else if (code === ERR_NOT_ENOUGH_ENERGY || code === ERR_NOT_ENOUGH_RESOURCES || code === ERR_NOT_ENOUGH_EXTENSIONS) {
+                    // normal - waiting for energy, no need to log
                 }
                 else {
                     console.log(room.name, 'Spawn error: ' + utils.getError(code), " for ", mem.role, " parts=", parts);

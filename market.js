@@ -62,7 +62,7 @@ module.exports = {
             if (!room || !room.terminal || !room.storage)
                 continue;
 
-            if (room.storage.store[RESOURCE_ENERGY] < 100000)
+            if (room.storage.store[RESOURCE_ENERGY] < 200000)
                 continue;
 
             if (room.terminal.store[RESOURCE_ENERGY] < 5000)
@@ -75,9 +75,10 @@ module.exports = {
                     continue;
 
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
-                if (totalInTarget < 20000) {
-                    this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 2000);
-                    return;// make it slower
+                if (totalInTarget < 30000) {
+                    var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 5000);
+                    if(res)
+                        return;// make it slower
                 }
             }
         }
@@ -251,27 +252,50 @@ module.exports = {
 
             var canProduce = REAGENTS[targetRes] != null;
 
-            // if below low amount consider production
-            if (currentAmount <= lowAmount && canProduce) {
-                // Only set production goal if both external sources failed and dropped below low
-                // and not producing anything
-                if (room.memory.productionTarget == null) {
-                    room.memory.productionTarget = targetRes;
-                    goals[targetRes] = highAmount;
-                    break;
+        }
+
+        // Pick the producible compound with the lowest stock (below highAmount)
+        // so we always produce the scarcest resource first.
+        if (room.memory.productionTarget == null) {
+            var bestRes = null;
+            var bestAmount = highAmount;
+            for (var res in manualReagents) {
+                if (REAGENTS[res] == null) continue; // skip base minerals
+                var amt = this.getTotalMineralAmount(room, res);
+                if (amt < bestAmount) {
+                    bestAmount = amt;
+                    bestRes = res;
                 }
+            }
+            if (bestRes) {
+                room.memory.productionTarget = bestRes;
+                goals[bestRes] = highAmount;
             }
         }
 
-        // If no production target and all goals are satisfied, clear lab setup and mineral demands
+        // If no production target and all goals are satisfied, clear lab setup
+        // but only clear mineralDemand for labs that were assigned to reactions,
+        // not labs reserved for boosting by role.boost.prepareLabs.
         if (!room.memory.productionTarget && Object.keys(goals).length === 0) {
-            // Clear labSetup and set all labs' mineralDemand to null
+            var reactionLabIds = {};
+            if (room.memory.labSetup) {
+                if (room.memory.labSetup.inputLab1) reactionLabIds[room.memory.labSetup.inputLab1] = true;
+                if (room.memory.labSetup.inputLab2) reactionLabIds[room.memory.labSetup.inputLab2] = true;
+                if (room.memory.labSetup.outputLabs) {
+                    for (var ol = 0; ol < room.memory.labSetup.outputLabs.length; ol++) {
+                        reactionLabIds[room.memory.labSetup.outputLabs[ol]] = true;
+                    }
+                }
+            }
             room.memory.labSetup = null;
-            let labs = room.find(FIND_MY_STRUCTURES, {
+            var labs = room.find(FIND_MY_STRUCTURES, {
                 filter: (structure) => structure.structureType === STRUCTURE_LAB
             });
-            for (let i = 0; i < labs.length; i++) {
-                labs[i].mineralDemand = null;
+            for (var i = 0; i < labs.length; i++) {
+                // Only clear demands for labs that were part of the reaction setup
+                if (reactionLabIds[labs[i].id]) {
+                    labs[i].mineralDemand = null;
+                }
             }
         }
         //console.log("Room ", room.name, " goals: ", JSON.stringify(goals), " current: ", JSON.stringify(_.mapValues(manualReagents, r => this.getTotalMineralAmount(room, r))));
@@ -306,6 +330,8 @@ module.exports = {
             this.setupReactionsForRoom(room, goal);
         }
     },
+
+
     
     setupReactionsForRoom(room, goals) {
         const targetRes = room.memory.productionTarget;
@@ -336,31 +362,32 @@ module.exports = {
     shareResource(idFrom, idTo, res, amount) {
         var room = Game.rooms[idFrom];
 
-        if (!room) {
-            console.log("CODE ", idFrom);
-            return;
-        }
+        if (!room)
+           return false;
 
         if (!room.terminal)
-            return;
+            return false;
 
         if (room.terminal.cooldown > 0)
-            return;
+            return false;
 
         var cost = Game.market.calcTransactionCost(amount, idFrom, idTo);
         // console.log("cost to send", amount, res, "from", idFrom, "to", idTo, "is", cost);
 
         if (room.terminal.store[RESOURCE_ENERGY] < cost)
-            return;
+            return false;
 
         if (room.terminal.store[res] < amount)
-            return;
+            return false;
 
         var code = room.terminal.send(res, amount, idTo, "bro help");
         //console.log("CODE ", code);
         if (OK != code) {
             console.log('failed to help', res, " ", idFrom, "->", idTo, "with", amount, "error", code);
+            return false
         }
+
+        return true;
     },
 
     runReaction(id1, id2, id3) {
@@ -403,94 +430,113 @@ module.exports = {
     },
 
     sellExcess: function () {
-        const threshold = 100000;
+        const threshold = 120000;
+
+        // Lower threshold for factory outputs - sell once a modest stockpile builds up
+        const commodityThresholds = {
+            'utrium_bar'    : 10000,
+            'lemergium_bar' : 10000,
+            'keanium_bar'   : 10000,
+            'zynthium_bar'  : 10000,
+            'oxidant'       : 10000,
+            'reductant'     : 10000,
+            'purifier'      : 10000,
+            'ghodium_melt'  : 10000,
+            'battery'       : 5000
+        };
 
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
             if (!room || !room.terminal)
                 continue;
 
-            var resources = _.filter(_.keys(room.terminal.store),
-                r => room.terminal.store[r] > threshold);
+            var resources = _.keys(room.terminal.store).filter(r => room.terminal.store[r] > 0);
 
             for (const resource of resources) {
-                const excessAmount = room.terminal.store[resource] - threshold;
+                const limit = commodityThresholds[resource] !== undefined ? commodityThresholds[resource] : threshold;
+                const excessAmount = room.terminal.store[resource] - limit;
 
-                if (excessAmount > 1000) {
+                if (excessAmount > 100) {
                     console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
-
                     this.matchOrderInternal(roomName, resource, excessAmount, ORDER_BUY);
                 }
-
             }
         }
 
-        if (Game.resources[PIXEL] > 10)
-            this.matchOrderInternal(undefined, PIXEL, 10, ORDER_BUY);
+        //if (Game.resources[PIXEL] > 10)
+        //    this.matchOrderInternal(undefined, PIXEL, 10, ORDER_BUY);
     },
 
-    putBuyOrders: function () {
-        // clear fulfilled orders
+    adjustOrders: function () {
+        var ADJUST_INTERVAL = 200; // ticks between price adjustments
+        var PRICE_BUMP = 0.05;     // 5% increase per adjustment
+
+        if (!Memory.orderAdjustments) Memory.orderAdjustments = {};
+
         for (const order of Object.values(Game.market.orders)) {
-            var ticksInDay = 24*60*20;
-            if (order.remainingAmount == 0 || Game.time - order.created > 10*ticksInDay) { // 10 days
-                console.log("Removing fulfilled/expired order ", order.id);
+            // Cancel fulfilled orders
+            if (order.remainingAmount == 0) {
+                console.log('Removing fulfilled order ', order.id);
                 Game.market.cancelOrder(order.id);
+                delete Memory.orderAdjustments[order.id];
+                continue;
+            }
+
+            // Cancel very old orders (5 days)
+            var ticksInDay = 24 * 60 * 10;
+            var delay = Game.time - order.created;
+            if (delay > 5 * ticksInDay) {
+                console.log('Removing expired order ', order.id);
+                Game.market.cancelOrder(order.id);
+                delete Memory.orderAdjustments[order.id];
+                continue;
+            }
+
+            /*
+            // Bump price on unfulfilled buy orders that have been sitting for > ADJUST_INTERVAL ticks
+            if (order.type === ORDER_BUY && order.remainingAmount > 0 && order.remainingAmount === order.totalAmount) {
+                var lastAdjust = Memory.orderAdjustments[order.id] || order.created;
+                if (Game.time - lastAdjust >= ADJUST_INTERVAL) {
+                    var newPrice = +(order.price * (1 + PRICE_BUMP)).toFixed(3);
+                    var code = Game.market.changeOrderPrice(order.id, newPrice);
+                    if (code === OK) {
+                        console.log('Bumped ' + order.type + ' order ' + order.id + ' (' + order.resourceType + ') price ' + order.price + ' -> ' + newPrice);
+                        Memory.orderAdjustments[order.id] = Game.time;
+                    } else {
+                        console.log('Failed to bump order ' + order.id + ' price, code ' + code);
+                    }
+                }
+            }*/
+        }
+
+        // Clean up memory for orders that no longer exist
+        for (var id in Memory.orderAdjustments) {
+            if (!Game.market.orders[id]) {
+                delete Memory.orderAdjustments[id];
             }
         }
-        
-        //sometimes i want to place orders to have more control over price and cause i can place order for 1000 and wait for it to fill instead of trying to buy 1000 with 10 different orders and risk filling only 500 at good price and 500 at bad price
+    },    
     
-        
-        return;
-
-        const orderConfigs = [
-
-            {
-                room: "E55S22",
-                res: RESOURCE_UTRIUM,
-                price: 30,
-                amount: 10000
-            }
-        ];
-
-
-        Game.market.changeOrderPrice('698cfb1817a9f10012875cc4', 650);
-
-        for (const orderConfig of orderConfigs) {
-            if (_.filter(Game.market.orders,
-                o => o.resourceType == orderConfig.res &&
-                    o.type == ORDER_BUY && o.roomName == orderConfig.room).length == 0)
-
-                Game.market.createOrder(ORDER_BUY, orderConfig.res,
-                    orderConfig.price,
-                    orderConfig.amount,
-                    orderConfig.room);
-        }
-    },
-
-    buyDemand: function () {
-      
-    }
-    ,
     recentPrice: function (res) {
 
         if (!Memory.marketHistoryCache) Memory.marketHistoryCache = {};
         if (!Memory.marketHistoryCache[res]) Memory.marketHistoryCache[res] = {};
         const cache = Memory.marketHistoryCache[res];
         const now = Game.time;
-        if (cache.time && (now - cache.time < 10000) && cache.history) {
+        if (cache.time && (now - cache.time < 10) && cache.history) {
             var history = cache.history;
         } else {
             var history = Game.market.getHistory(res);
             cache.history = history;
             cache.time = now;
         }
+
+        history = history.slice(7);
+
         var avgPrice = _.sum(history, o => o.avgPrice) / history.length;
 
         return avgPrice;
     },
-
     exploreArbitrage: function (room) {
         // Arbitrage strategy: buy low-priced resources and sell at markup, using only our own terminal in 'room'
         if (!room || !room.terminal) return;
@@ -566,7 +612,7 @@ module.exports = {
         }
     },
 
-    tryCreateBuyOrder: function (resType, price, amount, targetRoom) {
+    tryCreateOrder: function (resType, price, amount, targetRoom, orderType) {
         if (!resType || !price || !amount)
             return;
 
@@ -577,7 +623,7 @@ module.exports = {
             return;
 
         var existing = _.filter(Game.market.orders, function (o) {
-            return o.type == ORDER_BUY && o.resourceType == resType &&
+            return o.type == orderType && o.resourceType == resType &&
                 ((targetRoom && o.roomName == targetRoom) || (!targetRoom && !o.roomName)) &&
                 o.remainingAmount > 0;
         });
@@ -592,7 +638,7 @@ module.exports = {
         }
 
         var orderParams = {
-            type: ORDER_BUY,
+            type: orderType,
             resourceType: resType,
             price: price,
             totalAmount: amount
@@ -603,7 +649,7 @@ module.exports = {
 
         var code = Game.market.createOrder(orderParams);
         if (code != OK)
-            console.log("Failed to create buy order", resType, "code", code, "room", targetRoom);
+            console.log("Failed to create " + orderType + " order", resType, "code", code, "room", targetRoom);
 
     },
 
@@ -654,7 +700,7 @@ module.exports = {
             sorted = sorted.reverse();
 
         //console.log(targetRoom, resType, amount, orderType);
-        const acceptableMargin = 0.1;// i can pay 20% more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
+        const acceptableMargin = 0.15;// i can pay 20% more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
 
         for (id in sorted) {
 
@@ -671,12 +717,15 @@ module.exports = {
                 //console.log("Skipping order because total price ", totalPrice, " is significantly higher than historical price ", resHistoricalPrice);
 
                 // try to create a buy order at historical price to stimulate market and then break to avoid buying at bad price, cause if there is demand someone will fill it and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
-                this.tryCreateBuyOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3001, targetRoom);
+                this.tryCreateOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3000, targetRoom, ORDER_BUY);
 
                 break;
             }
             if (orderType == ORDER_BUY && totalPrice < resHistoricalPrice * (1 - acceptableMargin)) {
-                console.log("Skipping order because total price ", totalPrice, " is significantly lower than historical price ", resHistoricalPrice);
+                console.log("Skipping order ", resType, " because total price ", totalPrice, " is significantly lower than historical price ", resHistoricalPrice);
+                
+                this.tryCreateOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3000, targetRoom, ORDER_SELL);
+
                 break;
             }
 
@@ -753,9 +802,12 @@ module.exports = {
             return _.findKey(lab.store, (amount, key) => key !== RESOURCE_ENERGY && amount > 0) || null;
         };
 
-        // Always clear stale demands before applying/validating next setup target.
-        // This avoids previous targets (e.g. GH) sticking when switching production.
+        // Clear stale demands only for labs that will be used for reactions.
+        // Preserve mineralDemand on labs reserved for boosting by role.boost.prepareLabs.
+        // Reaction labs are the first 2 (inputs) + remaining (outputs), all sorted by id.
         for (let i = 0; i < labs.length; i++) {
+            // Labs sorted by id: first 2 are input, rest are output for reactions.
+            // All of them are reaction labs, so clear their demands.
             labs[i].mineralDemand = null;
         }
 
