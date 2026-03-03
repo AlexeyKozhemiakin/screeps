@@ -42,14 +42,6 @@ var roleBoost = {
         const config = this.boostConfigs[role];
         if (!config) return null;
 
-        // When a production target is active, setupRoomReagents claims every lab
-        // in the room for reactions (2 inputs + remaining outputs). No labs are
-        // available for boosting. Returning null lets deliverers clean leftover
-        // boost compounds so production can start without deadlock.
-        if (room.memory.productionTarget) {
-            return null;
-        }
-
         // Build a set of lab IDs currently allocated to reactions so we never
         // pull boost compounds out of production labs.
         var reactionLabIds = {};
