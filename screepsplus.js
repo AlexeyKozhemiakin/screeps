@@ -152,6 +152,8 @@ function summarize_room_internal(room) {
     const container_energy_reduced = _.reduce(containers, (acc, res) => { acc[res.id] = res.store.energy; return acc; }, {});
     const container_details = containers ? _.reduce(containers, (acc, res) => { acc[res.id] = res.store; return acc; }, {}) : {};
 
+    const labsBusy = _.any(room.labs, lab => lab.cooldown > 0);
+
     const sources = room.find(FIND_SOURCES);
     const source_energy = _.sum(sources, s => s.energy);
     const source_energy_reduced = _.reduce(sources, (acc, res) => { acc[res.id] = res.energy; return acc; }, {});
@@ -285,12 +287,12 @@ function summarize_room_internal(room) {
             [mineral_type]: mineral_amount
         },
         mineral_amount,
-        //mineral_ticksToRegeneration,
+        mineral_ticksToRegeneration,
         //num_extractors,
         
         storage_details,
                 
-        //has_terminal,
+        labsBusy,
                 
         terminal_details,
 
