@@ -122,7 +122,7 @@ var roleHarvester = {
         }
         else {
             creep.say("error " + transferCode);
-            console.log(creep.name, "delivery error:", transferCode,
+            console.log(creep.name, "delivery error:", transferCode, "room:", creep.room.name,
                 "target:", target ? target.id || target.name : "undefined");
         }
 
