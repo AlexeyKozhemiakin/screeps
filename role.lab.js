@@ -212,7 +212,7 @@ var roleLab = {
             var gapAmount = Math.min(resTarget - currentAmount, transferLimit);
 
             // If below threshold, try to acquire from external sources
-            if (currentAmount < resTarget && gapAmount > 1000) {
+            if (currentAmount < resTarget && gapAmount > 2000) {
                 var needAttention = true;
 
                 //console.log(`Room ${room.name} needs ${gapAmount} of ${targetRes} (current: ${currentAmount}), trying to acquire from other rooms or market...`);         
@@ -457,6 +457,12 @@ var roleLab = {
         // Set mineral demands for input/output labs
         labs[0].mineralDemand = reagents[0];
         labs[1].mineralDemand = reagents[1];
+        
+
+        // that was done mostly to show icons
+        // additionally to allow boosts if applicable
+        // need to replace this second case with custom code and do it just for 1 lab
+
         for (var i = 2; i < labs.length; i++) {
             labs[i].mineralDemand = targetRes;
         }
