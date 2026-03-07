@@ -52,6 +52,7 @@ var roomPlanning = {
         var existingStructures = room.lookForAt(LOOK_STRUCTURES, pos);
         if (existingStructures.some(function (s) {
             return s.structureType != STRUCTURE_CONTAINER &&
+                s.structureType != STRUCTURE_ROAD &&
                 s.structureType != STRUCTURE_RAMPART;
         })) {
             return false;
@@ -266,31 +267,35 @@ var roomPlanning = {
         ];
 
         var pattern6 = [
-            "....r........",
-            "...rer.......",
+            "......r......",
+            ".....r.r.....",
+            "....r...r....",
+            "...rer...r...",
             "..reeerbb.r..",
             ".rerermrbrer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            ".rerererer...",
-            "reeereeer....",
-            ".rer.rer.....",
-            "..r...r......"
+            "...rererer...",
+            "....reeer....",
+            ".....rer.....",
+            "......r......"
         ];
 
         var pattern7 = [
-            "....r........",
-            "...rerf......",
+            "......r......",
+            ".....r.r.....",
+            "....r...r....",
+            "...rerf..r...",
             "..reeerbb.r..",
             ".rerermrbrer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            ".rerererer...",
-            "reeereeer....",
-            ".rer.rer.....",
-            "..r...r......"
+            "...rererer...",
+            "....reeer....",
+            ".....rer.....",
+            "......r......"
         ];
 
 
@@ -369,10 +374,10 @@ var roomPlanning = {
                     'm': STRUCTURE_TERMINAL,
                     'f': STRUCTURE_FACTORY,
 
-                    "o" : STRUCTURE_OBSERVER,
-                    "n" : STRUCTURE_NUKER,
-                    "a" : STRUCTURE_POWER_SPAWN,
-                    
+                    "o": STRUCTURE_OBSERVER,
+                    "n": STRUCTURE_NUKER,
+                    "a": STRUCTURE_POWER_SPAWN,
+
                 };
                 var structureType = cellMap[cell];
 
