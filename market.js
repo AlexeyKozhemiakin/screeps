@@ -1,4 +1,44 @@
 module.exports = {
+
+    // Archive market transactions to Memory for long-term analysis
+    MARKET_HISTORY_MAX_ENTRIES: 1000,   // keep at most this many archived transactions
+    MARKET_HISTORY_INTERVAL:    50,     // archive every N ticks
+
+    archiveMarketTransactions: function () {
+        if (!Memory.marketHistory) {
+            Memory.marketHistory = { lastTick: 0, txns: [] };
+        }
+        var hist = Memory.marketHistory;
+        var lastTick = hist.lastTick || 0;
+        var incoming = Game.market.incomingTransactions || [];
+        var outgoing = Game.market.outgoingTransactions || [];
+        var maxTick = lastTick;
+        var newEntries = [];
+
+        for (var i = 0; i < incoming.length; i++) {
+            var ti = incoming[i];
+            if (ti.order && ti.time > lastTick) {
+                newEntries.push({ t: ti.time, r: ti.resourceType, a: ti.amount, p: ti.order.price, d: 'B' });
+                if (ti.time > maxTick) maxTick = ti.time;
+            }
+        }
+        for (var j = 0; j < outgoing.length; j++) {
+            var to = outgoing[j];
+            if (to.order && to.time > lastTick) {
+                newEntries.push({ t: to.time, r: to.resourceType, a: to.amount, p: to.order.price, d: 'S' });
+                if (to.time > maxTick) maxTick = to.time;
+            }
+        }
+
+        if (newEntries.length > 0) {
+            hist.txns = newEntries.concat(hist.txns);
+            if (hist.txns.length > this.MARKET_HISTORY_MAX_ENTRIES) {
+                hist.txns = hist.txns.slice(0, this.MARKET_HISTORY_MAX_ENTRIES);
+            }
+            hist.lastTick = maxTick;
+        }
+    },
+
     shareEnergyInternal: function () {
 
         // for all terminals above 100k send energy to those below 50k

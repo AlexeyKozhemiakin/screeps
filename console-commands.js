@@ -283,100 +283,239 @@ global.calculateAndStorePrices = function () {
     return "Done.";
 } 
 
-// Analyze market history for past days, what i was selling and buying by what price
-// Usage: analyzeMarketHistory()
-// Usage: analyzeMarketHistory("energy")   — filter by resource
-global.analyzeMarketHistory = function (filterResource) {
+// Analyze market history from archived Memory + live transactions
+// Usage: analyzeMarketHistory()                    — all resources, summary
+// Usage: analyzeMarketHistory("energy")            — filter by resource
+// Usage: analyzeMarketHistory(null, true)           — group by date
+// Usage: analyzeMarketHistory("energy", true)       — filter + group by date
+global.analyzeMarketHistory = function (filterResource, groupByDate) {
+    // ---- Collect all transactions: archived + live unarchived ----
+    var archived = (Memory.marketHistory && Memory.marketHistory.txns) || [];
+    var lastTick = (Memory.marketHistory && Memory.marketHistory.lastTick) || 0;
+
+    var all = [];
+    for (var ai = 0; ai < archived.length; ai++) {
+        var e = archived[ai];
+        all.push({ time: e.t, resourceType: e.r, amount: e.a, price: e.p, dir: e.d === 'B' ? 'BUY' : 'SELL' });
+    }
+
+    // Merge live transactions not yet archived
     var incoming = Game.market.incomingTransactions || [];
     var outgoing = Game.market.outgoingTransactions || [];
+    for (var ii = 0; ii < incoming.length; ii++) {
+        var ti = incoming[ii];
+        if (ti.order && ti.time > lastTick) {
+            all.push({ time: ti.time, resourceType: ti.resourceType, amount: ti.amount, price: ti.order.price, dir: 'BUY' });
+        }
+    }
+    for (var oi = 0; oi < outgoing.length; oi++) {
+        var to = outgoing[oi];
+        if (to.order && to.time > lastTick) {
+            all.push({ time: to.time, resourceType: to.resourceType, amount: to.amount, price: to.order.price, dir: 'SELL' });
+        }
+    }
 
-    // Only market trades (have an order with a price)
-    var buys  = incoming.filter(function(t) { return t.order; });
-    var sells = outgoing.filter(function(t) { return t.order; });
-
+    // Apply resource filter
     if (filterResource) {
-        buys  = buys.filter(function(t)  { return t.resourceType === filterResource; });
-        sells = sells.filter(function(t) { return t.resourceType === filterResource; });
+        all = all.filter(function(t) { return t.resourceType === filterResource; });
     }
 
-    if (buys.length === 0 && sells.length === 0) {
-        return "No market transactions found." + (filterResource ? " (filter: " + filterResource + ")" : "");
+    if (all.length === 0) {
+        return "No market transactions found." + (filterResource ? " (filter: " + filterResource + ")" : "") +
+               " Archive has " + archived.length + " entries total.";
     }
 
-    // Aggregate by direction + resource
-    var agg = {};
-    function addTx(t, dir) {
-        var key = dir + '|' + t.resourceType;
-        if (!agg[key]) {
-            agg[key] = {
-                direction: dir, resource: t.resourceType,
-                amount: 0, totalCredits: 0, count: 0,
-                minTick: t.time, maxTick: t.time
-            };
-        }
-        var r = agg[key];
-        r.amount       += t.amount;
-        r.totalCredits += t.order.price * t.amount;
-        r.count        += 1;
-        r.minTick       = Math.min(r.minTick, t.time);
-        r.maxTick       = Math.max(r.maxTick, t.time);
+    // ---- Helpers ----
+    var TICK_MS = 4200; // ~4.2s per tick average
+    var nowMs = Date.now();
+    function tickToDateStr(tick) {
+        var ms = nowMs - (Game.time - tick) * TICK_MS;
+        var d = new Date(ms);
+        var yyyy = d.getFullYear();
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var dd = String(d.getDate()).padStart(2, '0');
+        return yyyy + '-' + mm + '-' + dd;
     }
-
-    buys.forEach(function(t)  { addTx(t, 'BUY'); });
-    sells.forEach(function(t) { addTx(t, 'SELL'); });
-
-    var rows = Object.values(agg);
-    rows.sort(function(a, b) {
-        if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
-        return a.resource.localeCompare(b.resource);
-    });
-
-    // Build printable data
-    var now = Game.time;
-    var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Last Trade Ago'];
-    var widths  = headers.map(function(h) { return h.length; });
-
-    var data = rows.map(function(r) {
-        var avgP  = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
-        var total = r.totalCredits.toFixed(2);
-        var ago   = String(now - r.maxTick) + ' ticks';
-        return [r.direction, r.resource, String(r.count), String(r.amount), avgP, total, ago];
-    });
-
-    data.forEach(function(d) {
-        for (var i = 0; i < d.length; i++) {
-            widths[i] = Math.max(widths[i], d[i].length);
-        }
-    });
-
     function pad(s, w)  { return String(s).padEnd(w); }
     function rpad(s, w) { return String(s).padStart(w); }
-    var sep = '+' + widths.map(function(w) { return '-'.repeat(w + 2); }).join('+') + '+';
+    function printTable(headers, data, textCols) {
+        var widths = headers.map(function(h) { return h.length; });
+        data.forEach(function(d) {
+            for (var i = 0; i < d.length; i++) {
+                widths[i] = Math.max(widths[i], d[i].length);
+            }
+        });
+        var sep = '+' + widths.map(function(w) { return '-'.repeat(w + 2); }).join('+') + '+';
+        console.log(sep);
+        console.log('| ' + headers.map(function(h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
+        console.log(sep);
+        return { widths: widths, sep: sep };
+    }
 
-    console.log('\n=== Market Transaction History ===\n');
-    console.log(sep);
-    console.log('| ' + headers.map(function(h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
-    console.log(sep);
+    // ---- Compute date range for summary ----
+    var minTick = all[0].time, maxTick = all[0].time;
+    for (var ri = 1; ri < all.length; ri++) {
+        if (all[ri].time < minTick) minTick = all[ri].time;
+        if (all[ri].time > maxTick) maxTick = all[ri].time;
+    }
 
-    data.forEach(function(d) {
-        console.log('| ' + d.map(function(v, i) {
-            return i <= 1 ? pad(v, widths[i]) : rpad(v, widths[i]);
-        }).join(' | ') + ' |');
-    });
-    console.log(sep);
+    if (groupByDate) {
+        // =========== GROUP BY DATE ===========
+        var agg = {};
+        all.forEach(function(t) {
+            var date = tickToDateStr(t.time);
+            var key = date + '|' + t.dir + '|' + t.resourceType;
+            if (!agg[key]) {
+                agg[key] = {
+                    date: date, direction: t.dir, resource: t.resourceType,
+                    amount: 0, totalCredits: 0, count: 0
+                };
+            }
+            var r = agg[key];
+            r.amount += t.amount;
+            r.totalCredits += t.price * t.amount;
+            r.count += 1;
+        });
 
-    // Summary totals
-    var totalBought = 0, totalSold = 0;
-    rows.forEach(function(r) {
-        if (r.direction === 'BUY') totalBought += r.totalCredits;
-        else totalSold += r.totalCredits;
-    });
+        var rows = Object.values(agg);
+        rows.sort(function(a, b) {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
+            return a.resource.localeCompare(b.resource);
+        });
 
-    console.log('\nTotal spent (buys):   ' + totalBought.toFixed(2) + ' credits');
-    console.log('Total earned (sells): ' + totalSold.toFixed(2) + ' credits');
-    console.log('Net:                  ' + (totalSold - totalBought).toFixed(2) + ' credits');
+        var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits'];
+        var data = rows.map(function(r) {
+            var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var total = r.totalCredits.toFixed(2);
+            return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, total];
+        });
 
-    return "Analyzed " + buys.length + " buy and " + sells.length + " sell transactions.";
-};  
+        console.log('\n=== Market History by Date (' + all.length + ' transactions) ===\n');
+        var tbl = printTable(headers, data, [0, 1, 2]);
+        var prevDate = '';
+        data.forEach(function(d) {
+            if (d[0] !== prevDate && prevDate !== '') {
+                console.log(tbl.sep);
+            }
+            prevDate = d[0];
+            console.log('| ' + d.map(function(v, i) {
+                return i <= 2 ? pad(v, tbl.widths[i]) : rpad(v, tbl.widths[i]);
+            }).join(' | ') + ' |');
+        });
+        console.log(tbl.sep);
+
+        // Daily totals
+        var dailyTotals = {};
+        rows.forEach(function(r) {
+            if (!dailyTotals[r.date]) dailyTotals[r.date] = { bought: 0, sold: 0 };
+            if (r.direction === 'BUY') dailyTotals[r.date].bought += r.totalCredits;
+            else dailyTotals[r.date].sold += r.totalCredits;
+        });
+
+        console.log('\n--- Daily Totals ---');
+        var grandBought = 0, grandSold = 0;
+        Object.keys(dailyTotals).sort().forEach(function(date) {
+            var d = dailyTotals[date];
+            grandBought += d.bought;
+            grandSold += d.sold;
+            console.log(date + '  spent: ' + d.bought.toFixed(2).padStart(10) +
+                         '  earned: ' + d.sold.toFixed(2).padStart(10) +
+                         '  net: ' + (d.sold - d.bought).toFixed(2).padStart(10));
+        });
+        console.log('TOTAL     spent: ' + grandBought.toFixed(2).padStart(10) +
+                     '  earned: ' + grandSold.toFixed(2).padStart(10) +
+                     '  net: ' + (grandSold - grandBought).toFixed(2).padStart(10));
+
+    } else {
+        // =========== SUMMARY BY RESOURCE (default) ===========
+        var agg = {};
+        all.forEach(function(t) {
+            var key = t.dir + '|' + t.resourceType;
+            if (!agg[key]) {
+                agg[key] = {
+                    direction: t.dir, resource: t.resourceType,
+                    amount: 0, totalCredits: 0, count: 0,
+                    minTick: t.time, maxTick: t.time
+                };
+            }
+            var r = agg[key];
+            r.amount += t.amount;
+            r.totalCredits += t.price * t.amount;
+            r.count += 1;
+            r.minTick = Math.min(r.minTick, t.time);
+            r.maxTick = Math.max(r.maxTick, t.time);
+        });
+
+        var rows = Object.values(agg);
+        rows.sort(function(a, b) {
+            if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
+            return a.resource.localeCompare(b.resource);
+        });
+
+        var now = Game.time;
+        var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Span'];
+        var data = rows.map(function(r) {
+            var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var total = r.totalCredits.toFixed(2);
+            var span = tickToDateStr(r.minTick) + ' — ' + tickToDateStr(r.maxTick);
+            return [r.direction, r.resource, String(r.count), String(r.amount), avgP, total, span];
+        });
+
+        console.log('\n=== Market Transaction History (' + all.length + ' transactions) ===\n');
+        var tbl = printTable(headers, data, [0, 1]);
+
+        data.forEach(function(d) {
+            console.log('| ' + d.map(function(v, i) {
+                return i <= 1 ? pad(v, tbl.widths[i]) : rpad(v, tbl.widths[i]);
+            }).join(' | ') + ' |');
+        });
+        console.log(tbl.sep);
+
+        // Summary totals
+        var totalBought = 0, totalSold = 0;
+        rows.forEach(function(r) {
+            if (r.direction === 'BUY') totalBought += r.totalCredits;
+            else totalSold += r.totalCredits;
+        });
+
+        console.log('\nTotal spent (buys):   ' + totalBought.toFixed(2) + ' credits');
+        console.log('Total earned (sells): ' + totalSold.toFixed(2) + ' credits');
+        console.log('Net:                  ' + (totalSold - totalBought).toFixed(2) + ' credits');
+    }
+
+    return "Analyzed " + all.length + " transactions spanning " +
+           tickToDateStr(minTick) + " to " + tickToDateStr(maxTick) + "." +
+           " (archive: " + archived.length + " entries)";
+};
+
+// --- Check market history archive status ---
+// Usage: marketHistoryStatus()
+global.marketHistoryStatus = function () {
+    if (!Memory.marketHistory || !Memory.marketHistory.txns) {
+        return "No market history archived yet. Archive runs every 50 ticks automatically.";
+    }
+    var hist = Memory.marketHistory;
+    var count = hist.txns.length;
+    var oldestTick = count > 0 ? hist.txns[count - 1].t : 0;
+    var newestTick = count > 0 ? hist.txns[0].t : 0;
+    var buys = 0, sells = 0;
+    for (var i = 0; i < count; i++) {
+        if (hist.txns[i].d === 'B') buys++; else sells++;
+    }
+    var TICK_MS = 4200;
+    var ageHours = count > 0 ? ((Game.time - oldestTick) * TICK_MS / 3600000).toFixed(1) : '0';
+    return "Market history: " + count + " entries (" + buys + " buys, " + sells + " sells), " +
+           "spanning ~" + ageHours + " hours. Last archived tick: " + hist.lastTick +
+           ". Memory size: ~" + (JSON.stringify(hist.txns).length / 1024).toFixed(1) + " KB.";
+};
+
+// --- Clear market history archive ---
+// Usage: clearMarketHistory()
+global.clearMarketHistory = function () {
+    var count = Memory.marketHistory ? (Memory.marketHistory.txns || []).length : 0;
+    Memory.marketHistory = { lastTick: 0, txns: [] };
+    return "Cleared " + count + " archived market transactions.";
+};
 
 

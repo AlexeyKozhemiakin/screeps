@@ -26,6 +26,7 @@ var roomRemoteHarvesting = require('room.remoteHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
 
+
 //const profiler = require('screeps-profiler');
 //profiler.enable();
 //profiler.registerClass(roleTower, 'role.tower');
@@ -70,16 +71,22 @@ loopInner = function () {
 
     try {
         //market.exploreArbitrage(Game.rooms["E51S23"]);
-        if (Game.time % 2 == 0) {
+        if (Game.time % 5 == 0) {
 
             market.sellExcess();
 
             market.shareEnergyInternal();
+
             roleLab.manageInventory();
             roleLab.setupReactions();
+            
             market.adjustOrders();
         }
         roleLab.runReactions();
+
+        if (Game.time % market.MARKET_HISTORY_INTERVAL == 0) {
+            market.archiveMarketTransactions();
+        }
     }
     catch (e) {
         console.log("Market error: ", e.stack, e.message);
