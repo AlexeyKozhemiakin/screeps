@@ -64,6 +64,7 @@ var roleBuilder = {
 
         return false;
     },
+
     runHarvest: function (creep) {
         if (basic.runDropped(creep, 3, RESOURCE_ENERGY, 50))
             return;
@@ -140,6 +141,7 @@ var roleBuilder = {
         // only if container is missing
         // what are conditions to allow stealing from extensions instead of container?
         // why commented?
+        /*
         if (source == undefined) {
             // for lower levels allow to pickup from spawns only when what?
 
@@ -153,6 +155,14 @@ var roleBuilder = {
                                 i.store[RESOURCE_ENERGY] > creep.carryCapacity)
                         });
                     }
+        }
+                    */
+
+        // stick to container
+        if(source == undefined) {
+            if(creep.room.controller.level >= 3 && creep.room.spawn && creep.room.spawn.container) {
+                source = creep.room.spawn.container;
+            }
         }
 
         if (sourceDismantle) {
