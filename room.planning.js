@@ -47,6 +47,16 @@ var roomPlanning = {
         if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).length > 0)
             return false;
 
+        // Do not build roads on top of other buildings (except containers and ramparts which are walkable)
+
+        var existingStructures = room.lookForAt(LOOK_STRUCTURES, pos);
+        if (existingStructures.some(function (s) {
+            return s.structureType != STRUCTURE_CONTAINER &&
+                s.structureType != STRUCTURE_RAMPART;
+        })) {
+            return false;
+
+        }
 
         var name = undefined;
 
@@ -55,12 +65,11 @@ var roomPlanning = {
 
         //if (room.name == "E48S23")
         //    console.log("Trying to build ", structureType, " in ", room.name, " at ", pos, " with name ", name);
-        try{
-        var code = pos.createConstructionSite(structureType, name);
-        }catch(e)
-        {
+        try {
+            var code = pos.createConstructionSite(structureType, name);
+        } catch (e) {
             console.log("Error creating construction site ", structureType, " in ", room.name, " at ", pos, " with name ", name, ":", e);
-             return false;
+            return false;
         }
 
         if (OK == code) {
@@ -228,59 +237,64 @@ var roomPlanning = {
         ];
 
         var pattern4 = [
-            "...........",
-            "...........",
-            "....r.r....",
-            "...rsr.rt..",
-            "..rerPrer..",
-            ".reeereeer.",
-            ".erererere.",
-            "..ereeeree.",
-            "..r.rer.r..",
-            ".....r.....",
+
+            "....r.......",
+            "...r.r......",
+            "..r...r.....",
+            ".rer.r.r....",
+            "reeersr.rt..",
+            ".rererPrer..",
+            "..reeereeer.",
+            "...rererer..",
+            "....reeer...",
+            ".....rer....",
+            "......r.....",
         ];
 
         var pattern5 = [
-            ".............",
-            "..r.......r..",
-            ".rer.r.r.rer.",
+            "....r........",
+            "...rer.......",
+            "..reeer...r..",
+            ".rerer.r.rer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            ".rererererer.",
-            "reeereeereeer",
-            ".rer.rer.rer.",
-            "..r...r...r.."
+            "...rererer...",
+            "....reeer....",
+            ".....rer.....",
+            "......r......"
         ];
 
         var pattern6 = [
-            ".............",
-            "..r...rbb.r..",
-            ".rerfrmrbrer.",
+            "....r........",
+            "...rer.......",
+            "..reeerbb.r..",
+            ".rerermrbrer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            ".rererererer.",
-            "reeereeereeer",
-            ".rer.rer.rer.",
-            "..r...r...r.."
+            ".rerererer...",
+            "reeereeer....",
+            ".rer.rer.....",
+            "..r...r......"
         ];
 
         var pattern7 = [
-            ".............",
-            "..r...rbb.r..",
-            ".rerfrmrbrer.",
+            "....r........",
+            "...rerf......",
+            "..reeerbb.r..",
+            ".rerermrbrer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
-            ".rererererer.",
-            "reeereeereeer",
-            ".rer.rer.rer.",
-            "..r...r...r.."
+            ".rerererer...",
+            "reeereeer....",
+            ".rer.rer.....",
+            "..r...r......"
         ];
 
-        
-        const patterns = [pattern7, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7];
+
+        const patterns = [null, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7];
 
         var pattern = patterns[room.controller.level];
 
@@ -353,7 +367,12 @@ var roomPlanning = {
                     'l': STRUCTURE_LINK,
                     'b': STRUCTURE_LAB,
                     'm': STRUCTURE_TERMINAL,
-                    'f': STRUCTURE_FACTORY
+                    'f': STRUCTURE_FACTORY,
+
+                    "o" : STRUCTURE_OBSERVER,
+                    "n" : STRUCTURE_NUKER,
+                    "a" : STRUCTURE_POWER_SPAWN,
+                    
                 };
                 var structureType = cellMap[cell];
 
@@ -479,8 +498,7 @@ var roomPlanning = {
             }
         }
 
-        if (room.controller.level >= 6 && room.mineral)
-        {
+        if (room.controller.level >= 6 && room.mineral) {
             if (!room.extractor) {
                 this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral.pos, room);
             }
