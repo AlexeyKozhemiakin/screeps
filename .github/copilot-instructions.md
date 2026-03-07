@@ -23,9 +23,11 @@ This file is the authoritative operating guide for contributors and AI agents wo
 1. Use ES5-compatible JavaScript (no modern syntax unless already in use and verified in runtime).
 2. Keep modules in repository root unless loader behavior is explicitly updated.
 3. Avoid expensive per-tick CPU operations; gate heavy logic using tick intervals.
+8. Never add periodic `console.log` debug logging gated by `Game.time % N`. Each tick is ~4 seconds; such logging is too slow to be useful for debugging and wastes CPU. Use logging on every tick where possible instead
 4. Do not overwrite existing memory contracts (`room.memory.*`, `Memory.rooms.*`) without migration logic.
 5. Prefer existing prototype accessors from [prototypes.js](prototypes.js) instead of repetitive `find()` calls.
-6. For API constants/types, always reference [node_modules/@types/screeps/index.d.ts](../node_modules/@types/screeps/index.d.ts) as the source of truth.
+6. For API constants/types, always reference [node_modules/@types/screeps/index.d.ts](../node_modules/@types/screeps/index.d.ts) as the source of truth for type signatures, resource string constants, and structure interfaces.
+7. For runtime recipe/component data (e.g. `COMMODITIES[product].components`, `.level`, `.amount`, `.cooldown`), always read from the runtime global constants — never hardcode recipe ingredients, amounts, or level requirements. The typings file only contains type signatures, not the actual values.
 
 ## 3) Development Workflow for New Features
 
