@@ -220,7 +220,7 @@ var utils = {
         var numBld = 1;
         //console.log("Room ", room.name, " build size ", buildSize);
         // Why? priority to building instead of updating
-        if (room.controller.level <= 4) {
+        if (room.controller.level <= 2) {
             numBld = sources.length + 1;
             // 1 builder per source to speed up building in the beginning
         }
@@ -239,12 +239,12 @@ var utils = {
         // in reality it has to be more complex - check actual energy capacity
         // building is really killing rooms dont increaase it PLEASE
         var hasLowEnergy =
-            (room.controller.container ? room.controller.container.store.energy < 1000 : false) ||
-            (room.spawn.container ? room.spawn.container.store.energy < 1000 : false);
+            (room.controller.container ? room.controller.container.store.energy < 500 : false) ||
+            (room.spawn.container ? room.spawn.container.store.energy < 100 : false);
 
 
         var hasLotsOfEnergy =
-            (room.controller.container ? room.controller.container.store.energy > 1500 : true) &&
+            (room.controller.container ? room.controller.container.store.energy > 500 : true) &&
             (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
 
         if (room.storage) {
@@ -269,8 +269,9 @@ var utils = {
             room.controller.ticksToDowngrade > 2 * CREEP_LIFE_TIME) {
             upgradePartsNeeded = 0;
         }
-        else if (hasLowEnergy)
-            upgradePartsNeeded = 0; // only one upgrader with 5 parts, that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
+        //else if (hasLowEnergy)
+        //    upgradePartsNeeded = 5; 
+        // // only one upgrader with 5 parts, that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
 
         if (hasLotsOfEnergy && !needBuild)
             upgradePartsNeeded += 7;
@@ -309,7 +310,9 @@ var utils = {
         // around spawn local deliverer
         // TODO: refactor spec delivers 1) change value to dynamic calculation
         if (mem.role == null) {
-            var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId);
+            // excluding small recovery deliverers
+            var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId
+                && !d.memory.temporary);
             var size = 50; // rough estimage
 
             var remoteHarvest = room.memory.config ? room.memory.config.remoteHarvest : [];
@@ -379,16 +382,20 @@ var utils = {
                     tgt = room.storage.id;
                 else if (room.spawn.container)
                     tgt = room.spawn.container.id;
-                else
-                    tgt = room.spawn.id;
+
 
                 var res = this.createDeliverer(source.container.id, tgt, amnt, RESOURCE_ENERGY);
 
+
+                // leave this to local deliverer, saves CPU
+                /*
                 if (res && room.spawn && tgt == room.spawn.id)
                     res.preferredTargetId = undefined;
 
+
                 if (res && room.spawn.container && tgt == room.spawn.container.id)
                     res.preferredTargetId = undefined;
+                */
 
 
                 if (res != null) {
@@ -575,35 +582,42 @@ var utils = {
         // TODO : bug here - it can stuck when level 2 energy 356 and no creeps
         // it's not early game and energy was <= 300 condition
         // was stuck again with 450 energy and 0 creeps
-        room.memory.coldStart = !isEarlyGame && roomCreeps.length < 3;
+        var noDelivererRecovery = !isEarlyGame && deliverers.length == 0 &&
+            (room.spawn.container || room.storage);
+        room.memory.coldStart = !isEarlyGame && roomCreeps.length < 3 || noDelivererRecovery;
 
         if (room.memory.coldStart) {
 
             if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
                 // more proper amount
                 mem.parts = [CARRY, MOVE]
+                mem.temporary = true; // mark as temporary to exclude from some logic
                 console.log(room.name, " low deliverer budget=", energyBudget);
 
             }
 
-            if (roomCreeps.length < 3 || harvesters.length == 0) { //TODO poor harvester condition{
+            if (roomCreeps.length < 3 || harvesters.length == 0) {
                 energyBudget = room.energyAvailable; // use as min energy in start as possible
+
+                mem.temporary = true; // mark as temporary to exclude from some logic
                 console.log(room.name, " low creeps budget=", energyBudget);
-                //mem.parts = [CARRY,  CARRY, MOVE, MOVE]
             }
 
             var deliverersBase = _.filter(deliverers,
-                d => d.memory.preferredSourceId == undefined);
+                d => d.memory.preferredSourceId == undefined && !d.memory.temporary);
 
-            if (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000
-                && deliverersBase.length == 0) {
-                console.log(room.name, " low creeps budget deliverer=", energyBudget);
+            if (deliverersBase.length == 0 && (
+                (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
+                (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100)
+            )) {
+                console.log(room.name, " no deliverers recovery, budget=", room.energyAvailable);
                 energyBudget = room.energyAvailable;
 
                 // create small local deliverer
                 mem.role = "deliverer";
                 mem.parts = [CARRY, MOVE];
                 mem.preferredSourceId = undefined;
+                mem.temporary = true; // mark as temporary to exclude from some logic
             }
         }
 
@@ -631,8 +645,16 @@ var utils = {
             if (parts.length != 0) {
                 var name = mem.role + Math.floor(Math.random() * 10000);
 
+                var exts = undefined;
+
+                if (room.storage) {
+                    exts = room.spawns.concat(room.extensions);
+                    // sort extension by path to storage, not spawn, to make sure energy is delivered to storage first
+                    exts = _.sortBy(exts, e => e.pos.findPathTo(room.storage, { ignoreCreeps: true }).length);
+                }
+
                 //console.log(room.name, 'Spawning new creep: ', mem.role, name, " with parts ", parts, " energyBudget=", energyBudget);
-                var code = spawn.spawnCreep(parts, name, { memory: mem });
+                var code = spawn.spawnCreep(parts, name, { memory: mem, energyStructures: exts });
 
                 if (OK == code) {
                     //console.log(spawn.name + ' is spawning new : ' + mem.role + " with " + parts + " - " + code);
@@ -732,15 +754,6 @@ var utils = {
         if (fromId == toId)
             return null;
 
-        var existing = _.filter(Game.creeps,
-            d => d.memory.role == "deliverer" &&
-                d.memory.preferredSourceId == fromId);
-
-        // there are cases when we specify only source not target, to deliver everywhere on base
-        //&&
-        //d.memory.preferredTargetId == toId);
-
-        var existingCapacity = _.sum(_.map(existing, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
 
         var from = Game.getObjectById(fromId);
         var to = Game.getObjectById(toId);
@@ -769,7 +782,16 @@ var utils = {
             //console.log('deliverer all roaded ', fromId, '->', toId);
         }
         // travelTime += pathRoaded.length; // 1 tick per non-road
+
         var requiredCapacity = travelTime * energyPerTick;
+
+
+        var existing = _.filter(Game.creeps,
+            d => d.memory.role == "deliverer" &&
+                d.memory.preferredSourceId == fromId);
+        var existingCapacity = _.sum(_.map(existing, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
+
+
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
@@ -790,6 +812,17 @@ var utils = {
             //console.log('deliverer already exists between ', fromId, '->', toId);
             return null;
         }
+
+        var existingLookeahead = _.filter(Game.creeps,
+            d => d.memory.role == "deliverer" &&
+                d.memory.preferredSourceId == fromId && d.ticksToLive > 200);
+        var existingLookaheadCapacity = _.sum(_.map(existingLookeahead, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
+
+
+        // recalculate remaining capacity with lookahead creeps, 
+        // that will be replaced soon and should not block new deliverer creation
+        remainingCapacity = requiredCapacity - existingLookaheadCapacity;
+
 
         var carryParts = Math.ceil(remainingCapacity / CARRY_CAPACITY);
         var moveParts = carryParts
