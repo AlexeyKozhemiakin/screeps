@@ -7,7 +7,7 @@ var roleBoost = {
         'upgrader': {
             boosts: [
                 { resource: RESOURCE_GHODIUM_HYDRIDE, bodyPart: WORK, effect: 'upgradeController', power: 1.5 }, // GH - 1.5x
-                //{ resource: RESOURCE_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 1.8 }, // GH2O - 1.8x
+                { resource: RESOURCE_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 1.8 }, // GH2O - 1.8x
                // { resource: RESOURCE_CATALYZED_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 2 }, // XGH2O - 2x
             ]
         },
