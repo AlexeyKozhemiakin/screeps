@@ -1,5 +1,4 @@
 var basic = require("role.basic");
-var attack = require("role.attack");
 const ROOM_SIGN_MESSAGE = "Zenga was here - Spawn More Overlords";
 
 var roleScout = {
