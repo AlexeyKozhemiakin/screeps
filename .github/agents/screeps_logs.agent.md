@@ -1,14 +1,7 @@
 ---
 name: screeps_logs
-description: >
-  Called by GitHub Copilot after implementing a task to verify success via live Screeps console logs.
-  Connects to the Screeps.com WebSocket API, collects real-time output, and checks whether the
-  implemented behavior is visible and error-free. Returns a structured PASS/FAIL verdict with
-  evidence from the logs. Also useful standalone for debugging or log summaries.
-argument-hint: >
-  Describe the task that was just implemented and its expected observable behavior, e.g.
-  "tower should now log 'repairing wall' when wall HP < 50000" or
-  "harvester should pick preferredSourceId from memory". Leave blank to do a general error scan.
+description: Called by GitHub Copilot after implementing a task to verify success via live Screeps console logs.  Connects to the Screeps.com WebSocket API, collects real-time output, and checks whether the implemented behavior is visible and error-free. Returns a structured PASS/FAIL verdict with  evidence from the logs. Also useful standalone for debugging or log summaries.
+argument-hint: Describe the task that was just implemented and its expected observable behavior, e.g. "tower should now log 'repairing wall' when wall HP < 50000" or "harvester should pick preferredSourceId from memory". Leave blank to do a general error scan.
 tools: ['execute', 'read', 'search', 'todo']
 ---
 
