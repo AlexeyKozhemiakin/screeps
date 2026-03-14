@@ -1,0 +1,320 @@
+{
+  "scannedFiles": 29,
+  "topLevelMemoryKeys": [
+    "creeps",
+    "marketHistory",
+    "marketHistoryCache",
+    "orderAdjustments",
+    "prices",
+    "profiler",
+    "rooms",
+    "roomsToClaim",
+    "segments",
+    "stats",
+    "tmp"
+  ],
+  "scopedMemoryKeys": {
+    "c": [
+      "role",
+      "toGo"
+    ],
+    "cr": [
+      "preferredSourceId",
+      "replaced",
+      "role"
+    ],
+    "creep": [
+      "_lastPos",
+      "_stuckTicks",
+      "_wallBreakMode",
+      "attacking",
+      "boosted",
+      "cachedSourceId",
+      "cachedSourceResType",
+      "cachedTargetId",
+      "cachedTargetResType",
+      "dangerous",
+      "err",
+      "motherland",
+      "preferredResourceType",
+      "preferredSourceId",
+      "preferredTargetId",
+      "recentWithdrawResType",
+      "renewCounter",
+      "role",
+      "targetId",
+      "task",
+      "toGo",
+      "travelTime",
+      "upgrading"
+    ],
+    "d": [
+      "preferredSourceId",
+      "role",
+      "temporary"
+    ],
+    "oldest": [
+      "replaced"
+    ],
+    "r": [
+      "inventoryGoal"
+    ],
+    "remoteRoom": [
+      "dangerous"
+    ],
+    "room": [
+      "boostingEnabled",
+      "coldStart",
+      "config",
+      "controllerEfficiency",
+      "controllerProcessStats",
+      "cputime",
+      "dangerous",
+      "enableBoosting",
+      "events",
+      "factoryDemand",
+      "factoryProductionTarget",
+      "hasLotsOfEnergy",
+      "hasLowEnergy",
+      "inventoryGoal",
+      "isEarlyGame",
+      "iterator",
+      "labDemand",
+      "labEnergyDemand",
+      "labSetup",
+      "needMineralHarvester",
+      "planReplace",
+      "planning",
+      "productionTarget"
+    ],
+    "spawnOrders": [
+      "parts",
+      "role",
+      "toGo"
+    ],
+    "spawningCreep": [
+      "role"
+    ]
+  },
+  "rawMemoryPaths": [
+    "c.memory.role",
+    "c.memory.toGo",
+    "cr.memory.preferredSourceId",
+    "cr.memory.replaced",
+    "cr.memory.role",
+    "creep.memory._lastPos",
+    "creep.memory._stuckTicks",
+    "creep.memory._wallBreakMode",
+    "creep.memory.attacking",
+    "creep.memory.boosted",
+    "creep.memory.cachedSourceId",
+    "creep.memory.cachedSourceResType",
+    "creep.memory.cachedTargetId",
+    "creep.memory.cachedTargetResType",
+    "creep.memory.dangerous",
+    "creep.memory.err",
+    "creep.memory.motherland",
+    "creep.memory.preferredResourceType",
+    "creep.memory.preferredSourceId",
+    "creep.memory.preferredTargetId",
+    "creep.memory.recentWithdrawResType",
+    "creep.memory.renewCounter",
+    "creep.memory.role",
+    "creep.memory.targetId",
+    "creep.memory.task",
+    "creep.memory.toGo",
+    "creep.memory.travelTime",
+    "creep.memory.upgrading",
+    "d.memory.preferredSourceId",
+    "d.memory.role",
+    "d.memory.temporary",
+    "oldest.memory.replaced",
+    "r.memory.inventoryGoal",
+    "remoteRoom.memory.dangerous",
+    "room.memory.boostingEnabled",
+    "room.memory.coldStart",
+    "room.memory.config",
+    "room.memory.controllerEfficiency",
+    "room.memory.controllerProcessStats",
+    "room.memory.cputime",
+    "room.memory.dangerous",
+    "room.memory.enableBoosting",
+    "room.memory.events",
+    "room.memory.factoryDemand",
+    "room.memory.factoryProductionTarget",
+    "room.memory.hasLotsOfEnergy",
+    "room.memory.hasLowEnergy",
+    "room.memory.inventoryGoal",
+    "room.memory.isEarlyGame",
+    "room.memory.iterator",
+    "room.memory.labDemand",
+    "room.memory.labEnergyDemand",
+    "room.memory.labSetup",
+    "room.memory.needMineralHarvester",
+    "room.memory.planReplace",
+    "room.memory.planning",
+    "room.memory.productionTarget",
+    "spawnOrders.memory.parts",
+    "spawnOrders.memory.role",
+    "spawnOrders.memory.toGo",
+    "spawningCreep.memory.role"
+  ],
+  "filesWithMatches": {
+    "console-commands.js": [
+      "Memory.creeps",
+      "Memory.marketHistory",
+      "Memory.prices",
+      "Memory.rooms",
+      "Memory.roomsToClaim",
+      "c.memory.toGo"
+    ],
+    "main.js": [
+      "Memory.roomsToClaim",
+      "room.memory.cputime",
+      "room.memory.iterator"
+    ],
+    "market.js": [
+      "Memory.marketHistory",
+      "Memory.marketHistoryCache",
+      "Memory.orderAdjustments"
+    ],
+    "profiling/convert-callgrind.js": [
+      "Memory.profiler"
+    ],
+    "prototypes.js": [
+      "Memory.rooms",
+      "room.memory.labDemand"
+    ],
+    "role.attack.js": [
+      "creep.memory._lastPos",
+      "creep.memory._stuckTicks",
+      "creep.memory._wallBreakMode",
+      "creep.memory.attacking",
+      "creep.memory.dangerous"
+    ],
+    "role.basic.js": [
+      "creep.memory.motherland",
+      "creep.memory.preferredSourceId",
+      "creep.memory.renewCounter",
+      "creep.memory.toGo"
+    ],
+    "role.boost.js": [
+      "creep.memory.boosted",
+      "creep.memory.motherland",
+      "creep.memory.role",
+      "room.memory.boostingEnabled",
+      "room.memory.enableBoosting",
+      "room.memory.inventoryGoal",
+      "room.memory.labDemand",
+      "room.memory.labEnergyDemand",
+      "room.memory.labSetup",
+      "room.memory.productionTarget"
+    ],
+    "role.builder.js": [
+      "creep.memory.role",
+      "creep.memory.targetId",
+      "creep.memory.task",
+      "creep.memory.toGo",
+      "room.memory.coldStart",
+      "room.memory.isEarlyGame"
+    ],
+    "role.deliverer.js": [
+      "creep.memory.cachedSourceId",
+      "creep.memory.cachedSourceResType",
+      "creep.memory.cachedTargetId",
+      "creep.memory.cachedTargetResType",
+      "creep.memory.preferredResourceType",
+      "creep.memory.preferredSourceId",
+      "creep.memory.preferredTargetId",
+      "creep.memory.recentWithdrawResType",
+      "creep.memory.task",
+      "creep.memory.travelTime",
+      "room.memory.factoryDemand"
+    ],
+    "role.factory.js": [
+      "room.memory.factoryDemand",
+      "room.memory.factoryProductionTarget",
+      "room.memory.productionTarget"
+    ],
+    "role.harvester.js": [
+      "c.memory.role",
+      "creep.memory.preferredSourceId",
+      "creep.memory.preferredTargetId",
+      "creep.memory.task"
+    ],
+    "role.lab.js": [
+      "creep.memory.role",
+      "r.memory.inventoryGoal",
+      "room.memory.inventoryGoal",
+      "room.memory.labSetup",
+      "room.memory.productionTarget"
+    ],
+    "role.mineralHarvester.js": [
+      "creep.memory.task"
+    ],
+    "role.reserve.js": [
+      "creep.memory.toGo"
+    ],
+    "role.upgrader.js": [
+      "creep.memory.preferredSourceId",
+      "creep.memory.task",
+      "creep.memory.upgrading",
+      "room.memory.iterator"
+    ],
+    "room.claim.js": [
+      "c.memory.role",
+      "c.memory.toGo",
+      "room.memory.dangerous"
+    ],
+    "room.process.js": [
+      "creep.memory.err",
+      "creep.memory.role"
+    ],
+    "room.remoteHarvesting.js": [
+      "c.memory.role",
+      "c.memory.toGo",
+      "cr.memory.preferredSourceId",
+      "cr.memory.role",
+      "remoteRoom.memory.dangerous"
+    ],
+    "screeps-profiler.js": [
+      "Memory.profiler"
+    ],
+    "screepsplus.js": [
+      "Memory.creeps",
+      "Memory.rooms",
+      "Memory.segments",
+      "Memory.stats",
+      "Memory.tmp",
+      "c.memory.role",
+      "room.memory.controllerEfficiency",
+      "room.memory.controllerProcessStats",
+      "room.memory.cputime"
+    ],
+    "utils.js": [
+      "Memory.rooms",
+      "cr.memory.preferredSourceId",
+      "cr.memory.replaced",
+      "cr.memory.role",
+      "creep.memory.role",
+      "d.memory.preferredSourceId",
+      "d.memory.role",
+      "d.memory.temporary",
+      "oldest.memory.replaced",
+      "room.memory.coldStart",
+      "room.memory.config",
+      "room.memory.events",
+      "room.memory.factoryDemand",
+      "room.memory.hasLotsOfEnergy",
+      "room.memory.hasLowEnergy",
+      "room.memory.isEarlyGame",
+      "room.memory.needMineralHarvester",
+      "room.memory.planReplace",
+      "room.memory.planning",
+      "spawnOrders.memory.parts",
+      "spawnOrders.memory.role",
+      "spawnOrders.memory.toGo",
+      "spawningCreep.memory.role"
+    ]
+  }
+}
