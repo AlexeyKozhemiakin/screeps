@@ -1,6 +1,6 @@
 var basic = require("role.basic");
 
-var linkLimitHigh = 490;
+var linkLimitHigh = 410;
 var linkLimitLow = 310;
 
 const TERMINAL_WATERMARK = 10000;
@@ -13,17 +13,28 @@ var roleDeliverer =
         var target;
 
         // Use cached target while moving — only recalculate when missing or adjacent
+        var resType = this.storeResType(creep);
         if (creep.memory.cachedTargetId) {
-            target = Game.getObjectById(creep.memory.cachedTargetId);
-            if (!target) {
+            // Invalidate cache if resource type changed or unknown (stale from before fix)
+            if (creep.memory.cachedTargetResType !== resType) {
                 creep.memory.cachedTargetId = undefined;
+                creep.memory.cachedTargetResType = undefined;
+            } else {
+                target = Game.getObjectById(creep.memory.cachedTargetId);
+                if (!target) {
+                    creep.memory.cachedTargetId = undefined;
+                    creep.memory.cachedTargetResType = undefined;
+                }
             }
         }
 
-        if (!target || creep.pos.isNearTo(target)) {
+        
+        if (!target) {
             target = this.selectTarget(creep);
             creep.memory.cachedTargetId = target ? target.id : undefined;
+            creep.memory.cachedTargetResType = target ? resType : undefined;
         }
+        
 
         if (!target) {
             creep.say("⏳");
@@ -39,9 +50,12 @@ var roleDeliverer =
             return false;
         }
 
+        // already transferred this tick — don't do it again (avoid partial loads)
+        if (creep._transferred) return false;
+
         //console.log("tr type ", resType);
         //var targetCanTake = tgt.
-        var resType = this.storeResType(creep);
+        // resType already resolved above
         var transferLimit;
 
         if (target.structureType == STRUCTURE_LINK) {
@@ -71,6 +85,12 @@ var roleDeliverer =
         var carriedResourceAmount = creep.store[resType];
         var carriedTotalAmount = creep.store.getUsedCapacity();
 
+        if (!targetFreeCapacity || !carriedResourceAmount) {
+            creep.memory.cachedTargetId = undefined;
+            creep.memory.cachedTargetResType = undefined;
+            return false;
+        }
+
         var expectedTransferAmount = Math.min(targetFreeCapacity, carriedResourceAmount);
         if (transferLimit != undefined)
             expectedTransferAmount = Math.min(expectedTransferAmount, transferLimit);
@@ -90,7 +110,9 @@ var roleDeliverer =
             transferResult = creep.transfer(target, resType);
 
         if (OK == transferResult) {
+            creep._transferred = true;
             creep.memory.cachedTargetId = undefined;
+            creep.memory.cachedTargetResType = undefined;
             // primary signal: pre-calculated full-offload expectation
             // safety net: actual store state after transfer
             if (expectedToBecomeEmpty || creep.store.getUsedCapacity() == 0) {
@@ -101,12 +123,18 @@ var roleDeliverer =
         }
         else if (ERR_NOT_ENOUGH_RESOURCES == transferResult) {
             creep.memory.cachedTargetId = undefined;
+            creep.memory.cachedTargetResType = undefined;
             if (creep.store.getFreeCapacity() > 0) {
                 creep.memory.task = "pickup";
             }
         }
+        else if (ERR_FULL == transferResult) {
+            creep.memory.cachedTargetId = undefined;
+            creep.memory.cachedTargetResType = undefined;
+        }
         else {
             creep.memory.cachedTargetId = undefined;
+            creep.memory.cachedTargetResType = undefined;
             creep.say("error" + transferResult);
         }
     },
@@ -119,6 +147,16 @@ var roleDeliverer =
         else if (creep.memory.recentWithdrawResType && creep.memory.task == "deliver")
             resType = creep.memory.recentWithdrawResType;
         return resType;
+    },
+
+    switchToDeliverIfLoaded: function (creep) {
+        if (creep.store.getUsedCapacity() > 0 && creep.store.getFreeCapacity() == 0) {
+            creep.memory.task = "deliver";
+            this.runDeliver(creep);
+            return true;
+        }
+
+        return false;
     },
 
     selectTarget: function (creep) {
@@ -135,8 +173,10 @@ var roleDeliverer =
             }
 
             if (target.store)
-                if (target.store.energy == target.store.getCapacity(RESOURCE_ENERGY))
+                if (!target.store.getFreeCapacity(resType)) {
                     target = undefined;
+                    return target;
+                }
         }
 
         if (resType == RESOURCE_ENERGY) {
@@ -152,7 +192,8 @@ var roleDeliverer =
                 });
             }
 
-            //spawn
+            //spawn a little bit as first priority
+            if(creep.room.energyAvailable < 800) 
             if (target == undefined) {
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
@@ -176,6 +217,17 @@ var roleDeliverer =
                 });
             }
 
+            if (target == undefined) {
+                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                    filter: (s) => {
+                        return (s.structureType == STRUCTURE_EXTENSION ||
+                            s.structureType == STRUCTURE_SPAWN) &&
+                            s.isActive() &&
+                            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                    }
+                });
+            }
+
             //base  container
             if (target == undefined && creep.room.spawn) {
                 if (creep.room.spawn.container &&
@@ -193,7 +245,7 @@ var roleDeliverer =
                             creep.room.controller.container &&
                             s.id == creep.room.controller.container.id &&
                             !creep.room.controller.link &&
-
+                            s.isNearBase &&
                             s.store.energy < 0.2 * s.store.getCapacity(RESOURCE_ENERGY);
                     }
                 });
@@ -385,6 +437,7 @@ var roleDeliverer =
         // do minerals only after room is filled
         if (creep.room.energyAvailable > 0.9 * creep.room.energyCapacityAvailable) {
 
+            //console.log("considering mineral pickup for ", creep.name);
             // FIRST PRIORITY (after energy): Remove minerals from labs that shouldn't be there
             // This includes: wrong minerals (mineralDemand != mineralType) and unwanted minerals (no demand set)
             if (source == undefined) {
@@ -521,19 +574,26 @@ var roleDeliverer =
                     filter: function (s) {
                         if (s.structureType !== STRUCTURE_FACTORY) return false;
                         var demand = creep.room.memory.factoryDemand;
-                        var demandType = demand ? demand.type : null;
+                        // Protect all ingredients (not just current demand type)
+                        var reserved = demand && demand.ingredients
+                            ? demand.ingredients
+                            : (demand ? [demand.type] : []);
                         return Object.keys(s.store).some(function (key) {
-                            return key !== RESOURCE_ENERGY && key !== demandType
-                                && s.store[key] > creep.store.getCapacity();;
+                            return key !== RESOURCE_ENERGY
+                                && reserved.indexOf(key) === -1
+                                && s.store[key] > creep.store.getCapacity();
                         });
                     }
                 });
                 if (factoryEgress) {
                     var outputKey = Object.keys(factoryEgress.store).find(function (key) {
                         var demand = creep.room.memory.factoryDemand;
-                        var demandType = demand ? demand.type : null;
-                        return key !== RESOURCE_ENERGY && key !== demandType &&
-                            factoryEgress.store[key] > creep.store.getCapacity();
+                        var reserved = demand && demand.ingredients
+                            ? demand.ingredients
+                            : (demand ? [demand.type] : []);
+                        return key !== RESOURCE_ENERGY
+                            && reserved.indexOf(key) === -1
+                            && factoryEgress.store[key] > creep.store.getCapacity();
                     });
                     if (outputKey) {
                         resType = outputKey;
@@ -557,6 +617,19 @@ var roleDeliverer =
             });
         }
 
+        // nearbase container 
+        if (source == undefined) {
+            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                filter: o => o.structureType == STRUCTURE_CONTAINER &&
+                    o.store[resType] > 0 &&
+                    o.isNearBase &&
+                    o != creep.room.controller.container
+            });
+        }
+
+        //commented since it's only used in early game and we already have deliverers
+        
+        /*
         if (source == undefined) {
             source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
                 filter: o => (o.structureType == STRUCTURE_CONTAINER) &&
@@ -593,15 +666,9 @@ var roleDeliverer =
             });
         }
 
-        // nearbase container 
-        if (source == undefined) {
-            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => o.structureType == STRUCTURE_CONTAINER &&
-                    o.store[resType] > 500 &&
-                    o.isNearBase &&
-                    o != creep.room.controller.container
-            });
-        }
+        */
+
+        
 
 
 
@@ -620,6 +687,9 @@ var roleDeliverer =
             basic.goTo(creep, source, 1, '#ffaa00');
             return;
         }
+
+        // already withdrew this tick — don't do it again (avoid partial loads)
+        if (creep._withdrawn) return false;
 
         //attempt to avoid withdraw to 0 base containers
         if (creep.memory.preferredSourceId && resType == RESOURCE_ENERGY && source.store[resType] < 300) {
@@ -645,6 +715,7 @@ var roleDeliverer =
         var code = creep.withdraw(source, resType, amnt);
 
         if (OK == code) {
+            creep._withdrawn = true;
             creep.memory.task = "deliver";
             creep.memory.recentWithdrawResType = resType;
             creep.memory.cachedSourceId = undefined;
@@ -693,9 +764,12 @@ var roleDeliverer =
                     creep.memory.task = "recycle";
                     return;
                 }
+                
                 creep.memory.task = "pickup";
                 creep.memory.recentWithdrawResType = undefined;
                 creep.memory.cachedTargetId = undefined;
+                creep.memory.cachedTargetResType = undefined;
+                
                 if (creep.store.getUsedCapacity() == 0) {
                     if (!creep.memory.preferredSourceId) {
                         if (basic.runDropped(creep, 7, undefined, 50))
@@ -708,10 +782,10 @@ var roleDeliverer =
 
                 var pickupSuccessful = this.runPickup(creep);
 
-                if (pickupSuccessful) {
-                    creep.memory.task = "deliver";
-                    this.runDeliver(creep);
-                }
+                //if (pickupSuccessful) {
+                //    creep.memory.task = "deliver";
+                //    this.runDeliver(creep);
+                //}
 
                 return;
             }
@@ -720,11 +794,15 @@ var roleDeliverer =
                 creep.memory.task = "pickup";
                 creep.memory.recentWithdrawResType = undefined;
                 creep.memory.cachedTargetId = undefined;
+                creep.memory.cachedTargetResType = undefined;
                 return;
             }
         }
 
         if (creep.memory.task == "pickup") {
+
+            if (this.switchToDeliverIfLoaded(creep))
+                return;
 
 
             // and there is no other - then take advantage
