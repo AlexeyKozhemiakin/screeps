@@ -385,7 +385,7 @@ module.exports = {
             sorted = sorted.reverse();
 
         //console.log(targetRoom, resType, amount, orderType);
-        const acceptableMargin = 0.15;// i can pay 20% more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
+        const acceptableMargin = 0.2;// i can pay X more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
 
         for (id in sorted) {
 
