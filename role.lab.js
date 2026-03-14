@@ -75,21 +75,20 @@ var roleLab = {
         var total = 0;
 
         // Check terminal storage
-        if (room.terminal && room.terminal.store[resourceType]) {
-            total += room.terminal.store[resourceType];
+        if (room.terminal) {
+            total += room.terminal.store.getUsedCapacity(resourceType);
         }
 
-        // Check all labs in the room
-        var labs = room.find(FIND_MY_STRUCTURES, {
-            filter: function (structure) { return structure.structureType === STRUCTURE_LAB; }
+        total += _.sum(room.labs, function (lab) { return lab.store.getUsedCapacity(resourceType) || 0; });
+
+        // check all deliverers in the room
+        var creeps = room.find(FIND_MY_CREEPS, {
+            filter: function (creep) {
+                return creep.memory.role === 'deliverer' && creep.store.getUsedCapacity(resourceType) > 0;
+            }
         });
 
-        for (var i = 0; i < labs.length; i++) {
-            var amount = labs[i].store.getUsedCapacity(resourceType);
-            if (amount) {
-                total += amount;
-            }
-        }
+        total += _.sum(creeps, function (creep) { return creep.store.getUsedCapacity(resourceType); });
 
         return total;
     },
@@ -173,21 +172,14 @@ var roleLab = {
             //'XLHO2': ['X', 'LHO2'],
             //'XZH2O': ['X', 'ZH2O'],
             //'XZHO2': ['X', 'ZHO2'],
-            // 'XGH2O': ['X', 'GH2O'],
+            // 'XGH2O': ['X', 'GH2O'], // too slow for 6 labs
             //'XGHO2': ['X', 'GHO2']
         };
 
-        // Check if room has a production target in memory
-        if (!room.memory.productionTarget) {
-            room.memory.productionTarget = null;
-        }
 
         // If there's a current production target, check if it's done
         if (room.memory.productionTarget) {
-            // can be removed this was fixed below
-            if (REAGENTS[room.memory.productionTarget] == null) {
-                room.memory.productionTarget = null;
-            }
+           
 
             var _tgt = room.memory.productionTarget;
             var _tgtAmt = getTargetAmount(_tgt);
@@ -353,9 +345,7 @@ var roleLab = {
         }
     },
 
-    getReagents: function (resourceType) {
-        return REAGENTS[resourceType];
-    },
+    
 
     setupRoomReagents: function (room, targetRes, goals) {
         if (room.memory.productionTarget && room.memory.productionTarget !== targetRes)
@@ -369,7 +359,7 @@ var roleLab = {
 
         var gapAmount = targetAmount - currentAmount;
         gapAmount = Math.min(gapAmount, 1000);
-        var reagents = this.getReagents(targetRes);
+        var reagents = REAGENTS[targetRes];
         if (!reagents)
             return;
 
@@ -379,7 +369,7 @@ var roleLab = {
             if (reagentAmount < gapAmount) {
                 // If missing reagent can be produced, switch production chain to that reagent
                 // instead of clearing target and getting stuck.
-                if (this.getReagents(reagent)) {
+                if (REAGENTS[reagent]) {
                     if (room.memory.productionTarget !== reagent) {
                         console.log("Need to acquire reagent ", reagent, " for producing ", targetRes, " in ", room.name, " switching production to reagent");
                     }
@@ -427,6 +417,7 @@ var roleLab = {
                 ready = false;
                 if ((lab.store[labMineralType] || 0) > 0) {
                     console.log('Lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before switching to ' + expected);
+                    
                 }
             }
         }
@@ -437,6 +428,7 @@ var roleLab = {
                 ready = false;
                 if ((lab.store[labMineralType] || 0) > 0) {
                     console.log('Output lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before producing ' + targetRes);
+
                 }
             }
         }
