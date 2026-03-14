@@ -8,7 +8,7 @@ var roleBoost = {
             boosts: [
                 { resource: RESOURCE_GHODIUM_HYDRIDE, bodyPart: WORK, effect: 'upgradeController', power: 1.5 }, // GH - 1.5x
                 { resource: RESOURCE_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 1.8 }, // GH2O - 1.8x
-               // { resource: RESOURCE_CATALYZED_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 2 }, // XGH2O - 2x
+                { resource: RESOURCE_CATALYZED_GHODIUM_ACID, bodyPart: WORK, effect: 'upgradeController', power: 2 }, // XGH2O - 2x
             ]
         },
         /*'builder': {
@@ -37,13 +37,33 @@ var roleBoost = {
         return room.memory.enableBoosting !== false;
     },
 
+    getUnboostedBodyPartCount: function (creep, bodyPart) {
+        if (!creep) return 1;
+
+        return creep.body.filter(function (part) {
+            return part.type === bodyPart && !part.boost;
+        }).length;
+    },
+
+    getBoostableParts: function (lab, resource, neededParts) {
+        if (!lab || !resource || neededParts <= 0) return 0;
+
+        const availableMineral = lab.store[resource] || 0;
+        const availableEnergy = lab.store[RESOURCE_ENERGY] || 0;
+        const boostableByMineral = Math.floor(availableMineral / LAB_BOOST_MINERAL);
+        const boostableByEnergy = Math.floor(availableEnergy / LAB_BOOST_ENERGY);
+
+        return Math.min(neededParts, boostableByMineral, boostableByEnergy);
+    },
+
     // Get available boost for a role
-    getAvailableBoost: function (room, role) {
+    getAvailableBoost: function (room, role, creep) {
         const config = this.boostConfigs[role];
         if (!config) return null;
 
-        // Build a set of lab IDs currently allocated to reactions so we never
-        // pull boost compounds out of production labs.
+        // Build a set of lab IDs currently allocated to reactions.
+        // We still prefer non-reaction labs for boosting, but can fall back
+        // to reaction labs when no spare boost lab is available.
         var reactionLabIds = {};
         if (room.memory.labSetup) {
             if (room.memory.labSetup.inputLab1) reactionLabIds[room.memory.labSetup.inputLab1] = true;
@@ -55,24 +75,31 @@ var roleBoost = {
             }
         }
 
-        // Find labs with available boosts (prioritize better boosts)
+        const allLabs = room.find(FIND_MY_STRUCTURES, {
+            filter: (s) => s.structureType === STRUCTURE_LAB
+        });
+
+        // Find labs with available boosts (prioritize better boosts), but only
+        // return a lab that can actually apply at least one boost part.
         for (let i = config.boosts.length - 1; i >= 0; i--) {
             const boost = config.boosts[i];
+            const neededParts = this.getUnboostedBodyPartCount(creep, boost.bodyPart);
 
-            // Find non-reaction labs that have both the mineral AND energy needed for boosting
-            const labs = room.find(FIND_MY_STRUCTURES, {
-                filter: (s) => s.structureType === STRUCTURE_LAB &&
-                    !reactionLabIds[s.id] &&
-                    s.store[boost.resource] > 0 &&
-                    s.store[RESOURCE_ENERGY] > 0 &&
-                    (!s.mineralType || s.mineralType === boost.resource)
+            if (neededParts <= 0) continue;
+
+            const matchingLabs = _.filter(allLabs, function (lab) {
+                return (lab.store[boost.resource] || 0) > 0 &&
+                    (lab.store[RESOURCE_ENERGY] || 0) > 0 &&
+                    (!lab.mineralType || lab.mineralType === boost.resource);
             });
 
-            if (labs.length > 0) {
-                // Prefer labs that already have the right mineral type
-                const labWithMineral = labs.find(l => l.mineralType === boost.resource);
+            const usableLabs = _.filter(matchingLabs, (lab) => this.getBoostableParts(lab, boost.resource, neededParts) > 0);
+
+            if (usableLabs.length > 0) {
+                const sortedLabs = _.sortBy(usableLabs, (lab) => -this.getBoostableParts(lab, boost.resource, neededParts));
+                const chosenLab = sortedLabs[0];
                 return {
-                    lab: labWithMineral || labs[0],
+                    lab: chosenLab,
                     resource: boost.resource,
                     bodyPart: boost.bodyPart
                 };
@@ -97,20 +124,16 @@ var roleBoost = {
         if (!this.boostConfigs[creep.memory.role]) return false;
 
         // Check if there are available boosts with enough materials
-        const availableBoost = this.getAvailableBoost(room, creep.memory.role);
+        const availableBoost = this.getAvailableBoost(room, creep.memory.role, creep);
         if (!availableBoost) return false;
 
         // Calculate how much mineral is needed to boost all body parts of this type
-        const bodyPartCount = creep.body.filter(p => p.type === availableBoost.bodyPart && !p.boost).length;
+        const bodyPartCount = this.getUnboostedBodyPartCount(creep, availableBoost.bodyPart);
         if (bodyPartCount <= 0) return false;
 
         // Check if lab has enough materials
         const lab = availableBoost.lab;
-        const availableMineral = lab.store[availableBoost.resource] || 0;
-        const availableEnergy = lab.store[RESOURCE_ENERGY] || 0;
-        const boostableByMineral = Math.floor(availableMineral / LAB_BOOST_MINERAL);
-        const boostableByEnergy = Math.floor(availableEnergy / LAB_BOOST_ENERGY);
-        const boostableParts = Math.min(bodyPartCount, boostableByMineral, boostableByEnergy);
+        const boostableParts = this.getBoostableParts(lab, availableBoost.resource, bodyPartCount);
 
         if (boostableParts <= 0) return false;
 
@@ -122,19 +145,15 @@ var roleBoost = {
         const room = Game.rooms[creep.memory.motherland];
         if (!room) return false;
 
-        const availableBoost = this.getAvailableBoost(room, creep.memory.role);
+        const availableBoost = this.getAvailableBoost(room, creep.memory.role, creep);
         if (!availableBoost) {
             creep.memory.boosted = true; // Mark as boosted to avoid repeated checks
             return false;
         }
 
         const lab = availableBoost.lab;
-        const unboostedParts = creep.body.filter(p => p.type === availableBoost.bodyPart && !p.boost).length;
-        const availableMineral = lab.store[availableBoost.resource] || 0;
-        const availableEnergy = lab.store[RESOURCE_ENERGY] || 0;
-        const boostableByMineral = Math.floor(availableMineral / LAB_BOOST_MINERAL);
-        const boostableByEnergy = Math.floor(availableEnergy / LAB_BOOST_ENERGY);
-        const bodyPartsCount = Math.min(unboostedParts, boostableByMineral, boostableByEnergy);
+        const unboostedParts = this.getUnboostedBodyPartCount(creep, availableBoost.bodyPart);
+        const bodyPartsCount = this.getBoostableParts(lab, availableBoost.resource, unboostedParts);
 
         if (bodyPartsCount <= 0) return false;
 
