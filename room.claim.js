@@ -1,3 +1,5 @@
+var utils = require("utils");
+
 var roomClaiming = {
     roomGetSpawnOrders: function (requestedRooms) {
 
@@ -96,7 +98,7 @@ var roomClaiming = {
 
                 if (attackers.length < numAttack) {
                     console.log("needAttack", roomName);
-                    spawnOrder.attackRoom = roomName;
+                    spawnOrder.memory = utils.createAttackMemory(sponsorRoom, roomName, room);
                     return spawnOrder;
                 }
                 

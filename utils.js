@@ -2,6 +2,7 @@ var roleMineralHarvester = require('role.mineralHarvester');
 var draw = require('room.draw.visuals');
 
 const RICH_ROOM_ENERGY = 8000;
+const LOOKAHEAD_TICKS = 300;
 
 var utils = {
 
@@ -113,11 +114,11 @@ var utils = {
         var oldest;
 
         // replacement prep
-        if (false)
-            if (roomCreeps.length > 0 && room.controller.level >= 4) {
+        if (true)
+            if (room.controller.level >= 4) {
                 var ups = _.filter(roomCreeps, (cr) =>
                     (cr.memory.role == "harvester") &&
-                    (cr.getActiveBodyparts(WORK) >= 5) &&
+                    (cr.getActiveBodyparts(WORK) == 5) &&
                     cr.memory.replaced != true
                     && !cr.spawning);
 
@@ -249,12 +250,11 @@ var utils = {
 
         if (room.storage) {
             hasLowEnergy = room.storage.store.energy < 5000;
-            hasLotsOfEnergy = room.storage.store.energy > 10000;
+            hasLotsOfEnergy = room.storage.store.energy > 30000;
         }
 
 
         var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 150000;
-        //var hasHugeEnergySurplus2 = room.storage && room.storage.store.energy > 500000;
 
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
@@ -289,22 +289,23 @@ var utils = {
             upgradePartsNeeded = 15;
 
 
+        //console.log(room.name, ups);
 
-        // do not count creeps close to death, that will be replaced anyway
+        var upgraders = _.filter(roomCreeps, function (creep) {
+            return creep.memory.role == 'upgrader';
+        });
 
-        var upgraders = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader');
+        var boostExtraTime = 4+4;
 
-        var upgradersLong = _.filter(roomCreeps, (creep) => creep.memory.role == 'upgrader' &&
-            creep.ticksToLive > 150);
-
-
-        var existingUpgradeParts = _.sum(upgraders, u => u.getActiveBodyparts(WORK));
-        var existingUpgradePartsLong = _.sum(upgradersLong, u => u.getActiveBodyparts(WORK));
-
-        var gapUpgradeParts = 0;
-
-        if (upgradePartsNeeded - existingUpgradeParts > 0)
-            gapUpgradeParts = upgradePartsNeeded - existingUpgradePartsLong;
+        var gapUpgradeParts = this.calculateRoleGap(
+            roomCreeps,
+            'upgrader',
+            upgradePartsNeeded,
+            room.spawn,
+            room.controller,
+            WORK, 
+            boostExtraTime
+        );
 
 
         // around spawn local deliverer
@@ -327,8 +328,8 @@ var utils = {
             // room.storage
             // room.terminal
             var numLocals = 1;
-            if (room.name == "E48S27")
-                numLocals = 2;
+            //if (room.name == "E48S27")
+            //    numLocals = 2;
 
             if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
@@ -405,15 +406,7 @@ var utils = {
 
         }
 
-        /*if(mem.role == null && room.name == "E56S23") {
-            var res = this.createDeliverer(room.storage.id, '699a57d991dbb30b375267d5', 10, RESOURCE_ENERGY);
-            if (res != null) {
-                mem = res;
-            }
-
-        }*/
         // FROM BASE TO CONTROLLER
-
         if (mem.role == null && upgradePartsNeeded > 0) {
             if (room.controller.container &&
                 (room.spawn.container || room.storage) &&
@@ -505,13 +498,10 @@ var utils = {
                 energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
         else if (needAttack && attackers.length == 0) {
-            mem = new Object();
-            mem.role = "attack";
+            mem = this.createAttackMemory(room, room.name, room);
         }
         else if (spawnOrders && spawnOrders.attackRoom) {
-            mem = new Object();
-            mem.role = "attack";
-            mem.toGo = [spawnOrders.attackRoom];
+            mem = this.createAttackMemory(room, spawnOrders.attackRoom, Game.rooms[spawnOrders.attackRoom]);
         }
         else if (mem.role != null) {
             // parts already created where?
@@ -566,6 +556,9 @@ var utils = {
         }
         else if (spawnOrders && spawnOrders.memory) {
             mem = spawnOrders.memory;
+            if (spawnOrders.memory.role == "attack" && !spawnOrders.memory.attackSize && spawnOrders.memory.toGo && spawnOrders.memory.toGo[0])
+                spawnOrders.memory.attackSize = this.getAttackSize(Game.rooms[spawnOrders.memory.toGo[0]]);
+
             if (spawnOrders.memory.role == "attack")
                 energyBudget = room.energyAvailable
         }
@@ -606,7 +599,7 @@ var utils = {
             var deliverersBase = _.filter(deliverers,
                 d => d.memory.preferredSourceId == undefined && !d.memory.temporary);
 
-            if (deliverersBase.length == 0 && (
+            if (mem.role == null && deliverersBase.length == 0 && (
                 (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
                 (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100)
             )) {
@@ -637,7 +630,7 @@ var utils = {
 
             var parts = mem.parts;
             if (parts == undefined)
-                parts = utils.getBodyParts(energyBudget, mem.role);
+                parts = utils.getBodyParts(energyBudget, mem.role, mem);
 
             mem.parts = undefined; // saving memory
             mem.motherland = room.name;
@@ -704,6 +697,38 @@ var utils = {
 
         //sconsole.log("isPathRoaded =", roaded, " for ", path.length, " steps");
         return roaded;
+    },
+
+    calculateRoleGap: function (roomCreeps, role, requiredCapacity, from, to, bodyPart, extraTicks = 0) {
+        var ticksToCreate = CREEP_SPAWN_TIME * (requiredCapacity || 0);
+        var fromPos = from.pos || from;
+        var toPos = to.pos || to;
+        var ticksToTravel = fromPos.findPathTo(toPos, { ignoreCreeps: true }).length;
+        
+        var totalTicks = ticksToCreate + ticksToTravel + extraTicks;
+        bodyPart = bodyPart || WORK;
+    
+        // do not count creeps close to death, that will be replaced anyway
+        var creeps = _.filter(roomCreeps, function (creep) {
+            return creep.memory.role == role && (creep.ticksToLive > totalTicks || creep.spawning);
+        });
+
+        var creepsLong = _.filter(roomCreeps, function (creep) {
+            return creep.memory.role == role && (creep.ticksToLive > totalTicks + LOOKAHEAD_TICKS || creep.spawning);
+        });
+
+        var currentCapacity = _.sum(creeps, function (creep) {
+            return creep.getActiveBodyparts(bodyPart);
+        });
+        var longCapacity = _.sum(creepsLong, function (creep) {
+            return creep.getActiveBodyparts(bodyPart);
+        });
+
+        var gap = 0;
+        if (requiredCapacity - currentCapacity > 0)
+            gap = requiredCapacity - longCapacity;
+
+        return gap;
     },
 
     /**
@@ -815,7 +840,8 @@ var utils = {
 
         var existingLookeahead = _.filter(Game.creeps,
             d => d.memory.role == "deliverer" &&
-                d.memory.preferredSourceId == fromId && d.ticksToLive > 200);
+                d.memory.preferredSourceId == fromId &&
+                d.ticksToLive > LOOKAHEAD_TICKS);
         var existingLookaheadCapacity = _.sum(_.map(existingLookeahead, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
 
 
@@ -912,7 +938,7 @@ var utils = {
     }
     ,
 
-    getBodyParts: function (currentEnergy, role) {
+    getBodyParts: function (currentEnergy, role, memory) {
         //console.log("getBodyParts for role ", role, " with energy ", currentEnergy);
 
         if (role == "claim")
@@ -929,15 +955,24 @@ var utils = {
                     WORK, MOVE],
                 [WORK, MOVE, WORK, MOVE]];
 
-        var attackParts =
-            [
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE],
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
-                [MOVE, TOUGH, MOVE, TOUGH, MOVE, TOUGH],
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
-                [ATTACK, MOVE], [ATTACK, MOVE], [ATTACK, MOVE], [HEAL, MOVE],
-            ];
+        var attackPartsSmall = [ATTACK, ATTACK, HEAL, MOVE, MOVE, MOVE];
+        var attackPartsMedium = [
+            TOUGH, TOUGH,
+            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
+            HEAL, HEAL,
+            MOVE, MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE
+        ];
+        var attackPartsLarge = [
+            TOUGH, TOUGH, TOUGH, TOUGH,
+            ATTACK, ATTACK, ATTACK, ATTACK,
+            ATTACK, ATTACK, ATTACK, ATTACK,
+            HEAL, HEAL, HEAL,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE
+        ];
 
 
         var deliverParts = [
@@ -1048,7 +1083,18 @@ var utils = {
             parts = [[CLAIM, MOVE], [CLAIM, MOVE]];
 
         if (role == 'attack') {
-            parts = attackParts;
+            var desiredAttackSize = memory && memory.attackSize ? memory.attackSize : "small";
+
+            if (desiredAttackSize == "large" && this.getPartsCost(attackPartsLarge) <= currentEnergy)
+                return attackPartsLarge;
+
+            if ((desiredAttackSize == "large" || desiredAttackSize == "medium") && this.getPartsCost(attackPartsMedium) <= currentEnergy)
+                return attackPartsMedium;
+
+            if (this.getPartsCost(attackPartsSmall) <= currentEnergy)
+                return attackPartsSmall;
+
+            return [];
         }
         if (role == 'builder')
             parts = builderParts;
@@ -1096,6 +1142,76 @@ var utils = {
 
         //console.log(role, ' get part for ' + currentEnergy, " ");
         return this.prefillParts(currentEnergy, parts);
+    },
+
+    createAttackMemory: function (sourceRoom, targetRoomName, targetRoom) {
+        var memory = {
+            role: "attack"
+        };
+
+        if (targetRoomName && (!sourceRoom || sourceRoom.name != targetRoomName))
+            memory.toGo = [targetRoomName];
+
+        memory.attackSize = this.getAttackSize(targetRoom);
+
+        return memory;
+    },
+
+    getAttackSize: function (targetRoom) {
+        if (!targetRoom)
+            return "small";
+
+        var hostiles = targetRoom.find(FIND_HOSTILE_CREEPS, {
+            filter: function (c) {
+                return c.owner && c.owner.username != "";
+            }
+        });
+
+        var dangerousHostiles = _.filter(hostiles, function (hostile) {
+            return hostile.getActiveBodyparts(ATTACK) > 0 ||
+                hostile.getActiveBodyparts(RANGED_ATTACK) > 0 ||
+                hostile.getActiveBodyparts(HEAL) > 0 ||
+                hostile.getActiveBodyparts(WORK) >= 4;
+        });
+
+        var heavyHostiles = _.filter(hostiles, function (hostile) {
+            return hostile.getActiveBodyparts(HEAL) >= 2 ||
+                hostile.getActiveBodyparts(ATTACK) >= 5 ||
+                hostile.getActiveBodyparts(RANGED_ATTACK) >= 5 ||
+                hostile.getActiveBodyparts(TOUGH) >= 5;
+        });
+
+        var invaderCore = targetRoom.find(FIND_STRUCTURES, {
+            filter: function (s) {
+                return s.structureType == STRUCTURE_INVADER_CORE;
+            }
+        })[0];
+
+        var conquerFlag = targetRoom.find(FIND_FLAGS, {
+            filter: function (f) {
+                return f.name.includes("conquer");
+            }
+        })[0];
+
+        var enemyReservation = targetRoom.controller &&
+            targetRoom.controller.reservation &&
+            targetRoom.controller.reservation.username != "Zenga" &&
+            targetRoom.controller.reservation.username != "Invader" &&
+            targetRoom.controller.reservation.ticksToEnd > 100;
+
+        var controllerWalls = targetRoom.controller ? targetRoom.controller.pos.findInRange(FIND_STRUCTURES, 1, {
+            filter: function (s) {
+                return s.structureType == STRUCTURE_WALL;
+            }
+        }) : [];
+
+        if (heavyHostiles.length > 0 || dangerousHostiles.length >= 3 || (invaderCore && invaderCore.level >= 2))
+            return "large";
+
+        if (dangerousHostiles.length >= 2 || invaderCore || conquerFlag || enemyReservation || controllerWalls.length > 0)
+            return "medium";
+
+        return "small";
     },
 
     prefillParts: function (budget, parts) {
