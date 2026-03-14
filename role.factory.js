@@ -30,7 +30,7 @@ var MINERAL_TO_BAR = {
 
 // Minimum combined storage+terminal amount of a raw mineral before we start
 // converting it to bars.
-var PRODUCTION_THRESHOLD = 50000;
+var PRODUCTION_THRESHOLD = 100000;
 
 // How much of the ingredient we want inside the factory at one time.
 // 500 is one batch; keeping 1500 keeps the factory busy through two cooldowns.
@@ -86,8 +86,8 @@ var roleFactory = {
         // Keep demand fresh so deliverers know what to bring
         this.updateDemand(room, factory, selected);
 
-        console.log('[factory] ' + room.name + ' selected: ' + selected.product
-            + ' | demand: ' + JSON.stringify(room.memory.factoryDemand));
+        //console.log('[factory] ' + room.name + ' selected: ' + selected.product
+        //    + ' | demand: ' + JSON.stringify(room.memory.factoryDemand));
 
         // Attempt to produce every tick; factory ignores ERR_BUSY/cooldown
         this.attemptProduce(factory, selected.product);
