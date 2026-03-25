@@ -435,14 +435,11 @@ var roomPlanning = {
     ,
     roomPlan: function (room) {
 
-
         var planEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("plan")) }).length > 0;
         if (!planEnabled)
             return;
 
-        if (!room.controller)
-            return;
-
+ 
         //console.log("Auto planning for room ", room.name, room.controller);
         var buildEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("build")) }).length > 0;
 
@@ -463,7 +460,7 @@ var roomPlanning = {
 
         this.tryExtensions(room, spawnPoint, buildEnabled);
 
-        if (room.controller.level >= 2) {
+        if (room.controller && room.controller.level >= 2) {
             var sources = room.find(FIND_SOURCES).sort(
                 (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
             );
@@ -503,7 +500,7 @@ var roomPlanning = {
             }
         }
 
-        if (room.controller.level >= 6 && room.mineral) {
+        if (room.controller && room.controller.level >= 6 && room.mineral) {
             if (!room.extractor) {
                 this.tryBuild(STRUCTURE_EXTRACTOR, room.mineral.pos, room);
             }
