@@ -60,7 +60,7 @@ module.exports = {
                     continue;
 
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
-                if (totalInTarget < 30000) {
+                if (totalInTarget < 50000) {
                     var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 5000);
                     if(res)
                         return;// make it slower
@@ -116,6 +116,9 @@ module.exports = {
 
     sellExcess: function () {
         const threshold = 120000;
+        const batteryThresholdToSellEnergy = 100000;
+        const totalEnergyThresholdToSellRawEnergy = 450000;
+        const energyThresholdWhenBatteriesAreHigh = 50000;
 
         // Lower threshold for factory outputs - sell once a modest stockpile builds up
         const commodityThresholds = {
@@ -135,14 +138,36 @@ module.exports = {
             if (!room || !room.terminal)
                 continue;
 
+            var totalBatteries = room.terminal.store[RESOURCE_BATTERY] || 0;
+            if (room.storage)
+                totalBatteries += room.storage.store[RESOURCE_BATTERY] || 0;
+
+            var totalEnergy = room.terminal.store[RESOURCE_ENERGY] || 0;
+            if (room.storage)
+                totalEnergy += room.storage.store[RESOURCE_ENERGY] || 0;
+
+            if (totalBatteries > batteryThresholdToSellEnergy && totalEnergy > totalEnergyThresholdToSellRawEnergy) {
+
+                var excessRawEnergy = Math.min(
+                    room.terminal.store[RESOURCE_ENERGY] || 0,
+                    totalEnergy - energyThresholdWhenBatteriesAreHigh
+                );
+
+                if (excessRawEnergy > 10000) {
+                    //console.log("Room ", roomName, " has excess raw energy because batteries are high, amount ", excessRawEnergy);
+                    this.matchOrderInternal(roomName, RESOURCE_ENERGY, excessRawEnergy, ORDER_BUY);
+                }
+            }
+
             var resources = _.keys(room.terminal.store).filter(r => room.terminal.store[r] > 0);
 
             for (const resource of resources) {
-                const limit = commodityThresholds[resource] !== undefined ? commodityThresholds[resource] : threshold;
+                var limit = commodityThresholds[resource] !== undefined ? commodityThresholds[resource] : threshold;
+
                 const excessAmount = room.terminal.store[resource] - limit;
 
                 if (excessAmount > 100) {
-                    console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
+                    // console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
                     this.matchOrderInternal(roomName, resource, excessAmount, ORDER_BUY);
                 }
             }
@@ -407,7 +432,7 @@ module.exports = {
                 break;
             }
             if (orderType == ORDER_BUY && totalPrice < resHistoricalPrice * (1 - acceptableMargin)) {
-                console.log("Skipping order ", resType, " because total price ", totalPrice, " is significantly lower than historical price ", resHistoricalPrice);
+                //console.log("Skipping order ", resType, " because total price ", totalPrice, " is significantly lower than historical price ", resHistoricalPrice);
                 
                 this.tryCreateOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3000, targetRoom, ORDER_SELL);
 

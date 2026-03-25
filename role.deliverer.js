@@ -3,7 +3,7 @@ var basic = require("role.basic");
 var linkLimitHigh = 410;
 var linkLimitLow = 310;
 
-const TERMINAL_WATERMARK = 10000;
+const TERMINAL_WATERMARK = 15000;
 const MINERAL_WATERMARK = 1000;
 const FACTORY_ENERGY_WATERMARK = 5000;
 

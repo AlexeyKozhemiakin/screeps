@@ -74,6 +74,36 @@ Object.defineProperty(Room.prototype, 'labs', {
     configurable: true
 });
 
+Room.prototype.getResourceAmount = function (resourceType) {
+    var total = 0;
+
+    if (!resourceType) return total;
+
+    if (this.terminal) {
+        total += this.terminal.store.getUsedCapacity(resourceType) || 0;
+    }
+
+    if (this.storage) {
+        total += this.storage.store.getUsedCapacity(resourceType) || 0;
+    }
+
+    total += _.sum(this.labs, function (lab) {
+        return lab.store.getUsedCapacity(resourceType) || 0;
+    });
+
+    var creeps = this.find(FIND_MY_CREEPS, {
+        filter: function (creep) {
+            return creep.memory.role === 'deliverer' && creep.store.getUsedCapacity(resourceType) > 0;
+        }
+    });
+
+    total += _.sum(creeps, function (creep) {
+        return creep.store.getUsedCapacity(resourceType) || 0;
+    });
+
+    return total;
+};
+
 Object.defineProperty(Room.prototype, 'extensions', {
     get: function () {
         if (this._extensionsTick !== Game.time) {

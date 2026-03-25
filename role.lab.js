@@ -72,25 +72,7 @@ var REAGENTS = {
 var roleLab = {
 
     getTotalMineralAmount: function (room, resourceType) {
-        var total = 0;
-
-        // Check terminal storage
-        if (room.terminal) {
-            total += room.terminal.store.getUsedCapacity(resourceType);
-        }
-
-        total += _.sum(room.labs, function (lab) { return lab.store.getUsedCapacity(resourceType) || 0; });
-
-        // check all deliverers in the room
-        var creeps = room.find(FIND_MY_CREEPS, {
-            filter: function (creep) {
-                return creep.memory.role === 'deliverer' && creep.store.getUsedCapacity(resourceType) > 0;
-            }
-        });
-
-        total += _.sum(creeps, function (creep) { return creep.store.getUsedCapacity(resourceType); });
-
-        return total;
+        return room.getResourceAmount(resourceType);
     },
 
     autoGenerateGoalsForRoom: function (room) {
@@ -295,8 +277,9 @@ var roleLab = {
         // Update all rooms (cycle)
         for (var roomName in Game.rooms) {
             var r = Game.rooms[roomName];
-            if (!r || !r.terminal || !r.controller.my)
+            if (!r || !r.terminal || !r.controller ||!r.controller.my)
                 continue;
+            
             var goals = this.autoGenerateGoalsForRoom(r);
             r.memory.inventoryGoal = goals;
         }
@@ -378,7 +361,8 @@ var roleLab = {
                 else {
                     // Base mineral missing — keep productionTarget so sharing/market
                     // logic can acquire it next tick instead of wiping the target.
-                    console.log("Waiting for base mineral ", reagent, " for producing ", targetRes, " in ", room.name);
+                    
+                    //console.log("Waiting for base mineral ", reagent, " for producing ", targetRes, " in ", room.name);
                 }
                 return;
             }
@@ -416,7 +400,7 @@ var roleLab = {
             if (labMineralType && labMineralType !== expected) {
                 ready = false;
                 if ((lab.store[labMineralType] || 0) > 0) {
-                    console.log('Lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before switching to ' + expected);
+                    //console.log('Lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before switching to ' + expected);
                     
                 }
             }
@@ -427,7 +411,7 @@ var roleLab = {
             if (labMineralType && labMineralType !== targetRes) {
                 ready = false;
                 if ((lab.store[labMineralType] || 0) > 0) {
-                    console.log('Output lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before producing ' + targetRes);
+                    //console.log('Output lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before producing ' + targetRes);
 
                 }
             }

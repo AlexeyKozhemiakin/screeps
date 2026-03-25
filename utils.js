@@ -240,17 +240,16 @@ var utils = {
         // in reality it has to be more complex - check actual energy capacity
         // building is really killing rooms dont increaase it PLEASE
         var hasLowEnergy =
-            (room.controller.container ? room.controller.container.store.energy < 500 : false) ||
-            (room.spawn.container ? room.spawn.container.store.energy < 100 : false);
+            (room.spawn.container ? room.spawn.container.store.energy < 100 : true);
 
 
         var hasLotsOfEnergy =
-            (room.controller.container ? room.controller.container.store.energy > 500 : true) &&
-            (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
+           (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
+
 
         if (room.storage) {
             hasLowEnergy = room.storage.store.energy < 5000;
-            hasLotsOfEnergy = room.storage.store.energy > 30000;
+            hasLotsOfEnergy = room.storage.store.energy > 20000;
         }
 
 
@@ -1224,10 +1223,10 @@ var utils = {
             }
         }) : [];
 
-        if (heavyHostiles.length > 0 || dangerousHostiles.length >= 3 || (invaderCore && invaderCore.level >= 2))
+        if (hostileTowers.length > 0 || boostedHostiles.length > 0 || heavyHostiles.length > 0 || dangerousHostiles.length >= 3 || (invaderCore && invaderCore.level >= 2))
             return "large";
 
-        if (dangerousHostiles.length >= 2 || invaderCore || conquerFlag || enemyReservation || controllerWalls.length > 0)
+        if (dangerousHostiles.length >= 2 || boostedHostiles.length > 0 || invaderCore || conquerFlag || enemyReservation || controllerWalls.length > 0)
             return "medium";
 
         return "small";
