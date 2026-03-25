@@ -56,6 +56,21 @@ var roleBoost = {
         return Math.min(neededParts, boostableByMineral, boostableByEnergy);
     },
 
+    getBestAvailableBoostResource: function (room, boosts) {
+        if (!room || !boosts || boosts.length === 0) return null;
+
+        for (var i = boosts.length - 1; i >= 0; i--) {
+            var boost = boosts[i];
+            var availableAmount = room.getResourceAmount(boost.resource);
+
+            if (availableAmount >= LAB_BOOST_MINERAL) {
+                return boost.resource;
+            }
+        }
+
+        return null;
+    },
+
     // Get available boost for a role
     getAvailableBoost: function (room, role, creep) {
         const config = this.boostConfigs[role];
@@ -236,18 +251,18 @@ var roleBoost = {
         }
 
         // If there are no goals and production target is complete, reserve spare labs
-        // for top-tier boost compounds configured in boostConfigs.
+        // for the best available boost compounds configured in boostConfigs.
         if (!hasActiveGoals) {
-            const topBoostResources = [];
+            const requestedBoostResources = [];
             const roles = Object.keys(this.boostConfigs);
 
             for (const role of roles) {
                 const config = this.boostConfigs[role];
                 if (!config || !config.boosts || config.boosts.length === 0) continue;
 
-                const topBoost = config.boosts[config.boosts.length - 1].resource;
-                if (topBoostResources.indexOf(topBoost) === -1) {
-                    topBoostResources.push(topBoost);
+                const bestAvailableBoost = this.getBestAvailableBoostResource(room, config.boosts);
+                if (bestAvailableBoost && requestedBoostResources.indexOf(bestAvailableBoost) === -1) {
+                    requestedBoostResources.push(bestAvailableBoost);
                 }
             }
 
@@ -257,7 +272,7 @@ var roleBoost = {
             }
 
             const usedLabIds = {};
-            for (const resourceType of topBoostResources) {
+            for (const resourceType of requestedBoostResources) {
                 let selectedLab = _.find(availableLabs, (lab) => !usedLabIds[lab.id] && lab.mineralType === resourceType);
 
                 if (!selectedLab) {
