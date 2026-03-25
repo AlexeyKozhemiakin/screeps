@@ -137,6 +137,32 @@ var roleBasic = {
         }
     },
 
+    leaveDangerousRoom: function (creep) {
+        var targetRoomName = creep.memory.toGo && creep.memory.toGo[0];
+
+        if (!targetRoomName)
+            return false;
+
+        var roomMemory = Memory.rooms && Memory.rooms[targetRoomName];
+        var dangerous = roomMemory && roomMemory.dangerous;
+
+        if (!dangerous)
+            return false;
+
+        var fallbackRoom = creep.memory.motherland;
+        if (!fallbackRoom || fallbackRoom == targetRoomName)
+            return true;
+
+        creep.say("retreat");
+
+        if (creep.room.name != fallbackRoom) {
+            this.moveToRoom(creep, fallbackRoom);
+            return true;
+        }
+
+        return true;
+    },
+
     goTo: function (creep, target, r = 1, stroke = '#ffffff') {
 
         // we start from far away and try to ignore creeps, if we got stuck we retry

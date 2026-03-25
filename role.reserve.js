@@ -5,6 +5,9 @@ var roleReserve = {
     run: function (creep) {
         var target;
 
+        if (basic.leaveDangerousRoom(creep))
+            return;
+
         if (!basic.moveToRoom(creep)) {
             return;
         }

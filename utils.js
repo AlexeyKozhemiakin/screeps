@@ -955,23 +955,23 @@ var utils = {
                     WORK, MOVE],
                 [WORK, MOVE, WORK, MOVE]];
 
-        var attackPartsSmall = [ATTACK, ATTACK, HEAL, MOVE, MOVE, MOVE];
+        var attackPartsSmall = [MOVE, MOVE, MOVE, HEAL, ATTACK, ATTACK];
         var attackPartsMedium = [
             TOUGH, TOUGH,
-            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
-            HEAL, HEAL,
             MOVE, MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE, MOVE
+            MOVE, MOVE, MOVE, MOVE,
+            HEAL, HEAL,
+            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK
         ];
         var attackPartsLarge = [
             TOUGH, TOUGH, TOUGH, TOUGH,
-            ATTACK, ATTACK, ATTACK, ATTACK,
-            ATTACK, ATTACK, ATTACK, ATTACK,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE,
             HEAL, HEAL, HEAL,
-            MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE
+            ATTACK, ATTACK, ATTACK, ATTACK,
+            ATTACK, ATTACK, ATTACK, ATTACK
         ];
 
 
@@ -1181,11 +1181,30 @@ var utils = {
                 hostile.getActiveBodyparts(TOUGH) >= 5;
         });
 
+        var boostedHostiles = _.filter(hostiles, function (hostile) {
+            return _.some(hostile.body, function (part) {
+                if (part.hits <= 0 || !part.boost)
+                    return false;
+
+                return part.type == ATTACK ||
+                    part.type == RANGED_ATTACK ||
+                    part.type == HEAL ||
+                    part.type == TOUGH ||
+                    part.type == WORK;
+            });
+        });
+
         var invaderCore = targetRoom.find(FIND_STRUCTURES, {
             filter: function (s) {
                 return s.structureType == STRUCTURE_INVADER_CORE;
             }
         })[0];
+
+        var hostileTowers = targetRoom.find(FIND_HOSTILE_STRUCTURES, {
+            filter: function (s) {
+                return s.structureType == STRUCTURE_TOWER && s.isActive() && (s.store[RESOURCE_ENERGY] || 0) >= TOWER_ENERGY_COST;
+            }
+        });
 
         var conquerFlag = targetRoom.find(FIND_FLAGS, {
             filter: function (f) {

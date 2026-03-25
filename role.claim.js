@@ -7,6 +7,9 @@ var roleClaim = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
+        if (basic.leaveDangerousRoom(creep))
+            return;
+
         if (!basic.moveToRoom(creep))
             return;
 

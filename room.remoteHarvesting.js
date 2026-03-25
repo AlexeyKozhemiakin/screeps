@@ -61,10 +61,14 @@ var roomRemoteHarvesting = {
 
             remoteRoom.memory.dangerous = conquerFlag || enemies.length > 0 || enemyReservation;
 
-            if (remoteRoom.memory.dangerous && attackers.length < numAttack) {
-                var memory = utils.createAttackMemory(parentRoom, roomName, remoteRoom);
+            if (remoteRoom.memory.dangerous) {
+                if (attackers.length < numAttack) {
+                    var memory = utils.createAttackMemory(parentRoom, roomName, remoteRoom);
 
-                return { "memory": memory };
+                    return { "memory": memory };
+                }
+
+                continue;
             }
         }
 
