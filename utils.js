@@ -954,7 +954,7 @@ var utils = {
                     WORK, MOVE],
                 [WORK, MOVE, WORK, MOVE]];
 
-        var attackPartsSmall = [MOVE, MOVE, MOVE, HEAL, ATTACK, ATTACK];
+        var attackPartsSmall = [TOUGH, MOVE, MOVE, MOVE, ATTACK, ATTACK];
         var attackPartsMedium = [
             TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
