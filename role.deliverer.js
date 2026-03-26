@@ -256,7 +256,8 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
                         return (s.structureType == STRUCTURE_TOWER) &&
-                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) - creep.store.getCapacity();
+                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) 
+                            - Math.min(200, creep.store.getCapacity());
                     }
                 });
             }
@@ -266,7 +267,8 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
                         return (s.structureType == STRUCTURE_LAB) &&
-                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) - creep.store.getCapacity();
+                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) 
+                            - Math.min(200, creep.store.getCapacity());
                     }
                 });
             }
