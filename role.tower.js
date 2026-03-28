@@ -1,18 +1,21 @@
 module.exports = {
 
     run: function (room) {
-        if(!room)
+        if (!room)
             return;
-        if(!room.controller)
+        if (!room.controller)
             return;
-        if(!room.controller.my)
+        if (!room.controller.my)
             return;
         var towers = room.find(FIND_MY_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER });
+        var repairState = { roadRepairDone: false };
 
-        _.forEach(towers, t => this.runInternal(t));
+        towers = _.sortBy(towers, t => -t.energy);
+
+        _.forEach(towers, t => this.runInternal(t, repairState));
     },
 
-    runInternal: function (tower) {
+    runInternal: function (tower, repairState) {
         //console.log(tower);
         var closestHostile = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
         var damagedTower = tower.pos.findClosestByRange(FIND_MY_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER && s.hits < (3000 - 2 * 800) });
@@ -35,14 +38,13 @@ module.exports = {
         //tower.repair(damagedBuild);
         //}
         else {
-
             if ((tower.room.energyAvailable >= 0.8 * tower.room.energyCapacityAvailable &&
                 tower.energy >= 0.25 * tower.energyCapacity) ||
                 (tower.energy >= 0.9 * tower.energyCapacity)) {
                 var tgts;
 
                 var wallHealth = 10000;
-                var rampartHealth = RAMPART_HITS_MAX[tower.room.controller.level]/50 || 300000;
+                var rampartHealth = RAMPART_HITS_MAX[tower.room.controller.level] / 50 || 300000;
 
                 rampartHealth = Math.min(1000000, rampartHealth);
                 //console.log(tower.room.name, " wallHealth ", wallHealth, " rampartHealth ", rampartHealth);
@@ -50,25 +52,29 @@ module.exports = {
 
                 tgts = tower.room.find(FIND_STRUCTURES, {
                     filter: o => ((o.structureType == STRUCTURE_WALL && o.hits + TOWER_POWER_REPAIR < wallHealth) ||
-                            (o.structureType == STRUCTURE_RAMPART && o.hits + TOWER_POWER_REPAIR < rampartHealth)) ||
+                        (o.structureType == STRUCTURE_RAMPART && o.hits + TOWER_POWER_REPAIR < rampartHealth)) ||
 
                         ((o.structureType != STRUCTURE_WALL && o.structureType != STRUCTURE_RAMPART) &&
                             o.hits + TOWER_POWER_REPAIR < repairK * o.hitsMax)
                 });
 
 
-                var sorted = _.sortBy(tgts, c => c.hits/Math.min(c.hitsMax, wallHealth));
+                var sorted = _.sortBy(tgts, c => c.hits / Math.min(c.hitsMax, wallHealth));
 
                 if (sorted.length > 0) {
                     var tgt = sorted[0];
-                    
+
                     // understand efficiency of tower repair
                     var range = tower.pos.getRangeTo(tgt);
-                   
+
                     //console.log(tower.room.name, " repair " + tgt.structureType + " at range " + range + " hits " + tgt.hits + "/" + tgt.hitsMax, 
                     //        TOWER_OPTIMAL_RANGE, "/", TOWER_FALLOFF_RANGE);
 
                     var err = tower.repair(tgt);
+
+                    if (err == OK && repairState && tgt.structureType == STRUCTURE_ROAD)
+                        repairState.roadRepairDone = true;
+                    
                     if (err != OK)
                         console.log(tower.room.name, "repair err", err);
                 }
