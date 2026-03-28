@@ -44,19 +44,36 @@ var roomPlanning = {
             console.log("Undefined position for building ", structureType, " in ", room.name);
             return;
         }
+
         if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).length > 0)
             return false;
 
-        // Do not build roads on top of other buildings (except containers and ramparts which are walkable)
+        // Do not build roads on top of other buildings 
+        // (except containers and ramparts which are walkable)
 
         var existingStructures = room.lookForAt(LOOK_STRUCTURES, pos);
+        var type = STRUCTURE_EXTENSION;
+
+        // allow removing extension to build on top of them
+
+        var extention = existingStructures.filter(function (s) {
+            return s.structureType == type;
+        });
+
+        if( extention.length > 0 && structureType != type){
+            console.log("Removing",type, "at ", pos, " in ", room.name, " to build ", structureType);
+
+            extention[0].destroy();
+            return;
+           
+        }
+
         if (existingStructures.some(function (s) {
             return s.structureType != STRUCTURE_CONTAINER &&
                 s.structureType != STRUCTURE_ROAD &&
                 s.structureType != STRUCTURE_RAMPART;
         })) {
             return false;
-
         }
 
         var name = undefined;
@@ -253,8 +270,10 @@ var roomPlanning = {
         ];
 
         var pattern5 = [
-            "....r........",
-            "...rer.......",
+            "......r......",
+            ".....r.r.....",
+            "....r...r....",
+            "...rer...r...",
             "..reeer...r..",
             ".rerer.r.rer.",
             "reetrsrlrteer",
@@ -269,10 +288,10 @@ var roomPlanning = {
         var pattern6 = [
             "......r......",
             ".....r.r.....",
-            "....r...r....",
-            "...rer...r...",
-            "..reeerbb.r..",
-            ".rerermrbrer.",
+            "....r.bbr....",
+            "...r.rbr.r...",
+            "..r...r...r..",
+            ".rer.rmr.rer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
@@ -285,21 +304,37 @@ var roomPlanning = {
         var pattern7 = [
             "......r......",
             ".....r.r.....",
-            "....r...r....",
-            "...rerf..r...",
+            "....r.bbr....",
+            "...rerbrbr...",
             "..reeerbb.r..",
-            ".rerermrbrer.",
+            ".rerfrmr.rer.",
             "reetrsrlrteer",
             ".rererPrerer.",
-            "..reeereeer..",
-            "...rererer...",
+            "..reeerpeer..",
+            "...rertrer...",
+            "....reeer....",
+            ".....rer.....",
+            "......r......"
+        ];
+
+         var pattern8 = [
+            "......r......",
+            ".....ror.....",
+            "....rbbbr....",
+            "...rbrbrbr...",
+            "..rtbbrbbtr..",
+            ".rerfrmrarer.",
+            "reetrsrlrteer",
+            ".rererPrerer.",
+            "..rteprpetr..",
+            "...rertrer...",
             "....reeer....",
             ".....rer.....",
             "......r......"
         ];
 
 
-        const patterns = [null, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7];
+        const patterns = [null, pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7, pattern8];
 
         var pattern = patterns[room.controller.level];
 
@@ -364,6 +399,8 @@ var roomPlanning = {
                 // Determine structure type and color based on cell letter
                 const cellMap = {
                     'P': STRUCTURE_SPAWN,
+                    'p': STRUCTURE_SPAWN,
+
                     'e': STRUCTURE_EXTENSION,
                     's': STRUCTURE_STORAGE,
                     't': STRUCTURE_TOWER,
