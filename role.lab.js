@@ -75,6 +75,48 @@ var roleLab = {
         return room.getResourceAmount(resourceType);
     },
 
+    getLabsSortedByCenteredX: function (labs) {
+        if (!labs || labs.length === 0)
+            return [];
+
+        var xs = [];
+        for (var i = 0; i < labs.length; i++) {
+            xs.push(labs[i].pos.x);
+        }
+
+        xs.sort(function (a, b) {
+            return a - b;
+        });
+
+        var middleIndex = Math.floor(xs.length / 2);
+        var centerX = xs[middleIndex];
+        if (xs.length % 2 === 0) {
+            centerX = (xs[middleIndex - 1] + xs[middleIndex]) / 2;
+        }
+
+        return labs.slice().sort(function (a, b) {
+            var aDistance = Math.abs(a.pos.x - centerX);
+            var bDistance = Math.abs(b.pos.x - centerX);
+
+            if (aDistance !== bDistance)
+                return aDistance - bDistance;
+
+            if (a.pos.x !== b.pos.x)
+                return a.pos.x - b.pos.x;
+
+            if (a.pos.y !== b.pos.y)
+                return a.pos.y - b.pos.y;
+
+            if (a.id < b.id)
+                return -1;
+
+            if (a.id > b.id)
+                return 1;
+
+            return 0;
+        });
+    },
+
     autoGenerateGoalsForRoom: function (room) {
         // auto generate goals per room
         // the logic should be - start from simplest compounds tier 1 and then move up
@@ -346,10 +388,12 @@ var roleLab = {
         if (!reagents)
             return;
 
+        var minimumBatchAmount = LAB_REACTION_AMOUNT;
+
         for (var i = 0; i < reagents.length; i++) {
             var reagent = reagents[i];
             var reagentAmount = this.getTotalMineralAmount(room, reagent);
-            if (reagentAmount < gapAmount) {
+            if (reagentAmount < minimumBatchAmount) {
                 // If missing reagent can be produced, switch production chain to that reagent
                 // instead of clearing target and getting stuck.
                 if (REAGENTS[reagent]) {
@@ -368,10 +412,13 @@ var roleLab = {
             }
         }
 
+
+         
         var labs = room.find(FIND_MY_STRUCTURES, {
             filter: function (structure) { return structure.structureType === STRUCTURE_LAB; }
         });
-        labs = _.sortBy(labs, function (l) { return l.id; });
+
+        labs = this.getLabsSortedByCenteredX(labs);
         if (labs.length < 3)
             return;
 
@@ -384,9 +431,9 @@ var roleLab = {
 
         // Clear stale demands only for labs that will be used for reactions.
         // Preserve mineralDemand on labs reserved for boosting by role.boost.prepareLabs.
-        // Reaction labs are the first 2 (inputs) + remaining (outputs), all sorted by id.
+        // Reaction labs are ordered by how centered their x coordinate is.
         for (var i = 0; i < labs.length; i++) {
-            // Labs sorted by id: first 2 are input, rest are output for reactions.
+            // First 2 are input, rest are output for reactions.
             // All of them are reaction labs, so clear their demands.
             labs[i].mineralDemand = null;
         }
