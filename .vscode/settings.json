@@ -1,5 +1,16 @@
 {
     "airun.settings": {
         "workspaceId": "8bc0f835-7dee-48e3-b9d0-0bf5a5332501"
+    },
+    "chat.promptFilesRecommendations": {
+        "speckit.constitution": true,
+        "speckit.specify": true,
+        "speckit.plan": true,
+        "speckit.tasks": true,
+        "speckit.implement": true
+    },
+    "chat.tools.terminal.autoApprove": {
+        ".specify/scripts/bash/": true,
+        ".specify/scripts/powershell/": true
     }
 }
