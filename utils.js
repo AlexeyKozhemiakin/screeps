@@ -964,7 +964,7 @@ var utils = {
             MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
             HEAL, HEAL,
-            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK
+            RANGED_ATTACK, ATTACK, ATTACK, ATTACK, ATTACK
         ];
         var attackPartsLarge = [
             TOUGH, TOUGH, TOUGH, TOUGH,
@@ -973,7 +973,7 @@ var utils = {
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE,
             HEAL, HEAL, HEAL,
-            ATTACK, ATTACK, ATTACK, ATTACK,
+            RANGED_ATTACK, ATTACK, ATTACK, ATTACK,
             ATTACK, ATTACK, ATTACK, ATTACK
         ];
 
