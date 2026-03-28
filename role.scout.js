@@ -26,24 +26,7 @@ var roleScout = {
         }
         else {
 
-            if (creep.pos.isNearTo(target)) {
-                var path = creep.pos.findPathTo(target.pos, { ignoreCreeps: true });
-
-                const directionOpposites = {
-                    [TOP]: BOTTOM,
-                    [TOP_RIGHT]: BOTTOM_LEFT,
-                    [RIGHT]: LEFT,
-                    [BOTTOM_RIGHT]: TOP_LEFT,
-                    [BOTTOM]: TOP,
-                    [BOTTOM_LEFT]: TOP_RIGHT,
-                    [LEFT]: RIGHT,
-                    [TOP_LEFT]: BOTTOM_RIGHT
-                };
-
-                var oppositeDir = directionOpposites[path[0].direction];
-
-                creep.move(oppositeDir)
-            }
+            basic.stepOutOf(creep, target);
         }
     }
 }

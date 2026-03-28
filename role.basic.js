@@ -137,6 +137,27 @@ var roleBasic = {
         }
     },
 
+    stepOutOf: function(creep, target) {
+        if (creep.pos.isNearTo(target)) {
+            var path = creep.pos.findPathTo(target.pos, { ignoreCreeps: true });
+
+            const directionOpposites = {
+                [TOP]: BOTTOM,
+                [TOP_RIGHT]: BOTTOM_LEFT,
+                [RIGHT]: LEFT,
+                [BOTTOM_RIGHT]: TOP_LEFT,
+                [BOTTOM]: TOP,
+                [BOTTOM_LEFT]: TOP_RIGHT,
+                [LEFT]: RIGHT,
+                [TOP_LEFT]: BOTTOM_RIGHT
+            };
+
+            var oppositeDir = directionOpposites[path[0].direction];
+
+            creep.move(oppositeDir)
+        }
+    },
+
     leaveDangerousRoom: function (creep) {
         var targetRoomName = creep.memory.toGo && creep.memory.toGo[0];
 
@@ -291,7 +312,7 @@ var roleBasic = {
             return;
         }
 
-        if(creep.memory.renewCounter && creep.memory.renewCounter >= 5)
+        if (creep.memory.renewCounter && creep.memory.renewCounter >= 5)
             return;
 
         // magic number from API reference
@@ -325,7 +346,7 @@ var roleBasic = {
 
         }
 
-        
+
         if (creep.pos.isNearTo(spawn)) {
             var code = spawn.renewCreep(creep);
             if (code != OK)
