@@ -678,11 +678,6 @@ var roleDeliverer =
         // already withdrew this tick — don't do it again (avoid partial loads)
         if (creep._withdrawn) return false;
 
-        if (source.structureType == STRUCTURE_POWER_BANK && !source.store) {
-            creep.say("⚡");
-            return false;
-        }
-
         //attempt to avoid withdraw to 0 base containers
         if (creep.memory.preferredSourceId && resType == RESOURCE_ENERGY && source.store[resType] < 150) {
             var str = ".";
@@ -747,7 +742,6 @@ var roleDeliverer =
             creep.say("wait");
             return;
         }
-
 
         if (runDropped(creep, 50, RESOURCE_POWER)) {
             creep.memory.task = "deliver";

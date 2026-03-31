@@ -17,21 +17,26 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: JavaScript (ES5-compatible Screeps runtime)  
+**Primary Dependencies**: Screeps runtime globals, Lodash, repository root modules  
+**Storage**: Screeps `Memory`, per-room memory, global memory objects  
+**Testing**: Runtime simulation/manual validation plus any feature-specific automation if explicitly added  
+**Target Platform**: Screeps MMO/sim runtime
+**Project Type**: Persistent game automation AI  
+**Performance Goals**: Preserve or improve room throughput within current CPU budget  
+**Constraints**: Deterministic per-tick behavior, memory contract safety, root-module loader assumptions  
+**Scale/Scope**: Multi-room colony automation with shared role, room, market, and observer systems
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- ES5 compatibility confirmed; any non-ES5 syntax already exists in-repo and is runtime-verified.
+- Owning modules and exact files to change are listed; new files are justified against root-module constraints.
+- Impacted `room.memory.*`, `Memory.rooms.*`, role memory, and migration strategy are documented.
+- CPU-sensitive logic identifies cadence, caching, and hot-path safeguards.
+- Runtime constants, typings, and data sources are identified; no hardcoded gameplay tables are introduced.
+- Validation plan covers acceptance criteria, rollback or disable path, and post-deploy observation window.
 
 ## Project Structure
 
@@ -48,51 +53,23 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+main.js
+utils.js
+market.js
+prototypes.js
+console-commands.js
+role.*.js
+room.*.js
+lib/
+profiling/
+specs/
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: Prefer targeted edits to existing root modules. Any new
+file must name its owning subsystem and justify why an existing `role.*`, `room.*`,
+or shared root module is insufficient.
 
 ## Complexity Tracking
 
