@@ -21,6 +21,7 @@ roomProcess = {
             'reserve': roleReserve,
             'mineralHarvester': roleMineralHarvester,
             'attack': roleAttack,
+            'healer': roleAttack,
             'scout': roleScout,
         }
 

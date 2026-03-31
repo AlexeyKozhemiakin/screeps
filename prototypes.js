@@ -136,6 +136,18 @@ Object.defineProperty(Room.prototype, 'spawns', {
     configurable: true
 });
 
+Object.defineProperty(Room.prototype, 'powerSpawn', {
+    get: function () {
+        if (this._powerSpawnTick !== Game.time) {
+            this._powerSpawn = this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_POWER_SPAWN } })[0];
+            this._powerSpawnTick = Game.time;
+        }
+        return this._powerSpawn;
+    },
+    enumerable: false,
+    configurable: true
+});
+
 Object.defineProperty(Room.prototype, 'towers', {
     get: function () {
         if (this._towersTick !== Game.time) {

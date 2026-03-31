@@ -181,53 +181,74 @@ var roleAttack = {
         var target = undefined;
 
 
-        if(false)
-        if (target == undefined)
-            if (creep.hits < 0.7*creep.hitsMax) {
-                creep.heal(creep);
-            } else {
-                var needHeal = creep.room.find(FIND_MY_CREEPS, { filter: c => c.hits < 0.7*c.hitsMax });
-                if (needHeal.length > 0) {
-                    var heal = needHeal[0];
-                    if (!creep.pos.isNearTo(heal)) {
-                        creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
-                    } else {
-                        creep.heal(heal);
+        if (false)
+            if (target == undefined)
+                if (creep.hits < 0.7 * creep.hitsMax) {
+                    creep.heal(creep);
+                } else {
+                    var needHeal = creep.room.find(FIND_MY_CREEPS, { filter: c => c.hits < 0.7 * c.hitsMax });
+                    if (needHeal.length > 0) {
+                        var heal = needHeal[0];
+                        if (!creep.pos.isNearTo(heal)) {
+                            creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
+                        } else {
+                            creep.heal(heal);
 
+                        }
+                        return;
                     }
-                    return;
-                }
 
-            }
+                }
 
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS,
                 {
-                    filter: (c) => c.body.some(part => part.type === MOVE) &&
-                        (c.body.some(part => part.type === ATTACK) || c.body.some(part => part.type === RANGED_ATTACK))
+                    filter: (c) => c.owner != "Screeps" &&
+                        c.body.some(part => part.type === MOVE) &&
+                        (c.body.some(part => part.type === ATTACK) ||
+                            c.body.some(part => part.type === RANGED_ATTACK))
                 });
         }
 
-         if (target == undefined)
-            if (creep.hits < 0.9*creep.hitsMax) {
-                creep.heal(creep);
-            } else {
-                var needHeal = creep.room.find(FIND_MY_CREEPS, { filter: c => c.hits < 0.9*c.hitsMax });
-                if (needHeal.length > 0) {
-                    var heal = needHeal[0];
-                    if (!creep.pos.isNearTo(heal)) {
-                        creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
-                    } else {
-                        creep.heal(heal);
 
+        if (creep.getActiveBodyparts(HEAL) > 0)
+            if (target == undefined)
+                if (creep.hits < 0.6 * creep.hitsMax) {
+                    creep.heal(creep);
+                } else {
+                    var needHeal = creep.pos.findInRange(FIND_MY_CREEPS, 1,
+                        { filter: c => c.hits < c.hitsMax });
+
+                    if (!needHeal || needHeal.length == 0)
+                        needHeal = creep.room.find(FIND_MY_CREEPS,
+                            { filter: c => c.hits < c.hitsMax });
+
+                    needHeal = _.sortBy(needHeal, c => c.hits / c.hitsMax);
+
+                    if (needHeal.length > 0) {
+                        var heal = needHeal[0];
+                        if (!creep.pos.isNearTo(heal)) {
+                            creep.moveTo(heal, { visualizePathStyle: { stroke: '#00ff00' } });
+                        } else {
+                            creep.heal(heal);
+
+                        }
+                        return;
                     }
-                    return;
+
                 }
 
-            }
 
-
+        // powerbanks
         if (target == undefined) {
+            target = creep.room.find(FIND_STRUCTURES, {
+                filter: object => (
+                    object.structureType == STRUCTURE_POWER_BANK && object.hits > 0)
+            })[0];
+        }
+
+
+        if (target == 412) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => (
 
@@ -235,23 +256,26 @@ var roleAttack = {
             });
         }
 
-        if (target == undefined) {
+        if (target == 3123) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => (
                     object.structureType == STRUCTURE_SPAWN && object.isActive())
             });
         }
 
+
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => (object.isActive() &&
                     (
                         object.structureType == STRUCTURE_LINK ||
-                        object.structureType == STRUCTURE_TOWER ||
-                        object.structureType == STRUCTURE_SPAWN ||
+                        //object.structureType == STRUCTURE_TOWER ||
+                        //object.structureType == STRUCTURE_SPAWN ||
                         object.structureType == STRUCTURE_EXTENSION))
             });
         }
+
+        //console.log("attack target ", target, " in room ", creep.room.name);
 
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
@@ -269,7 +293,8 @@ var roleAttack = {
 
         if (target == undefined) {
             target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
-                filter: (c) => c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0
+                filter: (c) => c.owner != "Screeps" ||
+                    (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
             });
         }
 
@@ -280,9 +305,9 @@ var roleAttack = {
             });
         }
 
-        if (target == undefined) {
-            target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-        }
+        //if (target == undefined) {
+        //    target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
+        //}
 
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
@@ -298,8 +323,9 @@ var roleAttack = {
         //console.log(JSON.stringify(Game.getObjectById("698d574d85ab69eef8dccd67")));
 
 
-        if (target == undefined) {
+        if (target == undefined && creep.room.controller && !creep.room.controller.my) {
             //console.log("no hostile creeps or key structures, attacking walls ", creep.room.name);
+
             var walls = creep.room.controller.pos.findInRange(FIND_STRUCTURES, 1, {
                 filter: object => (
                     object.structureType == STRUCTURE_WALL ||
@@ -313,7 +339,7 @@ var roleAttack = {
         }
 
         if (target == undefined) {
-            var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
+            var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") || f.name.includes("defend") })[0];
 
             if (flag) {
                 // 
@@ -331,12 +357,28 @@ var roleAttack = {
         // console.log("attack target ", target, " in room ", creep.room.name);
 
 
+        if (creep.getActiveBodyparts(RANGED_ATTACK) > 0) {
+            var rangedTarget = creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS,
+                {
+                    filter: (c) => c.owner != "Screeps" &&
+                        (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
+                });
 
-        if (moveToTargetWithStuckDetection(creep, target)) {
-            // Self-heal if damaged
+            if (rangedTarget) {
+                var range = creep.pos.getRangeTo(rangedTarget);
 
-            return true;
+                if (range <= 3 && range > 1)
+                    creep.rangedAttack(rangedTarget);
+
+            }
         }
+
+        if (creep.getActiveBodyparts(ATTACK) > 0)
+            if (moveToTargetWithStuckDetection(creep, target)) {
+                // Self-heal if damaged
+
+                return true;
+            }
 
         if (target instanceof Flag) {
             if (creep.pos.isNearTo(target.pos)) {
@@ -349,25 +391,51 @@ var roleAttack = {
             }
         }
 
-        if (!target) {
+        if (!target && creep.getActiveBodyparts(ATTACK) > 0) {
             //console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
             if (creep.memory.dangerous) {
                 creep.say("🛡️");
 
                 return true;
             }
-            basic.recycleCreep(creep);
+            creep.memory.task = "recycle";
 
             return false;
         }
 
-        var err = creep.attack(target);
+        if (creep.getActiveBodyparts(ATTACK) == 0 && creep.getActiveBodyparts(HEAL) > 0) {
+            //console.log("no target to attack in room ", creep.room.name, " recycling ", creep.name);
+            var noOneToHeal = creep.room.find(FIND_CREEPS, { filter: c => _.some(c.body, b => b.type == ATTACK) }).length == 0;
+            var noPowerBank = creep.room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_POWER_BANK }).length == 0;
 
-        if (err == OK) {
+            if (noOneToHeal && noPowerBank) {
+                basic.recycleCreep(creep);
+            }
+
+            return false;
+        }
+
+        if (creep.getActiveBodyparts(ATTACK) > 0) {
+            // do not attack powerbanks if not healed
+            if (target.structureType == STRUCTURE_POWER_BANK &&
+                creep.hits < 0.7 * creep.hitsMax)
+                return true;
+
+            var err = creep.attack(target);
+
+            if (err == OK) {
+                return true;
+            }
+
+            creep.say("att err" + err);
+        }
+
+        if (creep.getActiveBodyparts(ATTACK) == 0 && target) {
+            console.log(target.structureType, " at ", target ? target.pos : "unknown", " has hits ", target ? target.hits : "unknown");
+            basic.stepOutOf(creep, target);
             return true;
         }
 
-        creep.say("att err" + err);
         return false;
     },
 
@@ -377,28 +445,43 @@ var roleAttack = {
         if (!basic.moveToRoom(creep))
             return;
 
-        if (creep.hits < creep.hitsMax) {
-            creep.heal(creep);
-        }
-
-        if (!creep.memory.attacking) {
-            creep.memory.attacking = true;
+        if (!creep.memory.task) {
+            creep.memory.task = 'attack';
             creep.say('🚧 attack');
         }
 
-        if (creep.memory.attacking) {
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+
+        if (creep.hits < 0.4 * creep.hitsMax) {
+            basic.leaveDangerousRoom(creep);
+            return;
+        }
+
+        if (creep.getActiveBodyparts(HEAL) > 0)
+            if (creep.hits < 0.6 * creep.hitsMax) {
+                creep.heal(creep);
+            }
+
+
+
+        if (creep.memory.task == 'attack') {
             if (this.attack(creep)) {
                 // Attack successful
             }
             else {
-                if (creep.hits < creep.hitsMax) {
-                    creep.heal(creep);
-                } else {
-                    var adjacentCreeps = creep.pos.findInRange(FIND_MY_CREEPS, 3);
-                    for (var i = 0; i < adjacentCreeps.length; i++) {
-                        if (adjacentCreeps[i].hits < adjacentCreeps[i].hitsMax) {
-                            creep.heal(adjacentCreeps[i]);
-                            break;
+                if (creep.getActiveBodyparts(HEAL) > 0) {
+                    if (creep.hits < creep.hitsMax) {
+                        creep.heal(creep);
+                    } else {
+                        var adjacentCreeps = creep.pos.findInRange(FIND_MY_CREEPS, 3);
+                        for (var i = 0; i < adjacentCreeps.length; i++) {
+                            if (adjacentCreeps[i].hits < adjacentCreeps[i].hitsMax) {
+                                creep.heal(adjacentCreeps[i]);
+                                break;
+                            }
                         }
                     }
                 }
