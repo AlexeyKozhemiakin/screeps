@@ -39,7 +39,7 @@ var roleBasic = {
         var cacheKey = creep.room + roomToGo;
         var route = roleBasic._routeCache[cacheKey];
         // this was for case when there were consturcted walls on the way
-        var roomsToAvoid = [];
+        var roomsToAvoid = ["E54S21"];
 
         if (!route) {
             route = Game.map.findRoute(creep.room, roomToGo, {
@@ -274,6 +274,7 @@ var roleBasic = {
 
         if (err == OK) {
             creep.say("picked");
+            return true;
         }
         else if (err == ERR_NOT_IN_RANGE) {
             if (creep.fatigue == 0) {
@@ -283,7 +284,7 @@ var roleBasic = {
         else
             creep.say("oo1" + err);
 
-        return true;
+        return false;
     }
     ,
     findSource: function (creep) {
