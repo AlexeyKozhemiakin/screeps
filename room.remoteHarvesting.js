@@ -69,6 +69,17 @@ var roomRemoteHarvesting = {
                 continue;
             }
 
+            var defendFlag = remoteRoom.find(FIND_FLAGS, { filter: f => f.name.includes("defend") })[0];
+
+            if (defendFlag) {
+                console.log("Remote room ", roomName, " has defend flag ", defendFlag.name, " and ", attackers.length, " defenders");
+                if (attackers.length < 1) {
+                    var memory = utils.createAttackMemory(parentRoom, roomName, remoteRoom);
+
+                    return { "memory": memory };
+                }
+            }
+
             var remoteBuild = remoteRoom.find(FIND_CONSTRUCTION_SITES).length > 0;
 
             if (remoteBuild) {
@@ -77,13 +88,15 @@ var roomRemoteHarvesting = {
                     return { "buildRoom": roomName };
                 }
 
-                continue;
+                //continue;
             }
-     
+
             var needReserve = false;
 
             // some rooms dont have controller like with spawns
-            if (remoteRoom && remoteRoom.controller && remoteRoom.controller.reservation) {
+            if (remoteRoom &&
+                remoteRoom.controller &&
+                remoteRoom.controller.reservation) {
                 if (remoteRoom.controller.reservation.ticksToEnd < 1000) {
                     needReserve = true;
                 }
@@ -99,11 +112,11 @@ var roomRemoteHarvesting = {
 
             //console.log(room.name, needReserve, reservers);
             if (needReserve) {
-                if(reservers.length == 0 ){
+                if (reservers.length == 0) {
                     return { "reserveRoom": roomName };
                 }
 
-                continue;
+                //continue;
             }
 
             var sources = remoteRoom.find(FIND_SOURCES);
@@ -112,11 +125,11 @@ var roomRemoteHarvesting = {
                 if (!source.container) {
                     //console.log("Source ", sourceId, " does not have container in remote room ", roomName);
                     roomPlanning.tryRoad(parentRoom.spawn, source, remoteRoom, 1, true);
-                  
+
                     continue;
                 }
 
-               
+
                 // Get all attached harvesters for this source
                 var attachedCreeps = _.filter(Game.creeps, function (cr) {
                     return cr.memory.role == 'harvester' &&
@@ -141,7 +154,7 @@ var roomRemoteHarvesting = {
                 }
 
                 var amnt = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME; // 3000/300 = 10 per sec
-                
+
                 var memory = utils.createDeliverer(source.container.id, parentRoom.storage.id, amnt, RESOURCE_ENERGY);
 
                 if (memory) {
