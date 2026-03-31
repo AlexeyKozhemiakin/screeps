@@ -155,7 +155,7 @@ module.exports = {
 
                 if (excessRawEnergy > 10000) {
                     //console.log("Room ", roomName, " has excess raw energy because batteries are high, amount ", excessRawEnergy);
-                    this.matchOrderInternal(roomName, RESOURCE_ENERGY, excessRawEnergy, ORDER_BUY);
+                    this.matchOrderInternal(roomName, RESOURCE_ENERGY, Math.min(2000, excessRawEnergy), ORDER_BUY);
                 }
             }
 
@@ -168,7 +168,7 @@ module.exports = {
 
                 if (excessAmount > 100) {
                     // console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
-                    this.matchOrderInternal(roomName, resource, excessAmount, ORDER_BUY);
+                    this.matchOrderInternal(roomName, resource, Math.min(excessAmount, 3000), ORDER_BUY);
                 }
             }
         }
@@ -445,7 +445,7 @@ module.exports = {
             const energyAmount = targetRoom ? Game.market.calcTransactionCost(dealAmount, order.roomName, targetRoom) : 0;
 
 
-            console.log("considering order ", order.id, "price", order.price, "total price with transfer", totalPrice, "energy cost", energyAmount);
+            console.log("considering order for ", order.resourceType, ", amount", dealAmount, "price", order.price, "total price with transfer", totalPrice, "energy cost", energyAmount);
             var code = Game.market.deal(order.id, dealAmount, targetRoom);
 
             if (OK == code) {
