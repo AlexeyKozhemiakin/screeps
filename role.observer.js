@@ -1,27 +1,4 @@
 var roleObserver = {
-    runAll: function () {
-        var globalMemory = this.getGlobalMemory();
-        this.prepareTickState(globalMemory);
-
-        var rooms = _.filter(Game.rooms, function (room) {
-            if (!room)
-                return false;
-
-            if (!room.controller || !room.controller.my)
-                return false;
-
-            return roleObserver.getObserver(room) != null;
-        });
-
-        rooms = _.sortBy(rooms, function (room) {
-            return room.name;
-        });
-
-        for (var i = 0; i < rooms.length; i++) {
-            this.runRoom(rooms[i], globalMemory);
-        }
-    },
-
     run: function (room) {
         var globalMemory = this.getGlobalMemory();
         this.prepareTickState(globalMemory);
@@ -35,7 +12,12 @@ var roleObserver = {
         if (!room.controller || !room.controller.my)
             return;
 
-        var observer = this.getObserver(room);
+        if (!globalMemory)
+            globalMemory = this.getGlobalMemory();
+
+        this.prepareTickState(globalMemory);
+
+        var observer = room.observer;
         if (!observer)
             return;
 
@@ -43,7 +25,7 @@ var roleObserver = {
         if (memory.enabled === false)
             return;
 
-        this.flushObservationResult(room, memory, globalMemory);
+        this.flushObservationResult(room.name, memory, globalMemory);
 
         var observableRooms = this.getObservableRooms(room, memory);
         if (observableRooms.length === 0)
@@ -74,19 +56,6 @@ var roleObserver = {
         }
     },
 
-    getObserver: function (room) {
-        var observers = room.find(FIND_MY_STRUCTURES, {
-            filter: function (s) {
-                return s.structureType == STRUCTURE_OBSERVER;
-            }
-        });
-
-        if (observers.length === 0)
-            return null;
-
-        return observers[0];
-    },
-
     getMemory: function (room) {
         if (!room.memory.observer)
             room.memory.observer = {};
@@ -95,16 +64,19 @@ var roleObserver = {
     },
 
     getGlobalMemory: function () {
-        if (!Memory.observer)
-            Memory.observer = {};
+        var observerMemory = Memory.observer;
+        if (!observerMemory) {
+            observerMemory = {};
+            Memory.observer = observerMemory;
+        }
 
-        if (!Memory.observer.rooms)
-            Memory.observer.rooms = {};
+        if (!observerMemory.rooms)
+            observerMemory.rooms = {};
 
-        if (!Memory.observer.assignments)
-            Memory.observer.assignments = {};
+        if (!observerMemory.assignments)
+            observerMemory.assignments = {};
 
-        return Memory.observer;
+        return observerMemory;
     },
 
     prepareTickState: function (globalMemory) {
@@ -115,7 +87,7 @@ var roleObserver = {
         globalMemory.assignments = {};
     },
 
-    flushObservationResult: function (room, memory, globalMemory) {
+    flushObservationResult: function (observedByRoomName, memory, globalMemory) {
         var pendingRoomName = memory.pendingRoomName;
         if (!pendingRoomName)
             return;
@@ -125,7 +97,7 @@ var roleObserver = {
 
         var observedRoom = Game.rooms[pendingRoomName];
         if (observedRoom) {
-            globalMemory.rooms[pendingRoomName] = this.summarizeRoom(observedRoom, room.name);
+            globalMemory.rooms[pendingRoomName] = this.summarizeRoom(observedRoom, observedByRoomName);
             memory.lastObservedRoomName = pendingRoomName;
             memory.lastObservedTick = Game.time;
         }
@@ -270,7 +242,7 @@ var roleObserver = {
         if (safeIndex < 0)
             safeIndex = 0;
 
-        var candidates = [];
+        var bestCandidate = null;
 
         for (var offset = 0; offset < length; offset++) {
             var index = (safeIndex + offset) % length;
@@ -282,32 +254,40 @@ var roleObserver = {
             if (!this.isInRange(sourceRoomName, targetRoomName))
                 continue;
 
+            var distance = Game.map.getRoomLinearDistance(sourceRoomName, targetRoomName);
+
             if (globalMemory.assignments[targetRoomName])
                 continue;
 
             var observedRoom = globalMemory.rooms[targetRoomName];
             var observedAt = observedRoom && observedRoom.observedAt != null ? observedRoom.observedAt : -1;
 
-            candidates.push({
+            var candidate = {
                 targetRoomName: targetRoomName,
                 nextIndex: (index + 1) % length,
                 observedAt: observedAt,
-                distance: Game.map.getRoomLinearDistance(sourceRoomName, targetRoomName),
+                distance: distance,
                 offset: offset
-            });
+            };
+
+            if (!bestCandidate || this.isBetterObservationCandidate(candidate, bestCandidate))
+                bestCandidate = candidate;
         }
 
-        if (candidates.length === 0)
-            return null;
+        return bestCandidate;
+    },
 
-        candidates = _.sortBy(candidates, function (candidate) {
-            var observedKey = candidate.observedAt < 0 ? -1 : candidate.observedAt;
-            var distanceKey = candidate.distance < 10 ? '0' + candidate.distance : '' + candidate.distance;
-            var offsetKey = candidate.offset < 10 ? '00' + candidate.offset : (candidate.offset < 100 ? '0' + candidate.offset : '' + candidate.offset);
-            return observedKey + '|' + distanceKey + '|' + offsetKey + '|' + candidate.targetRoomName;
-        });
+    isBetterObservationCandidate: function (candidate, currentBest) {
+        if (candidate.observedAt != currentBest.observedAt)
+            return candidate.observedAt < currentBest.observedAt;
 
-        return candidates[0];
+        if (candidate.distance != currentBest.distance)
+            return candidate.distance < currentBest.distance;
+
+        if (candidate.offset != currentBest.offset)
+            return candidate.offset < currentBest.offset;
+
+        return candidate.targetRoomName < currentBest.targetRoomName;
     },
 
     isInRange: function (sourceRoomName, targetRoomName) {
