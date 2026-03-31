@@ -88,6 +88,7 @@ function collect_stats() {
     Memory.stats.tick = Game.time;
     Memory.stats.cpu = Game.cpu;
     Memory.stats.gcl = Game.gcl;
+    Memory.stats.gpl = Game.gpl;
 
     const memory_used = RawMemory.get().length;
 
