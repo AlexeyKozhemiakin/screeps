@@ -1,21 +1,15 @@
 <!--
 Sync Impact Report
-- Version change: template -> 1.0.0
+- Version change: 1.0.0 -> 1.0.1
 - Modified principles:
-	- Template Principle 1 -> I. ES5 Runtime Compatibility
-	- Template Principle 2 -> II. Deterministic Tick Execution & Memory Safety
-	- Template Principle 3 -> III. CPU-Budgeted Automation
-	- Template Principle 4 -> IV. Runtime Truth Over Hardcoding
-	- Template Principle 5 -> V. Minimal, Verifiable Changes
+	- II. Deterministic Tick Execution & Memory Safety (clarified guard-clause and shared-state initialization style)
+	- III. CPU-Budgeted Automation (clarified hot-path candidate selection and prototype accessor preference)
 - Added sections:
-	- Engineering Constraints
-	- Delivery Workflow & Quality Gates
+	- None
 - Removed sections:
 	- None
 - Templates requiring updates:
-	- ✅ .specify/templates/plan-template.md
-	- ✅ .specify/templates/spec-template.md
-	- ✅ .specify/templates/tasks-template.md
+	- None
 - Follow-up TODOs:
 	- None
 -->
@@ -38,7 +32,9 @@ processed twice in a tick MUST not diverge behavior. Changes MUST preserve exist
 `room.memory.*`, `Memory.rooms.*`, and role-memory contracts or include explicit
 migration logic. New role behavior MUST keep the `run(creep)` contract and update
 dispatcher and spawn wiring in `utils.js` when required. Missing game objects MUST
-be handled with early returns rather than nested recovery branches. Rationale:
+be handled with early returns rather than nested recovery branches. Shared per-tick
+global state MUST be initialized once and passed through helpers where practical
+instead of being recomputed in multiple hot-path functions. Rationale:
 automation failures usually originate from memory drift or non-deterministic state
 transitions.
 
@@ -46,7 +42,9 @@ transitions.
 Hot-path logic MUST minimize CPU cost. Expensive scans, path scoring, planning, and
 multi-room evaluation MUST be gated by tick intervals, cached memory, or precomputed
 data. Existing helpers in `prototypes.js` MUST be preferred over repeated raw
-`find()` calls when equivalent behavior exists. Periodic debug logging using
+`find()` calls when equivalent behavior exists. When selecting one target in a
+hot path, implementations SHOULD prefer incremental best-candidate comparisons over
+building arrays and sorting them unless a full ordered list is required. Periodic debug logging using
 `Game.time % N` MUST NOT be added. Rationale: CPU waste directly reduces colony
 throughput and obscures real regressions.
 
@@ -79,6 +77,8 @@ changes are safer in a persistent autonomous simulation.
 	than vague goals.
 - Performance-sensitive features MUST define the affected room scope, cadence, and
 	data source before implementation begins.
+- Style-only refactors in hot-path modules MUST preserve behavior, stay narrowly
+	scoped, and avoid mixing unrelated logic changes into the same patch.
 
 ## Delivery Workflow & Quality Gates
 
@@ -108,4 +108,4 @@ include a constitution compliance check. Any approved exception MUST document th
 violated rule, reason, simpler alternative rejected, approver, and expiration or
 cleanup plan.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-28 | **Last Amended**: 2026-03-28
+**Version**: 1.0.1 | **Ratified**: 2026-03-28 | **Last Amended**: 2026-03-31

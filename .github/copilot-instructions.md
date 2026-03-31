@@ -5,18 +5,18 @@ This file is the authoritative operating guide for contributors and AI agents wo
 
 ## 1) Runtime Architecture
 
-- Main tick orchestration is in [main.js](main.js).
-- Per-room execution flow is coordinated through utilities in [utils.js](utils.js), including movement, planning/building helpers, and spawn logic.
+- Main tick orchestration is in [main.js](../main.js).
+- Per-room execution flow is coordinated through utilities in [utils.js](../utils.js), including movement, planning/building helpers, and spawn logic.
 - Role dispatch is performed by role key (`creep.memory.role`) mapped to `role.*.run(creep)` handlers.
 - Core subsystems:
-	- Spawning and room balancing: [utils.js](utils.js)
-	- Combat/defense automation: [role.tower.js](role.tower.js), [role.attack.js](role.attack.js)
-	- Logistics and energy routing: [role.deliverer.js](role.deliverer.js), [role.link.js](role.link.js)
-	- Boosting: [role.boost.js](role.boost.js)
-	- Market/economy: [market.js](market.js)
-	- Room expansion and remote operations: [room.claim.js](room.claim.js), [room.remoteHarvesting.js](room.remoteHarvesting.js), [role.claim.js](role.claim.js), [role.reserve.js](role.reserve.js), [role.scout.js](role.scout.js)
-	- Visual and planning layers: [room.draw.visuals.js](room.draw.visuals.js), [room.planning.js](room.planning.js)
-	- Shared prototype extensions: [prototypes.js](prototypes.js)
+	- Spawning and room balancing: [utils.js](../utils.js)
+	- Combat/defense automation: [role.tower.js](../role.tower.js), [role.attack.js](../role.attack.js)
+	- Logistics and energy routing: [role.deliverer.js](../role.deliverer.js), [role.link.js](../role.link.js)
+	- Boosting: [role.boost.js](../role.boost.js)
+	- Market/economy: [market.js](../market.js)
+	- Room expansion and remote operations: [room.claim.js](../room.claim.js), [room.remoteHarvesting.js](../room.remoteHarvesting.js), [role.claim.js](../role.claim.js), [role.reserve.js](../role.reserve.js), [role.scout.js](../role.scout.js)
+	- Visual and planning layers: [room.draw.visuals.js](../room.draw.visuals.js), [room.planning.js](../room.planning.js)
+	- Shared prototype extensions: [prototypes.js](../prototypes.js)
 
 ## 2) Non-Negotiable Engineering Rules
 
@@ -25,9 +25,13 @@ This file is the authoritative operating guide for contributors and AI agents wo
 3. Avoid expensive per-tick CPU operations; gate heavy logic using tick intervals.
 8. Never add periodic `console.log` debug logging gated by `Game.time % N`. Each tick is ~4 seconds; such logging is too slow to be useful for debugging and wastes CPU. Use logging on every tick where possible instead
 4. Do not overwrite existing memory contracts (`room.memory.*`, `Memory.rooms.*`) without migration logic.
-5. Prefer existing prototype accessors from [prototypes.js](prototypes.js) instead of repetitive `find()` calls.
+5. Prefer existing prototype accessors from [prototypes.js](../prototypes.js) instead of repetitive `find()` calls.
 6. For API constants/types, always reference [node_modules/@types/screeps/index.d.ts](../node_modules/@types/screeps/index.d.ts) as the source of truth for type signatures, resource string constants, and structure interfaces.
 7. For runtime recipe/component data (e.g. `COMMODITIES[product].components`, `.level`, `.amount`, `.cooldown`), always read from the runtime global constants — never hardcode recipe ingredients, amounts, or level requirements. The typings file only contains type signatures, not the actual values.
+9. Prefer explicit early-return guard clauses over combined or nested branches when validating rooms, creeps, structures, or memory state.
+10. In CPU-sensitive loops, prefer tracking the current best candidate over building arrays and sorting them unless the full ordered list is actually needed.
+11. When singleton room structures have prototype accessors (for example `room.observer`, `room.powerSpawn`, `room.terminal`, `room.spawn`), use the accessor instead of scanning the room again.
+12. When a per-room subsystem shares global tick state, initialize that state once and pass it downward rather than recomputing it in each helper.
 
 ## 3) Development Workflow for New Features
 
@@ -38,14 +42,14 @@ When adding or modifying gameplay logic, follow this order:
 3. Keep behavior deterministic and idempotent per tick.
 4. Add simple guardrails for missing structures/creeps/rooms.
 5. Validate CPU impact and avoid adding repeated expensive scans.
-6. Update this instructions file or [backlog.md](backlog.md) if architecture assumptions changed.
+6. Update this instructions file or [backlog.md](../backlog.md) if architecture assumptions changed.
 
 ## 4) Role System Contract
 
 - Each role module exports `run(creep)`.
 - New roles must be wired in:
-	- Dispatcher map in [utils.js](utils.js)
-	- Spawn decision logic in [utils.js](utils.js)
+	- Dispatcher map in [utils.js](../utils.js)
+	- Spawn decision logic in [utils.js](../utils.js)
 - Role memory conventions to preserve:
 	- `memory.role`
 	- `memory.task`
@@ -53,12 +57,12 @@ When adding or modifying gameplay logic, follow this order:
 
 ## 5) Hardcoded Values to Review Before Major Changes
 
-- Expansion/claim targets and room priority assumptions in [main.js](main.js).
-- Claim sponsor selection thresholds in [room.claim.js](room.claim.js).
-- Tower wall/rampart repair caps and opportunistic repair conditions in [role.tower.js](role.tower.js).
-- Market transfer/sell/buy thresholds in [market.js](market.js).
-- Boost enablement and lab demand behavior in [role.boost.js](role.boost.js).
-- Auto-planning/auto-build behavior and flag-based controls in [utils.js](utils.js) and [room.planning.js](room.planning.js).
+- Expansion/claim targets and room priority assumptions in [main.js](../main.js).
+- Claim sponsor selection thresholds in [room.claim.js](../room.claim.js).
+- Tower wall/rampart repair caps and opportunistic repair conditions in [role.tower.js](../role.tower.js).
+- Market transfer/sell/buy thresholds in [market.js](../market.js).
+- Boost enablement and lab demand behavior in [role.boost.js](../role.boost.js).
+- Auto-planning/auto-build behavior and flag-based controls in [utils.js](../utils.js) and [room.planning.js](../room.planning.js).
 
 ## 6) Operational Priorities (2026)
 
@@ -75,6 +79,8 @@ When adding or modifying gameplay logic, follow this order:
 - If a constant exists in Screeps typings, do not duplicate it in docs.
 - Prefer concrete, testable acceptance criteria in backlog items.
 - Prefer early-return control flow to reduce nestedness; for movement branches around `basic.goTo`, use `if (...) { basic.goTo(...); return; }` instead of `if/else` nesting.
+- In hot-path orchestration code, prefer small helper predicates and direct comparisons over temporary candidate arrays followed by `_.sortBy`.
+- When updating style in an existing module, keep the behavioral diff separate from cosmetic cleanup and avoid unrelated rewrites.
 
 ## 8) Immediate Improvement Themes
 
