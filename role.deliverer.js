@@ -1,4 +1,5 @@
 var basic = require("role.basic");
+const { runDropped } = require("./role.basic");
 
 var linkLimitHigh = 410;
 var linkLimitLow = 310;
@@ -28,13 +29,13 @@ var roleDeliverer =
             }
         }
 
-        
+
         if (!target) {
             target = this.selectTarget(creep);
             creep.memory.cachedTargetId = target ? target.id : undefined;
             creep.memory.cachedTargetResType = target ? resType : undefined;
         }
-        
+
 
         if (!target) {
             creep.say("⏳");
@@ -193,17 +194,17 @@ var roleDeliverer =
             }
 
             //spawn a little bit as first priority
-            if(creep.room.energyAvailable < 800) 
-            if (target == undefined) {
-                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-                    filter: (s) => {
-                        return (s.structureType == STRUCTURE_EXTENSION ||
-                            s.structureType == STRUCTURE_SPAWN) &&
-                            s.isActive() &&
-                            s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
-                    }
-                });
-            }
+            if (creep.room.energyAvailable < 800)
+                if (target == undefined) {
+                    target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                        filter: (s) => {
+                            return (s.structureType == STRUCTURE_EXTENSION ||
+                                s.structureType == STRUCTURE_SPAWN) &&
+                                s.isActive() &&
+                                s.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                        }
+                    });
+                }
 
             //locallinks
             if (target == undefined) {
@@ -256,7 +257,7 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
                         return (s.structureType == STRUCTURE_TOWER) &&
-                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) 
+                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY)
                             - Math.min(200, creep.store.getCapacity());
                     }
                 });
@@ -267,8 +268,18 @@ var roleDeliverer =
                 target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                     filter: (s) => {
                         return (s.structureType == STRUCTURE_LAB) &&
-                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY) 
+                            s.store.energy <= s.store.getCapacity(RESOURCE_ENERGY)
                             - Math.min(200, creep.store.getCapacity());
+                    }
+                });
+            }
+
+            // power spawn fully
+            if (target == undefined) {
+                target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                    filter: (s) => {
+                        return (s.structureType == STRUCTURE_POWER_SPAWN) &&
+                            s.store.getFreeCapacity(RESOURCE_ENERGY) > 200;
                     }
                 });
             }
@@ -345,6 +356,12 @@ var roleDeliverer =
                         target = factoryTarget;
                     }
                 }
+            }
+
+            // POWER SPAWN
+            if (target == undefined && resType == RESOURCE_POWER && creep.room.powerSpawn && creep.room.powerSpawn.isActive()
+                && creep.room.powerSpawn.store.getFreeCapacity(RESOURCE_POWER) > 80) {
+                target = creep.room.powerSpawn;
             }
 
             if (target == undefined) {
@@ -496,6 +513,21 @@ var roleDeliverer =
                 }
             }
 
+            // Power spawn refill - higher priority than generic mineral shuffling
+            if (source == undefined && creep.room.powerSpawn && creep.room.powerSpawn.isActive()
+                && creep.room.powerSpawn.store.getFreeCapacity(RESOURCE_POWER) > 80) {
+                source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+                    filter: function (o) {
+                        return (o.structureType == STRUCTURE_TERMINAL || o.structureType == STRUCTURE_STORAGE)
+                            && (o.store[RESOURCE_POWER] || 0) > 0;
+                    }
+                });
+
+                if (source) {
+                    resType = RESOURCE_POWER;
+                }
+            }
+
             // Offload all minerals from storage if terminal exists
             if (source == undefined && creep.room.terminal) {
                 source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
@@ -629,53 +661,6 @@ var roleDeliverer =
             });
         }
 
-        //commented since it's only used in early game and we already have deliverers
-        
-        /*
-        if (source == undefined) {
-            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_CONTAINER) &&
-                    o.store[resType] > 2 * creep.store.getCapacity() &&
-                    o.isNearBase &&
-                    o != creep.room.controller.container
-            });
-        }
-        if (source == undefined) {
-            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_CONTAINER) &&
-                    o.store[resType] > creep.store.getCapacity() &&
-                    o.isNearBase &&
-                    o != creep.room.controller.container
-            });
-        }
-
-        // any non near base container
-        if (source == undefined) {
-            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => (o.structureType == STRUCTURE_CONTAINER) &&
-                    o.store[resType] > 3 * creep.store.getCapacity() &&
-                    !o.isNearBase &&
-                    o != creep.room.controller.container
-            });
-        }
-
-        // any container
-        if (source == undefined) {
-            source = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                filter: o => o.structureType == STRUCTURE_CONTAINER &&
-                    o.store[resType] > 500 &&
-                    o != creep.room.controller.container
-            });
-        }
-
-        */
-
-        
-
-
-
-
-
         if (!source) {
             creep.say("no source");
             return false;
@@ -693,8 +678,13 @@ var roleDeliverer =
         // already withdrew this tick — don't do it again (avoid partial loads)
         if (creep._withdrawn) return false;
 
+        if (source.structureType == STRUCTURE_POWER_BANK && !source.store) {
+            creep.say("⚡");
+            return false;
+        }
+
         //attempt to avoid withdraw to 0 base containers
-        if (creep.memory.preferredSourceId && resType == RESOURCE_ENERGY && source.store[resType] < 300) {
+        if (creep.memory.preferredSourceId && resType == RESOURCE_ENERGY && source.store[resType] < 150) {
             var str = ".";
             if (creep.ticksToLive % 3 == 0)
                 str = "..";
@@ -740,14 +730,48 @@ var roleDeliverer =
         return false;
     },
 
+    pickupPower: function (creep) {
+        if (!basic.moveToRoom(creep))
+            return;
+
+        var powerBank = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+            filter: s => s.structureType == STRUCTURE_POWER_BANK
+        });
+
+        if (powerBank) {
+            if (creep.pos.getRangeTo(powerBank) > 5) {
+                creep.moveTo(powerBank, { visualizePathStyle: { stroke: '#ffaa00' } });
+                return;
+            }
+
+            creep.say("wait");
+            return;
+        }
+
+
+        if (runDropped(creep, 50, RESOURCE_POWER)) {
+            creep.memory.task = "deliver";
+            delete creep.memory.toGo;
+        }
+
+    },
+
     /** @param {Creep} creep **/
     run: function (creep) {
         if (creep.memory.task == undefined) {
             creep.memory.task = "pickup";
         }
 
+        if (basic.leaveDangerousRoom(creep))
+            return;
+
         if (creep.memory.task == "recycle")
             basic.recycleCreep(creep);
+
+        if (creep.memory.task == "pickupPower") {
+            this.pickupPower(creep);
+            return;
+        }
 
         if (creep.memory.preferredSourceId == undefined)
             creep.room.visual.circle(creep.pos, { fill: 'transparent', radius: 0.55, stroke: 'orange' });
@@ -766,12 +790,12 @@ var roleDeliverer =
                     creep.memory.task = "recycle";
                     return;
                 }
-                
+
                 creep.memory.task = "pickup";
                 creep.memory.recentWithdrawResType = undefined;
                 creep.memory.cachedTargetId = undefined;
                 creep.memory.cachedTargetResType = undefined;
-                
+
                 if (creep.store.getUsedCapacity() == 0) {
                     if (!creep.memory.preferredSourceId) {
                         if (basic.runDropped(creep, 7, undefined, 50))
@@ -805,7 +829,6 @@ var roleDeliverer =
 
             if (this.switchToDeliverIfLoaded(creep))
                 return;
-
 
             // and there is no other - then take advantage
             if (!creep.memory.preferredSourceId) {

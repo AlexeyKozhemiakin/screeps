@@ -4,6 +4,8 @@ var roleLink = require('role.link');
 var roleBoost = require('role.boost');
 var roleFactory = require('role.factory');
 var roleLab = require('role.lab');
+var roleObserver = require('role.observer');
+var roomPowerSpawn = require('room.powerSpawn');
 var scp = require('screepsplus');
 var market = require('market');
 
@@ -23,6 +25,7 @@ var prototypes = require('prototypes');
 var roomPlanning = require('room.planning');
 var roomClaiming = require('room.claim');
 var roomRemoteHarvesting = require('room.remoteHarvesting');
+var roomPowerHarvesting = require('room.powerHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
 
@@ -57,12 +60,12 @@ require('console-commands');
 module.exports.loop = function () {
 
     //profiler.wrap(function () {
-        try {
+    try {
 
-            loopInner();
-        } catch (e) {
-            console.log("Loop error: ", e.stack, e.message);
-        }
+        loopInner();
+    } catch (e) {
+        console.log("Loop error: ", e.stack, e.message);
+    }
     //});
 }
 
@@ -79,7 +82,7 @@ loopInner = function () {
 
             roleLab.manageInventory();
             roleLab.setupReactions();
-            
+
             market.adjustOrders();
         }
         roleLab.runReactions();
@@ -91,22 +94,16 @@ loopInner = function () {
     catch (e) {
         console.log("Market error: ", e.stack, e.message);
     }
-    // Seed Memory.roomsToClaim once, then manage via console commands
-    //if (!Memory.roomsToClaim) {
-    Memory.roomsToClaim = [
-        "E51S23", "E52S23", "E53S22",
-        "E55S22", "E54S22", "E56S23",
-        "E55S21", "E48S27", "E49S23",
-        "E52S22", "E47S26", "E48S22",
 
-        "E48S23", "E57S23", "E45S29"
-    ];
-    //}
+
+
+    // manage via console commands
     var roomsToClaim = Memory.roomsToClaim;
 
-    //"E48S24" was not able to pass because of rampart
-
     var claimOrders = roomClaiming.roomGetSpawnOrders(roomsToClaim);
+
+    if (Game.time % 10 == 0)
+        roomPowerHarvesting.assignPowerHarvestingRooms();
 
     if (claimOrders) {
 
@@ -134,12 +131,16 @@ loopInner = function () {
 
 
         roomProcess.roomMove(room);
+        roleObserver.run(room);
         utils.roomDraw(room);
         utils.safeModeIfDanger(room);
 
         var dT = 100;
 
-        if (room.controller && room.controller.level == 1)
+        if (!room.controller || (room.controller && room.controller.level == 1))
+            dT = 1;
+
+        if (room.controller && !room.controller.my)
             dT = 1;
 
         if (roomTime % dT == 0)
@@ -158,6 +159,67 @@ loopInner = function () {
                 spawnOrder = claimOrders;
             }
 
+            if (!spawnOrder) {
+                var powerOrder = roomPowerHarvesting.getPowerHarvestingOrder(roomName);
+                if (powerOrder)
+                    spawnOrder = powerOrder;
+            }
+
+            //var roomN = "E55S21";
+            //var powerN = "E55S20";
+            //if (room.name == roomN) {
+            //    var deliverers = _.filter(Game.creeps,
+            //        c => c.memory.role == "deliverer" &&
+            //            c.memory.tag == "powerPickup+" + powerN);
+//
+            //    const powerDelivererParts =
+            //        [MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+            //            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
+            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
+            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY];
+//
+            //    var delivererSize = CARRY_CAPACITY * _.sum(powerDelivererParts, p => p == CARRY ? 1 : 0);
+//
+            //    if (deliverers.length < 4000 / delivererSize) {
+//
+            //        var memory = {
+            //            role: "deliverer",
+            //            toGo: [powerN],
+            //            tag: "powerPickup+" + powerN,
+            //            task: "pickupPower",
+            //            preferredSourceId: "nonexistent", // to trigger suicide on pickup
+            //            preferredTargetId: room.storage.id,
+            //            parts: powerDelivererParts
+            //        };
+//
+            //        spawnOrder =  { "memory": memory };
+            //    }
+            //}
+
+            if (roomName == "E57S23!!" && !spawnOrder) {
+                const attackRoomName = "E57S25";
+
+                var attackTargetCount = 1;
+                var attackers = _.filter(Game.creeps, function (creep) {
+                    return creep.role == "attack" &&
+                        creep.memory.toGo &&
+                        creep.memory.toGo[0] == attackRoomName;
+                });
+
+                if (attackers.length < attackTargetCount) {
+                    spawnOrder = {
+                        memory: {
+                            role: "attack",
+                            toGo: [attackRoomName],
+                            parts: [ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
+                                MOVE, MOVE, MOVE, MOVE, MOVE]
+                        }
+                    };
+                }
+
+            }
+
             utils.roomSpawn(room, spawnOrder);
             // console.log(roomName,"Spawn orders: ", JSON.stringify(spawnOrder));
         }
@@ -165,6 +227,10 @@ loopInner = function () {
         roleLink.run(room);
         roleTower.run(room);
         roleFactory.run(room);
+        roomPowerSpawn.run(room);
+
+
+
 
         // Prepare labs for boosting (every 10 ticks)
         if (roomTime % 5 == 0) {

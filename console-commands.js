@@ -39,22 +39,82 @@ global.checkBoosting = function (roomName) {
     var status = roomMemory.enableBoosting ? "enabled" : "disabled";
     return "Boosting is " + status + " in room " + roomName;
 };
-/**
- * Useful Console Commands
- * 
- * Paste these into the Screeps in-game console to manage
- * remote harvesting rooms and rooms-to-claim lists at runtime.
- * 
- * All data is stored in Memory so changes persist across ticks
- * without needing to redeploy code.
- */
 
-// ============================================================
-//  Remote Harvest Management
-//  Stored in: Memory.rooms[parentRoom].config.remoteHarvest
-// ============================================================
+function resetProductionStateForRoom(roomName) {
+    var roomMemory = Memory.rooms && Memory.rooms[roomName];
+    var visibleRoom = Game.rooms && Game.rooms[roomName];
+    var factoryCount = 0;
+    var labCount = 0;
 
-// --- Add a remote harvest room to a parent room ---
+    if (!roomMemory && !visibleRoom) {
+        return null;
+    }
+
+    if (!roomMemory) {
+        Memory.rooms[roomName] = {};
+        roomMemory = Memory.rooms[roomName];
+    }
+
+    delete roomMemory.inventoryGoal;
+    delete roomMemory.productionTarget;
+    delete roomMemory.labSetup;
+    delete roomMemory.labDemand;
+    delete roomMemory.labEnergyDemand;
+    delete roomMemory.factoryDemand;
+    delete roomMemory.factoryProductionTarget;
+
+    if (visibleRoom) {
+        var labs = visibleRoom.find(FIND_MY_STRUCTURES, {
+            filter: function (structure) { return structure.structureType === STRUCTURE_LAB; }
+        });
+        var factories = visibleRoom.find(FIND_MY_STRUCTURES, {
+            filter: function (structure) { return structure.structureType === STRUCTURE_FACTORY; }
+        });
+
+        labCount = labs.length;
+        factoryCount = factories.length;
+    }
+
+    return roomName + " (labs=" + labCount + ", factories=" + factoryCount + ")";
+}
+
+// --- Clear inventory goals and reset lab/factory production state ---
+// Usage: resetProduction()
+// Usage: resetProduction("E51S23")
+global.resetProduction = function (roomName) {
+    var targetRooms = [];
+    var seenRooms = {};
+    var resetRooms = [];
+    var name;
+
+    if (!Memory.rooms) {
+        Memory.rooms = {};
+    }
+
+    if (roomName) {
+        targetRooms.push(roomName);
+    } else {
+        for (name in Memory.rooms) {
+            if (!seenRooms[name]) {
+                seenRooms[name] = true;
+                targetRooms.push(name);
+            }
+        }
+        for (name in Game.rooms) {
+            if (!seenRooms[name]) {
+                seenRooms[name] = true;
+                targetRooms.push(name);
+            }
+        }
+    }
+
+    for (var i = 0; i < targetRooms.length; i++) {
+        var result = resetProductionStateForRoom(targetRooms[i]);
+        if (result) {
+            resetRooms.push(result);
+        }
+    }
+}
 // Usage: addRemoteHarvest("E51S23", "E50S23")
 global.addRemoteHarvest = function (parentRoomName, remoteRoomName) {
     if (!Memory.rooms[parentRoomName]) {
@@ -96,6 +156,246 @@ global.listRemoteHarvest = function (parentRoomName) {
         return "No remoteHarvest config for " + parentRoomName;
     }
     return parentRoomName + " remoteHarvest: " + JSON.stringify(Memory.rooms[parentRoomName].config.remoteHarvest);
+};
+
+
+// ============================================================
+//  Observer Management
+//  Stored in: Memory.rooms[roomName].observer and Memory.observer.rooms
+// ============================================================
+
+global.checkObserver = function (roomName) {
+    if (!Memory.rooms || !Memory.rooms[roomName] || !Memory.rooms[roomName].observer) {
+        return "No observer config found for " + roomName;
+    }
+
+    var observerMemory = Memory.rooms[roomName].observer;
+    var status = observerMemory.enabled === false ? "disabled" : "enabled";
+    return "Observer is " + status + " in room " + roomName + ", lastAttempt=" + observerMemory.lastAttemptedRoomName + ", lastObserved=" + observerMemory.lastObservedRoomName;
+};
+
+global.getObservedRoom = function (roomName) {
+    if (!Memory.observer || !Memory.observer.rooms || !Memory.observer.rooms[roomName]) {
+        return "No observed room result for " + roomName;
+    }
+
+    return JSON.stringify(Memory.observer.rooms[roomName]);
+};
+
+global.clearObservedRoom = function (roomName) {
+    if (!Memory.observer || !Memory.observer.rooms || !Memory.observer.rooms[roomName]) {
+        return "No observed room result for " + roomName;
+    }
+
+    delete Memory.observer.rooms[roomName];
+    return "Cleared observed room result for " + roomName;
+};
+
+// --- Clear cached observableRooms from all observer room memories ---
+// Usage: cor()
+global.cor = function () {
+    if (!Memory.rooms) {
+        return "No room memory found";
+    }
+
+    var cleared = 0;
+
+    for (var roomName in Memory.rooms) {
+        var roomMemory = Memory.rooms[roomName];
+        if (!roomMemory || !roomMemory.observer || !roomMemory.observer.observableRooms) {
+            continue;
+        }
+
+        delete roomMemory.observer.observableRooms;
+        cleared++;
+    }
+
+    return "Cleared observer.observableRooms in " + cleared + " rooms";
+};
+
+// --- Utility: print table helper (file-scoped) ---
+function printTable(headers, rows, textCols) {
+    function pad(s, w) { return String(s).padEnd(w); }
+    var widths = headers.map(function (h) { return h.length; });
+    for (var i = 0; i < rows.length; i++) {
+        for (var j = 0; j < rows[i].length; j++) {
+            widths[j] = Math.max(widths[j], String(rows[i][j]).length);
+        }
+    }
+    var sep = '+' + widths.map(function (w) { return '-'.repeat(w + 2); }).join('+') + '+';
+    console.log(sep);
+    console.log('| ' + headers.map(function (h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
+    console.log(sep);
+    return { widths: widths, sep: sep };
+}
+
+global.listPowerBanks = function () {
+    if (!Memory.observer || !Memory.observer.rooms) {
+        return "No observed rooms in memory";
+    }
+
+    var myLevel8Rooms = _.chain(Game.rooms)
+        .filter(function (room) {
+            return room && room.controller && room.controller.my && room.controller.level >= 7;
+        })
+        .map(function (room) {
+            return room.name;
+        })
+        .value();
+
+    var result = [];
+
+    for (var roomName in Memory.observer.rooms) {
+        var observedRoom = Memory.observer.rooms[roomName];
+        if (!observedRoom || !observedRoom.powerBank)
+            continue;
+
+        var hits = observedRoom.powerBank.hits || 0;
+        var ticksToDecay = observedRoom.powerBank.ticksToDecay || 0;
+        var requiredAttackParts = 0;
+
+        if (ticksToDecay > 0) {
+            requiredAttackParts = Math.ceil(hits / (ticksToDecay - 500) / ATTACK_POWER);
+        }
+
+        var closestLevel8Room = null;
+        var closestLevel8Distance = null;
+
+        for (var i = 0; i < myLevel8Rooms.length; i++) {
+            var myRoomName = myLevel8Rooms[i];
+            var distance = 50 * Game.map.getRoomLinearDistance(roomName, myRoomName);
+            var route = Game.map.findRoute(roomName, myRoomName);
+            if (route != ERR_NO_PATH) {
+                distance = 50 * route.length;
+            }
+            if (closestLevel8Distance === null || distance < closestLevel8Distance) {
+                closestLevel8Distance = distance;
+                closestLevel8Room = myRoomName;
+            }
+        }
+
+        var efficiency = 1 - closestLevel8Distance / 1500;
+
+        var cost = BODYPART_COST[ATTACK] + 2 * BODYPART_COST[MOVE] + BODYPART_COST[HEAL];
+        cost = 50 * cost;
+        cost = cost / efficiency;
+
+        console.log("Power bank in ", roomName, " has hits ",
+            hits, " ticksToDecay ", ticksToDecay,
+            " requiredAttackParts ",
+            requiredAttackParts, " closestLevel8Room ",
+            closestLevel8Room, " closestLevel8Distance ",
+            closestLevel8Distance, " efficiency ",
+            efficiency.toFixed(2), " cost ",
+            cost.toFixed(2));
+
+        var value = requiredAttackParts * cost / observedRoom.powerBank.power;
+
+        result.push({
+            roomName: roomName,
+            observedAt: observedRoom.observedAt,
+            observedBy: observedRoom.observedBy,
+            hits: hits,
+            power: observedRoom.powerBank.power,
+            ticksToDecay: ticksToDecay,
+            closestLevel8Room: closestLevel8Room,
+            closestLevel8Distance: closestLevel8Distance,
+            requiredAttackParts: requiredAttackParts,
+            value: value,
+
+        });
+    }
+
+    if (result.length === 0) {
+        return "No power banks found in observed rooms";
+    }
+
+    result = _.sortBy(result, function (entry) {
+        return entry.value;
+    });
+
+    var headers = ['Room', 'Ticks', 'Hits', 'Power', 'ClosestRCL8', 'Dist', 'AttackParts', 'Value'];
+    var rows = result.map(function (entry) {
+        return [
+            entry.roomName,
+            String(entry.ticksToDecay),
+            String(entry.hits),
+            String(entry.power),
+            entry.closestLevel8Room || '-',
+            entry.closestLevel8Distance === null ? '-' : String(entry.closestLevel8Distance),
+            String(entry.requiredAttackParts),
+            String(entry.value.toFixed(2)),
+        ];
+    });
+
+    var tbl = printTable(headers, rows, [0, 4]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var k = 0; k < rows.length; k++) {
+        console.log('| ' + rows[k].map(function (value, index) {
+            if (index === 0 || index === 4)
+                return pad(value, tbl.widths[index]);
+            return rpad(value, tbl.widths[index]);
+        }).join(' | ') + ' |');
+    }
+    console.log(tbl.sep);
+
+    return "Printed " + result.length + " observed power banks";
+};
+
+// --- List all observed deposits ---
+// Usage: listDeposits()
+global.listDeposits = function () {
+    if (!Memory.observer || !Memory.observer.rooms) {
+        return "No observed rooms in Memory.observer.rooms.";
+    }
+    var result = [];
+    for (var roomName in Memory.observer.rooms) {
+        var room = Memory.observer.rooms[roomName];
+        if (room.deposits && room.deposits.length > 0) {
+            for (var i = 0; i < room.deposits.length; i++) {
+                var dep = room.deposits[i];
+                result.push({
+                    roomName: roomName,
+                    id: dep.id,
+                    type: dep.depositType,
+                    cooldown: dep.cooldown,
+                    ticksToDecay: dep.ticksToDecay,
+                    observedAt: room.observedAt,
+                    observedBy: room.observedBy
+                });
+            }
+        }
+    }
+    if (result.length === 0) {
+        return "No deposits found in observed rooms.";
+    }
+
+    // Table columns: Room, Type, Cooldown, Ticks, ID, ObservedBy, ObservedAt
+    var headers = ['Room', 'Type', 'Cooldown', 'Ticks', 'ID', 'ObservedBy', 'ObservedAt'];
+    var rows = result.map(function (entry) {
+        return [
+            entry.roomName,
+            entry.type,
+            String(entry.cooldown),
+            String(entry.ticksToDecay),
+            entry.id,
+            entry.observedBy || '-',
+            entry.observedAt === undefined ? '-' : String(entry.observedAt)
+        ];
+    });
+
+    var tbl = printTable(headers, rows, [0, 1]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var k = 0; k < rows.length; k++) {
+        console.log('| ' + rows[k].map(function (value, index) {
+            return (index === 0 || index === 1) ? pad(value, tbl.widths[index]) : rpad(value, tbl.widths[index]);
+        }).join(' | ') + ' |');
+    }
+    console.log(tbl.sep);
+
+    return "Printed " + result.length + " observed deposits";
 };
 
 
@@ -193,7 +493,7 @@ global.calculateAndStorePrices = function () {
         var avgPrice = recentHistory.reduce((sum, entry) => sum + entry.avgPrice, 0) / recentHistory.length;
 
         raw_prices[resource] = avgPrice;
-        
+
         console.log(" " + resource + ": " + avgPrice.toFixed(2));
     });
 
@@ -217,7 +517,7 @@ global.calculateAndStorePrices = function () {
         RESOURCE_METAL,     // 'metal'
         RESOURCE_BIOMASS,   // 'biomass'
         RESOURCE_MIST,      // 'mist'
-    ].forEach(function(r) { PRIMITIVE_SET[r] = true; });
+    ].forEach(function (r) { PRIMITIVE_SET[r] = true; });
 
     // Recursively compute the production cost of a resource using only
     // primitive market prices at the leaves.
@@ -267,21 +567,21 @@ global.calculateAndStorePrices = function () {
 
         var shallowMargin = shallowCost > 0 ? ((marketPrice - shallowCost) / shallowCost * 100).toFixed(1) : "N/A";
         var deepMarginStr = deepCost > 0 ? ((marketPrice - deepCost) / deepCost * 100).toFixed(1) : "-";
-        var deepCostStr   = deepCost > 0 ? deepCost.toFixed(2).padStart(10) : "         -";
+        var deepCostStr = deepCost > 0 ? deepCost.toFixed(2).padStart(10) : "         -";
 
-        var padResource    = resource.padEnd(17);
-        var padMarket      = marketPrice.toFixed(1).padStart(10);
-        var padShallow     = shallowCost.toFixed(1).padStart(10);
-        var padShallowM    = shallowMargin.padStart(14);
-        var padDeepM       = deepMarginStr.padStart(11);
-        var reagents       = Object.keys(commodity.components).join(", ");
+        var padResource = resource.padEnd(17);
+        var padMarket = marketPrice.toFixed(1).padStart(10);
+        var padShallow = shallowCost.toFixed(1).padStart(10);
+        var padShallowM = shallowMargin.padStart(14);
+        var padDeepM = deepMarginStr.padStart(11);
+        var reagents = Object.keys(commodity.components).join(", ");
 
         console.log(padResource + " | " + padMarket + " | " + padShallow + " | " + deepCostStr + " | " + padShallowM + "% | " + padDeepM + "% | " + level + " | " + reagents);
     });
 
     //Memory.prices = undefined;
     return "Done.";
-} 
+}
 
 // Analyze market history from archived Memory + live transactions
 // Usage: analyzeMarketHistory()                    — all resources, summary
@@ -317,12 +617,12 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
 
     // Apply resource filter
     if (filterResource) {
-        all = all.filter(function(t) { return t.resourceType === filterResource; });
+        all = all.filter(function (t) { return t.resourceType === filterResource; });
     }
 
     if (all.length === 0) {
         return "No market transactions found." + (filterResource ? " (filter: " + filterResource + ")" : "") +
-               " Archive has " + archived.length + " entries total.";
+            " Archive has " + archived.length + " entries total.";
     }
 
     // ---- Helpers ----
@@ -336,18 +636,18 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         var dd = String(d.getDate()).padStart(2, '0');
         return yyyy + '-' + mm + '-' + dd;
     }
-    function pad(s, w)  { return String(s).padEnd(w); }
+    function pad(s, w) { return String(s).padEnd(w); }
     function rpad(s, w) { return String(s).padStart(w); }
     function printTable(headers, data, textCols) {
-        var widths = headers.map(function(h) { return h.length; });
-        data.forEach(function(d) {
+        var widths = headers.map(function (h) { return h.length; });
+        data.forEach(function (d) {
             for (var i = 0; i < d.length; i++) {
                 widths[i] = Math.max(widths[i], d[i].length);
             }
         });
-        var sep = '+' + widths.map(function(w) { return '-'.repeat(w + 2); }).join('+') + '+';
+        var sep = '+' + widths.map(function (w) { return '-'.repeat(w + 2); }).join('+') + '+';
         console.log(sep);
-        console.log('| ' + headers.map(function(h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
+        console.log('| ' + headers.map(function (h, i) { return pad(h, widths[i]); }).join(' | ') + ' |');
         console.log(sep);
         return { widths: widths, sep: sep };
     }
@@ -362,7 +662,7 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
     if (groupByDate) {
         // =========== GROUP BY DATE ===========
         var agg = {};
-        all.forEach(function(t) {
+        all.forEach(function (t) {
             var date = tickToDateStr(t.time);
             var key = date + '|' + t.dir + '|' + t.resourceType;
             if (!agg[key]) {
@@ -378,14 +678,14 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         });
 
         var rows = Object.values(agg);
-        rows.sort(function(a, b) {
+        rows.sort(function (a, b) {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
             return a.resource.localeCompare(b.resource);
         });
 
         var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits'];
-        var data = rows.map(function(r) {
+        var data = rows.map(function (r) {
             var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
             var total = r.totalCredits.toFixed(2);
             return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, total];
@@ -394,12 +694,12 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         console.log('\n=== Market History by Date (' + all.length + ' transactions) ===\n');
         var tbl = printTable(headers, data, [0, 1, 2]);
         var prevDate = '';
-        data.forEach(function(d) {
+        data.forEach(function (d) {
             if (d[0] !== prevDate && prevDate !== '') {
                 console.log(tbl.sep);
             }
             prevDate = d[0];
-            console.log('| ' + d.map(function(v, i) {
+            console.log('| ' + d.map(function (v, i) {
                 return i <= 2 ? pad(v, tbl.widths[i]) : rpad(v, tbl.widths[i]);
             }).join(' | ') + ' |');
         });
@@ -407,7 +707,7 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
 
         // Daily totals
         var dailyTotals = {};
-        rows.forEach(function(r) {
+        rows.forEach(function (r) {
             if (!dailyTotals[r.date]) dailyTotals[r.date] = { bought: 0, sold: 0 };
             if (r.direction === 'BUY') dailyTotals[r.date].bought += r.totalCredits;
             else dailyTotals[r.date].sold += r.totalCredits;
@@ -415,22 +715,22 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
 
         console.log('\n--- Daily Totals ---');
         var grandBought = 0, grandSold = 0;
-        Object.keys(dailyTotals).sort().forEach(function(date) {
+        Object.keys(dailyTotals).sort().forEach(function (date) {
             var d = dailyTotals[date];
             grandBought += d.bought;
             grandSold += d.sold;
             console.log(date + '  spent: ' + d.bought.toFixed(2).padStart(10) +
-                         '  earned: ' + d.sold.toFixed(2).padStart(10) +
-                         '  net: ' + (d.sold - d.bought).toFixed(2).padStart(10));
+                '  earned: ' + d.sold.toFixed(2).padStart(10) +
+                '  net: ' + (d.sold - d.bought).toFixed(2).padStart(10));
         });
         console.log('TOTAL     spent: ' + grandBought.toFixed(2).padStart(10) +
-                     '  earned: ' + grandSold.toFixed(2).padStart(10) +
-                     '  net: ' + (grandSold - grandBought).toFixed(2).padStart(10));
+            '  earned: ' + grandSold.toFixed(2).padStart(10) +
+            '  net: ' + (grandSold - grandBought).toFixed(2).padStart(10));
 
     } else {
         // =========== SUMMARY BY RESOURCE (default) ===========
         var agg = {};
-        all.forEach(function(t) {
+        all.forEach(function (t) {
             var key = t.dir + '|' + t.resourceType;
             if (!agg[key]) {
                 agg[key] = {
@@ -448,14 +748,14 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         });
 
         var rows = Object.values(agg);
-        rows.sort(function(a, b) {
+        rows.sort(function (a, b) {
             if (a.direction !== b.direction) return a.direction === 'BUY' ? -1 : 1;
             return a.resource.localeCompare(b.resource);
         });
 
         var now = Game.time;
         var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Span'];
-        var data = rows.map(function(r) {
+        var data = rows.map(function (r) {
             var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
             var total = r.totalCredits.toFixed(2);
             var span = tickToDateStr(r.minTick) + ' — ' + tickToDateStr(r.maxTick);
@@ -465,8 +765,8 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         console.log('\n=== Market Transaction History (' + all.length + ' transactions) ===\n');
         var tbl = printTable(headers, data, [0, 1]);
 
-        data.forEach(function(d) {
-            console.log('| ' + d.map(function(v, i) {
+        data.forEach(function (d) {
+            console.log('| ' + d.map(function (v, i) {
                 return i <= 1 ? pad(v, tbl.widths[i]) : rpad(v, tbl.widths[i]);
             }).join(' | ') + ' |');
         });
@@ -474,7 +774,7 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
 
         // Summary totals
         var totalBought = 0, totalSold = 0;
-        rows.forEach(function(r) {
+        rows.forEach(function (r) {
             if (r.direction === 'BUY') totalBought += r.totalCredits;
             else totalSold += r.totalCredits;
         });
@@ -485,8 +785,8 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
     }
 
     return "Analyzed " + all.length + " transactions spanning " +
-           tickToDateStr(minTick) + " to " + tickToDateStr(maxTick) + "." +
-           " (archive: " + archived.length + " entries)";
+        tickToDateStr(minTick) + " to " + tickToDateStr(maxTick) + "." +
+        " (archive: " + archived.length + " entries)";
 };
 
 // --- Check market history archive status ---
@@ -506,8 +806,8 @@ global.marketHistoryStatus = function () {
     var TICK_MS = 4200;
     var ageHours = count > 0 ? ((Game.time - oldestTick) * TICK_MS / 3600000).toFixed(1) : '0';
     return "Market history: " + count + " entries (" + buys + " buys, " + sells + " sells), " +
-           "spanning ~" + ageHours + " hours. Last archived tick: " + hist.lastTick +
-           ". Memory size: ~" + (JSON.stringify(hist.txns).length / 1024).toFixed(1) + " KB.";
+        "spanning ~" + ageHours + " hours. Last archived tick: " + hist.lastTick +
+        ". Memory size: ~" + (JSON.stringify(hist.txns).length / 1024).toFixed(1) + " KB.";
 };
 
 // --- Clear market history archive ---
