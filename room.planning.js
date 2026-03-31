@@ -303,33 +303,33 @@ var roomPlanning = {
 
         var pattern7 = [
             "......r......",
-            ".....r.r.....",
-            "....r.bbr....",
-            "...rerbrbr...",
-            "..reeerbb.r..",
+            "....er.re....",
+            "..eer.bbree..",
+            "..ererbrbre..",
+            ".ereeerbb.re.",
             ".rerfrmr.rer.",
             "reetrsrlrteer",
             ".rererPrerer.",
-            "..reeerpeer..",
-            "...rertrer...",
-            "....reeer....",
-            ".....rer.....",
+            ".ereeerpeere.",
+            "..erertrere..",
+            "..eereeeree..",
+            "....erere....",
             "......r......"
         ];
 
          var pattern8 = [
             "......r......",
-            ".....ror.....",
-            "....rbbbr....",
-            "...rbrbrbr...",
-            "..rtbbrbbtr..",
+            "....erore....",
+            "..eerbbbree..",
+            "..erbrbrbre..",
+            ".ertbbrbbtre.",
             ".rerfrmrarer.",
             "reetrsrlrteer",
             ".rererPrerer.",
-            "..rteprpetr..",
-            "...rertrer...",
-            "....reeer....",
-            ".....rer.....",
+            ".erteprpetre.",
+            "..erertrere..",
+            "..eereeeree..",
+            "....erere....",
             "......r......"
         ];
 
