@@ -41,7 +41,6 @@ module.exports = {
 
     shareEnergyInternal: function () {
 
-        // for all terminals above 100k send energy to those below 50k
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
             if (!room || !room.terminal || !room.storage)
@@ -62,6 +61,37 @@ module.exports = {
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
                 if (totalInTarget < 50000) {
                     var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 5000);
+                    if(res)
+                        return;// make it slower
+                }
+            }
+        }
+
+        const res_type = RESOURCE_POWER;
+        var threshold = 10000;
+        var delta = 1000;
+
+        for (const roomName in Game.rooms) {
+            const room = Game.rooms[roomName];
+            if (!room || !room.terminal || !room.storage)
+                continue;
+
+            if(!room.powerSpawn)
+                continue;
+
+            if (room.terminal.store[res_type] < threshold)
+                continue;
+
+            //console.log("Room ", roomName, " has excess ", res_type, " ", room.terminal.store[res_type]);
+            for (const targetRoomName in Game.rooms) {
+                const targetRoom = Game.rooms[targetRoomName];
+                if (!targetRoom || !targetRoom.controller|| !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
+                    continue;
+
+                var totalInTarget = targetRoom.terminal.store[res_type] + targetRoom.storage.store[res_type];
+                
+                if (totalInTarget < threshold + delta) {
+                    var res = this.shareResource(roomName, targetRoomName, res_type, delta);
                     if(res)
                         return;// make it slower
                 }
