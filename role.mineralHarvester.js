@@ -48,6 +48,8 @@ var roleMineralHarvester = {
         if (harvestCode != OK) {
             creep.say("mnrl " + harvestCode);
         }
+
+        //creep.memory.task = "deliver";
     },
 
     runDeliver: function (creep) {
@@ -87,7 +89,7 @@ var roleMineralHarvester = {
             creep.memory.task = "harvest";
         }
 
-        if (creep.store.getFreeCapacity() == 0) {
+        if (creep.store.getFreeCapacity() <= creep.getActiveBodyparts(WORK) * HARVEST_MINERAL_POWER) {
             creep.memory.task = "deliver";
         }
 

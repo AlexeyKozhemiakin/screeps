@@ -244,7 +244,7 @@ var utils = {
 
 
         var hasLotsOfEnergy =
-           (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
+            (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
 
 
         if (room.storage) {
@@ -285,7 +285,7 @@ var utils = {
 
         // throttled on 8th level
         if (room.controller.level == 8)
-            upgradePartsNeeded = 15;
+            upgradePartsNeeded = Math.min(upgradePartsNeeded, 15);
 
 
         //console.log(room.name, ups);
@@ -294,7 +294,7 @@ var utils = {
             return creep.memory.role == 'upgrader';
         });
 
-        var boostExtraTime = 4+4;
+        var boostExtraTime = 4 + 4;
 
         var gapUpgradeParts = this.calculateRoleGap(
             roomCreeps,
@@ -302,7 +302,7 @@ var utils = {
             upgradePartsNeeded,
             room.spawn,
             room.controller,
-            WORK, 
+            WORK,
             boostExtraTime
         );
 
@@ -444,12 +444,31 @@ var utils = {
         var needMinerals = roleMineralHarvester.needHarvester(room) &&
             room.storage.store[RESOURCE_ENERGY] > RICH_ROOM_ENERGY;
 
+        var mineralHarvestPartsNeeded = 0;
+        if (needMinerals) {
+            mineralHarvestPartsNeeded = 10;
+
+            if (room.controller.level == 8)
+                mineralHarvestPartsNeeded = 30;
+        }
+
+        var gapMineralHarvestParts = this.calculateRoleGap(
+            roomCreeps,
+            'mineralHarvester',
+            mineralHarvestPartsNeeded,
+            room.spawn,
+            room.extractor.container,
+            WORK
+        );
+
+
         room.memory.needMineralHarvester = needMinerals;
 
         // MINERAL deliverer
         if (mem.role == null) {
             if (mineralHarvesters.length > 0 &&
-                (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY * 0.5)) {
+                (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY * 0.4)) {
+
                 var amountPerSec = _.sum(_.map(mineralHarvesters, m => m.getActiveBodyparts(WORK))) * HARVEST_MINERAL_POWER / EXTRACTOR_COOLDOWN;
 
                 var targetId = room.storage.id;
@@ -491,8 +510,6 @@ var utils = {
                 mem.role = "upgrader";
             }
 
-
-
             if (roomCreeps.length == 0)
                 energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
@@ -510,20 +527,11 @@ var utils = {
         }
         else if (gapUpgradeParts > 0) {
             mem.role = 'upgrader';
-
-            // fix this for links
-            //this.isRoaded(spawn, room.controller.container, room)
-
-            // we will assume it's all roaded in auto rooms
-            var isRoaded = true;
-            if (isRoaded) {
-                //console.log("Upgrader light for roading in ", room.name);
-                mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
-            }
-
+            mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
         }
-        else if (mineralHarvesters.length < 1 && needMinerals) {
+        else if (gapMineralHarvestParts > 0) {
             mem.role = 'mineralHarvester';
+            mem.parts = utils.createMineralHarvesterBody(gapMineralHarvestParts, room);
         }
         else if (spawnOrders && spawnOrders.scoutRoom) {
             mem.role = 'scout';
@@ -617,6 +625,8 @@ var utils = {
         var string =
             "upgradePartsNeeded=" + upgradePartsNeeded +
             " upgradeGap=" + gapUpgradeParts +
+            " mineralPartsNeeded=" + mineralHarvestPartsNeeded +
+            " mineralGap=" + gapMineralHarvestParts +
             " numBld=" + numBld +
             " energyAvailable=" + room.energyAvailable +
             " energyCapacity=" + room.energyCapacityAvailable +
@@ -703,10 +713,10 @@ var utils = {
         var fromPos = from.pos || from;
         var toPos = to.pos || to;
         var ticksToTravel = fromPos.findPathTo(toPos, { ignoreCreeps: true }).length;
-        
+
         var totalTicks = ticksToCreate + ticksToTravel + extraTicks;
         bodyPart = bodyPart || WORK;
-    
+
         // do not count creeps close to death, that will be replaced anyway
         var creeps = _.filter(roomCreeps, function (creep) {
             return creep.memory.role == role && (creep.ticksToLive > totalTicks || creep.spawning);
@@ -731,34 +741,61 @@ var utils = {
     },
 
     /**
+     * Create a body with fixed base parts and additional WORK plus periodic MOVE parts.
+     * @param {number} requestedWorkParts - Maximum number of WORK parts to add.
+     * @param {Room} room - The room object to use for energy limits.
+     * @param {string[]} baseParts - Parts always included before scaling WORK.
+     * @param {number} moveEveryWorkParts - Add one MOVE after this many WORK parts.
+     * @returns {string[]} Array of body parts.
+     */
+    createWorkBody: function (requestedWorkParts, room, baseParts, moveEveryWorkParts) {
+        var maxWork = Math.max(0, requestedWorkParts || 0);
+        var energyBudget = room.energyCapacityAvailable;
+        var parts = (baseParts || []).slice();
+        var extraParts = [];
+        var usedEnergy = this.getPartsCost(parts);
+        var workCount = 0;
+
+        for (var i = 0; i < maxWork; i++) {
+            if (usedEnergy + BODYPART_COST[WORK] > energyBudget)
+                break;
+
+            extraParts.push(WORK);
+            usedEnergy += BODYPART_COST[WORK];
+            workCount++;
+
+            if (moveEveryWorkParts > 0 && workCount % moveEveryWorkParts == 0) {
+                if (usedEnergy + BODYPART_COST[MOVE] > energyBudget)
+                    break;
+
+                extraParts.push(MOVE);
+                usedEnergy += BODYPART_COST[MOVE];
+            }
+        }
+
+        parts = parts.concat(extraParts);
+        return parts.sort().reverse();
+    },
+
+    /**
      * Create an upgrader body limited by gapUpgradeParts and room energy capacity.
      * @param {number} gapUpgradeParts - Maximum number of WORK parts to add.
      * @param {Room} room - The room object to use for energy limits.
      * @returns {string[]} Array of body parts.
      */
     createUpgraderBody: function (gapUpgradeParts, room) {
-        var maxWork = Math.max(0, gapUpgradeParts);
-        var energyBudget = room.energyCapacityAvailable;
-        var parts = [MOVE, CARRY];
-        var workParts = [];
-        var workCost = BODYPART_COST[WORK];
-        var baseCost = BODYPART_COST[MOVE] + BODYPART_COST[CARRY];
-        var usedEnergy = baseCost;
-        for (var i = 0; i < maxWork; i++) {
-            if (usedEnergy + workCost > energyBudget) break;
-            workParts.push(WORK);
-            usedEnergy += workCost;
+        return this.createWorkBody(gapUpgradeParts, room, [MOVE, CARRY], 3);
+    },
 
-            if (workParts.length % 3 === 0) {
-                var moveCost = BODYPART_COST[MOVE];
-                if (usedEnergy + moveCost <= energyBudget) {
-                    workParts.push(MOVE);
-                    usedEnergy += moveCost;
-                }
-            }
-        }
-        parts = parts.concat(workParts);
-        return parts.sort().reverse();
+    /**
+     * Create a mineral harvester body limited by requested WORK parts and room energy capacity.
+     * Uses a light MOVE ratio because the creep mostly stands on the extractor/container pair.
+     * @param {number} gapMineralHarvestParts - Maximum number of WORK parts to add.
+     * @param {Room} room - The room object to use for energy limits.
+     * @returns {string[]} Array of body parts.
+     */
+    createMineralHarvesterBody: function (gapMineralHarvestParts, room) {
+        return this.createWorkBody(gapMineralHarvestParts, room, [MOVE, CARRY], 3);
     },
 
     getPathMultiroom: function (from, to, r = 1) {
@@ -954,11 +991,11 @@ var utils = {
                     WORK, MOVE],
                 [WORK, MOVE, WORK, MOVE]];
 
-        var attackPartsSmall = [TOUGH, TOUGH, 
-            MOVE, MOVE, MOVE, MOVE, MOVE, 
-            HEAL, 
-            ATTACK, ATTACK ];
-            
+        var attackPartsSmall = [TOUGH, TOUGH,
+            MOVE, MOVE, MOVE, MOVE, MOVE,
+            HEAL,
+            ATTACK, ATTACK];
+
         var attackPartsMedium = [
             TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
@@ -975,6 +1012,17 @@ var utils = {
             HEAL, HEAL, HEAL,
             RANGED_ATTACK, ATTACK, ATTACK, ATTACK,
             ATTACK, ATTACK, ATTACK, ATTACK
+        ];
+
+        var attackPartsExtraLarge = [
+            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE, MOVE,
+
+            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
+            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
+
+            HEAL, HEAL, HEAL, HEAL, HEAL
         ];
 
 
@@ -1088,6 +1136,9 @@ var utils = {
         if (role == 'attack') {
             var desiredAttackSize = memory && memory.attackSize ? memory.attackSize : "small";
 
+            if (desiredAttackSize == "extraLarge" && this.getPartsCost(attackPartsLarge) <= currentEnergy)
+                return attackPartsExtraLarge;
+
             if (desiredAttackSize == "large" && this.getPartsCost(attackPartsLarge) <= currentEnergy)
                 return attackPartsLarge;
 
@@ -1164,6 +1215,17 @@ var utils = {
         if (!targetRoom)
             return "small";
 
+        var keeperLairs = targetRoom.find(FIND_STRUCTURES, {
+            filter: function (c) {
+                return c.structureType == STRUCTURE_KEEPER_LAIR;
+            }
+        });
+
+        if (keeperLairs.length > 0)
+            return "extraLarge";
+
+
+
         var hostiles = targetRoom.find(FIND_HOSTILE_CREEPS, {
             filter: function (c) {
                 return c.owner && c.owner.username != "";
@@ -1227,11 +1289,15 @@ var utils = {
             }
         }) : [];
 
+
+
+
         if (hostileTowers.length > 0 || boostedHostiles.length > 0 || heavyHostiles.length > 0 || dangerousHostiles.length >= 3 || (invaderCore && invaderCore.level >= 2))
             return "large";
 
         if (dangerousHostiles.length >= 2 || boostedHostiles.length > 0 || invaderCore || conquerFlag || enemyReservation || controllerWalls.length > 0)
             return "medium";
+
 
         return "small";
     },
