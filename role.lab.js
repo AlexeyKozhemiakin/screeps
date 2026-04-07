@@ -487,7 +487,7 @@ var roleLab = {
         // need to replace this second case with custom code and do it just for 1 lab
 
         // only 1 lab
-        for (var i = 2; i < 3; i++) {
+        for (var i = 2; i < labs.length; i++) {
             labs[i].mineralDemand = targetRes;
         }
     },
