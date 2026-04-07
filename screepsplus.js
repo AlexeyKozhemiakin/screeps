@@ -34,7 +34,7 @@ function collect_stats_end() {
             console.log('Clearing non-existing room memory:', name);
         }
     }*/
-    
+
 
     // stats
     for (var roomName in Game.rooms) {
@@ -120,15 +120,15 @@ function summarize_room_internal(room) {
         return null;
     }
 
-    if(!room.controller.my)
+    if (!room.controller.my)
         return null
-    
+
     var owner = room.controller.owner ? room.controller.owner.username : "none";
     var reserv = room.controller.reservation ? room.controller.reservation.username : "none"
     //console.log(, 
     // /   room.controller.reservation ? room.controller.reservation.username : "none");
 
-    if (owner != 'Zenga' && 
+    if (owner != 'Zenga' &&
         reserv != 'Zenga') {
         return null;
     }
@@ -148,7 +148,7 @@ function summarize_room_internal(room) {
     const storage_details = room.storage ? room.storage.store : new Object();
 
     const containers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_CONTAINER });
-    
+
     const container_energy = _.sum(containers, c => c.store.energy);
     const container_energy_reduced = _.reduce(containers, (acc, res) => { acc[res.id] = res.store.energy; return acc; }, {});
     const container_details = containers ? _.reduce(containers, (acc, res) => { acc[res.id] = res.store; return acc; }, {}) : {};
@@ -180,17 +180,17 @@ function summarize_room_internal(room) {
     // now lets do midpoint calculation
     // if ticksToRegeneration = 150 out of 300 
     // if 1500 left then 0% diff if 1650 left then 10% diff
-       
+
     const source_energy_diff = _.reduce(sources, (acc, source) => {
         var timeElapsed = ENERGY_REGEN_TIME - source.ticksToRegeneration;
         var idealHarvested = timeElapsed * 10;
         var idealLeft = SOURCE_ENERGY_CAPACITY - idealHarvested;
-        var diff = (source.energy - idealLeft)/idealHarvested; 
-        acc[source.id] = diff ;
+        var diff = (source.energy - idealLeft) / idealHarvested;
+        acc[source.id] = diff;
         return acc;
     }, {});
 
-    
+
 
     const links = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_LINK && s.my });
     const link_energy = _.sum(links, l => l.energy);
@@ -218,6 +218,8 @@ function summarize_room_internal(room) {
     const num_spawns = spawns ? spawns.length : 0;
     const spawns_spawning = _.sum(spawns, s => s.spawning ? 1 : 0);
 
+    const powerHarvesting =
+        room.memory.powerHarvesting ? room.memory.powerHarvesting.length : 0;
     const towers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER && s.my });
     const num_towers = towers ? towers.length : 0;
     const tower_energy = _.sum(towers, t => t.energy);
@@ -278,10 +280,13 @@ function summarize_room_internal(room) {
 
         energy_avail,
         energy_cap,
+
+        powerHarvesting,
+        powerHarvesting2: room.memory.powerHarvesting,
         
         source_energy,
         source_energy_reduced,
-        
+
         source_energy_wasted,
         source_energy_diff,
         minerals: {
@@ -290,11 +295,11 @@ function summarize_room_internal(room) {
         mineral_amount,
         mineral_ticksToRegeneration,
         //num_extractors,
-        
+
         storage_details,
-                
+
         labsBusy,
-                
+
         terminal_details,
 
         //container_energy,

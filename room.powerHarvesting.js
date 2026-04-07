@@ -196,11 +196,21 @@ var roomPowerHarvesting = {
 
             // potential bug here, some attackers die just before this.
             // need to do somehting to check it
+            var route = Game.map.findRoute(roomName, bank.roomName);
+
+            if (route == ERR_NO_PATH)
+                return;
+
+            var toTravel = 50 * route.length;
+            var toCreate = CREEP_SPAWN_TIME * MAX_CREEP_SIZE;
+
+            var delay = toCreate + toTravel + 100;
+
             if (bank.hits > 100000 && bank.ticksToDecay > 500) {
                 var attackers = _.filter(Game.creeps,
                     c => c.memory.role == "attack" &&
                         c.memory.toGo && c.memory.toGo.includes(bank.roomName) &&
-                        (c.ticksToLive > 500 || c.spawning));
+                        (c.ticksToLive > delay || c.spawning));
 
                 var slots = 1; // to redo via fuction counting free slots
 
@@ -210,10 +220,18 @@ var roomPowerHarvesting = {
                     return { "memory": memory };
                 }
 
-                var healers = _.filter(Game.creeps, c => c.memory.role == "healer" && c.memory.toGo && c.memory.toGo.includes(bank.roomName));
+                var healers = _.filter(Game.creeps,
+                    c => c.memory.role == "healer" &&
+                        c.memory.toGo && c.memory.toGo.includes(bank.roomName) &&
+                        (c.ticksToLive > delay || c.spawning));
 
-                console.log("Bank ", bank.roomName, " has ", attackers.length, " attackers and ", healers.length, " healers");
+                //console.log("Bank ", bank.roomName, " has ", attackers.length, " attackers and ", healers.length, " healers");
+                console.log("Healer 1 in room ", healers.length > 0 ? healers[0].pos : "none", " has ticksToLive ", healers.length > 0 ? healers[0].ticksToLive : "none");
+                console.log("Healer 2 in room ", healers.length > 1 ? healers[1].pos : "none", " has ticksToLive ", healers.length > 1 ? healers[1].ticksToLive : "none");
+                
 
+                console.log("Attacker 1 in room ", attackers.length > 0 ? attackers[0].name : "none", " has ticksToLive ", attackers.length > 0 ? attackers[0].ticksToLive : "none");
+                //console 
                 if (healers.length < 2 * attackers.length) {
                     var memory = { role: "healer", toGo: [bank.roomName], parts: powerhealerParts };
                     memory.role = "healer";
@@ -229,23 +247,19 @@ var roomPowerHarvesting = {
                     CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
                     CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY];
 
-            var toTravel = 50 * Game.map.getRoomLinearDistance(roomName, bank.roomName);
-            var toCreate = CREEP_SPAWN_TIME * powerDelivererParts.length;
-
-            var delay = toCreate + toTravel + 100;
-
-
             console.log("Power bank in ", bank.roomName, " has delay ", delay, " ticks for deliverer to arrive");
 
             // each tick is roughly 1000 hits
-            if (bank.hits > 1000 * delay)
+            var extraDelivererDelay = 120;
+            if (bank.hits > 1000 * (delay + extraDelivererDelay))
                 continue;
 
-            console.log("Spawning deliverer for power bank in ", bank.roomName, " with delay ", delay, " ticks");
+            console.log("Spawning deliverer for power bank in ", 
+                bank.roomName, " with delay ", delay, " ticks");
+            
             var deliverers = _.filter(Game.creeps,
                 c => c.memory.role == "deliverer" &&
                     c.memory.tag == "powerPickup+" + bank.roomName);
-
 
 
             var delivererSize = CARRY_CAPACITY * _.sum(powerDelivererParts, p => p == CARRY ? 1 : 0);
@@ -257,7 +271,7 @@ var roomPowerHarvesting = {
                     toGo: [bank.roomName],
                     tag: "powerPickup+" + bank.roomName,
                     task: "pickupPower",
-                    preferredSourceId: "nonexistent", // to trigger suicide on pickup
+                    preferredSourceId: "nonexistent", // to trigger suicide on 2nd pickup
                     preferredTargetId: room.storage.id,
                     parts: powerDelivererParts
                 };

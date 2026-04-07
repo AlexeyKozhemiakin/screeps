@@ -163,7 +163,7 @@ var roleBuilder = {
 
         // stick to container
         if(source == undefined) {
-            if(creep.room.controller.level >= 3 && creep.room.spawn && creep.room.spawn.container) {
+            if(creep.room.controller && creep.room.controller.level >= 3 && creep.room.spawn && creep.room.spawn.container) {
                 source = creep.room.spawn.container;
             }
         }
