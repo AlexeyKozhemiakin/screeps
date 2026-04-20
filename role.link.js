@@ -1,4 +1,7 @@
 var linkMod = {
+    CONTROLLER_LINK_ENERGY_LIMIT: 650,
+    BASE_LINK_ENERGY_LIMIT: 790,
+
     runInternal: function (fromLink, toLink, limit) {
         if (fromLink == null || toLink == null)
             return false;
@@ -58,15 +61,19 @@ var linkMod = {
                     continue;
 
                 if (controllerLink.energy < 500)
-                    if (this.runInternal(link, controllerLink, 750))
+                    if (this.runInternal(link, controllerLink, this.CONTROLLER_LINK_ENERGY_LIMIT))
                         return;
             }
 
-        if (baseLink && controllerLink)
+        if (baseLink && controllerLink){
             if (controllerLink.energy < 100)
-                if (this.runInternal(baseLink, controllerLink, 750))
+                if (this.runInternal(baseLink, controllerLink, this.CONTROLLER_LINK_ENERGY_LIMIT))
                     return;
 
+            if (controllerLink.energy > 700)
+                if (this.runInternal(controllerLink, baseLink, this.BASE_LINK_ENERGY_LIMIT))
+                    return;
+        }
 
         // send to base as 2nd priority when it's alrady > 500
         if (baseLink)
@@ -80,7 +87,7 @@ var linkMod = {
 
 
                 if (link.energy > 500)
-                    if (this.runInternal(link, baseLink, 750))
+                    if (this.runInternal(link, baseLink, this.BASE_LINK_ENERGY_LIMIT))
                         return;
 
             }
