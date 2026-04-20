@@ -169,7 +169,7 @@ var roleDeliverer =
             target = Game.getObjectById(creep.memory.preferredTargetId);
 
             if (!target) {
-                basic.recycleCreep(creep);
+                creep.memory.task = "recycle";
                 return;
             }
 
@@ -670,6 +670,21 @@ var roleDeliverer =
         creep.memory.cachedSourceId = source.id;
         creep.memory.cachedSourceResType = resType;
 
+        if (source instanceof Deposit) {
+
+            var harvesters = source.pos.findInRange(FIND_MY_CREEPS, 3, {
+                filter: c => c.memory.role == "depositHarvester" &&
+                    c.store.getUsedCapacity() >= 50
+            });
+
+            if (harvesters.length > 0) {
+                source = harvesters[0];
+            }
+
+            creep.say("depo");
+            //return;
+        }
+
         if (!creep.pos.isNearTo(source)) {
             basic.goTo(creep, source, 1, '#ffaa00');
             return;
@@ -716,7 +731,7 @@ var roleDeliverer =
             creep.memory.cachedSourceResType = undefined;
         }
         else if (code != ERR_NOT_ENOUGH_ENERGY && code != ERR_NOT_ENOUGH_RESOURCES) {
-            //console.log("w, ", resType, " ", code, source, creep.room.name);
+            console.log("w, ", resType, " ", code, source, creep.room.name);
             creep.say("!" + code);
             creep.memory.cachedSourceId = undefined;
             creep.memory.cachedSourceResType = undefined;
@@ -744,10 +759,13 @@ var roleDeliverer =
         }
 
         if (runDropped(creep, 50, RESOURCE_POWER)) {
+            return;
+        }
+
+        if (creep.store.getUsedCapacity(RESOURCE_POWER) > 0) {
             creep.memory.task = "deliver";
             delete creep.memory.toGo;
         }
-
     },
 
     /** @param {Creep} creep **/

@@ -200,16 +200,17 @@ var roleAttack = {
 
                 }
 
+        // some 
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS,
                 {
                     filter: (c) => c.owner != "Screeps" &&
-                        c.body.some(part => part.type === MOVE) &&
-                        (c.body.some(part => part.type === ATTACK) ||
-                            c.body.some(part => part.type === RANGED_ATTACK))
+                        (
+                            c.body.some(part => part.type === MOVE) &&
+                            (c.body.some(part => part.type === ATTACK) || c.body.some(part => part.type === RANGED_ATTACK))
+                        )
                 });
         }
-
 
         if (creep.getActiveBodyparts(HEAL) > 0)
             if (target == undefined)
@@ -248,7 +249,7 @@ var roleAttack = {
         }
 
 
-        if (target == 412) {
+        if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => (
 
@@ -256,7 +257,7 @@ var roleAttack = {
             });
         }
 
-        if (target == 3123) {
+        if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => (
                     object.structureType == STRUCTURE_SPAWN && object.isActive())
@@ -304,6 +305,24 @@ var roleAttack = {
                     object.structureType == STRUCTURE_INVADER_CORE)
             });
         }
+
+        if (target == undefined) {
+            var lairs = creep.room.find(FIND_STRUCTURES, {
+                filter: object => (
+                    object.structureType == STRUCTURE_KEEPER_LAIR)
+            });
+
+            if (lairs)
+                lairs = _.sortBy(lairs, l => l.ticksToSpawn);
+
+
+            if (lairs && lairs.length > 0) {
+                console.log("lairs ", lairs[0]);
+                target = lairs[0];
+            }
+        }
+
+
 
         //if (target == undefined) {
         //    target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
@@ -373,10 +392,12 @@ var roleAttack = {
             }
         }
 
+
+
         if (creep.getActiveBodyparts(ATTACK) > 0)
             if (moveToTargetWithStuckDetection(creep, target)) {
                 // Self-heal if damaged
-
+                this.healSelfOrAround(creep);
                 return true;
             }
 
@@ -409,7 +430,7 @@ var roleAttack = {
             var noPowerBank = creep.room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_POWER_BANK }).length == 0;
 
             if (noOneToHeal && noPowerBank) {
-                basic.recycleCreep(creep);
+                creep.memory.task = "recycle";
             }
 
             return false;
@@ -437,6 +458,30 @@ var roleAttack = {
         }
 
         return false;
+    },
+
+    healSelfOrAround(creep) {
+        if (creep.getActiveBodyparts(HEAL) == 0)
+            return;
+
+        if (creep.hits < creep.hitsMax) {
+            creep.heal(creep);
+            return;
+        }
+
+        var needHeal = creep.pos.findInRange(FIND_MY_CREEPS, 1,
+            { filter: c => c.hits < c.hitsMax });
+
+        if (!needHeal || needHeal.length == 0)
+            return;
+
+        needHeal = _.sortBy(needHeal, c => c.hits / c.hitsMax);
+
+        var heal = needHeal[0];
+
+        creep.heal(heal);
+
+        return;
     },
 
     /** @param {Creep} creep **/

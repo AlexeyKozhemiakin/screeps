@@ -210,9 +210,9 @@ var roleHarvester = {
             if(!basic.repairEmergency(creep))
                 this.runHarvest(creep);
 
-            if (_.sum(creep.store) >= creep.store.getCapacity() * 0.8) //TODO:replace to actual carry capacity and perf during tick see upgrader
+            
+            if (creep.store.getFreeCapacity() <=  creep.getActiveBodyparts(WORK) * HARVEST_POWER) 
             {
-                //basic.repairEmergency(creep);
                 this.runDeliver(creep, false);
             }
         }
