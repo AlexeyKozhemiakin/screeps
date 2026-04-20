@@ -1,44 +1,3 @@
-// --- Enable boosting in a specific room ---
-// Usage: enableBoosting("E51S23")
-global.enableBoosting = function (roomName) {
-    if (!Memory.rooms) {
-        Memory.rooms = {};
-    }
-    if (!Memory.rooms[roomName]) {
-        Memory.rooms[roomName] = {};
-    }
-    Memory.rooms[roomName].enableBoosting = true;
-    delete Memory.rooms[roomName].boostingEnabled;
-    return "Boosting enabled in room " + roomName;
-};
-
-// --- Disable boosting in a specific room ---
-// Usage: disableBoosting("E51S23")
-global.disableBoosting = function (roomName) {
-    if (!Memory.rooms || !Memory.rooms[roomName]) {
-        return "No Memory.rooms entry for " + roomName;
-    }
-    Memory.rooms[roomName].enableBoosting = false;
-    delete Memory.rooms[roomName].boostingEnabled;
-    return "Boosting disabled in room " + roomName;
-};
-
-// --- Check boosting status for a specific room ---
-// Usage: checkBoosting("E51S23")
-global.checkBoosting = function (roomName) {
-    if (!Memory.rooms || !Memory.rooms[roomName]) {
-        return "No Memory.rooms entry for " + roomName;
-    }
-    var roomMemory = Memory.rooms[roomName];
-    if (roomMemory.enableBoosting === undefined && roomMemory.boostingEnabled !== undefined) {
-        roomMemory.enableBoosting = roomMemory.boostingEnabled;
-    }
-    if (roomMemory.enableBoosting === undefined) {
-        roomMemory.enableBoosting = true;
-    }
-    var status = roomMemory.enableBoosting ? "enabled" : "disabled";
-    return "Boosting is " + status + " in room " + roomName;
-};
 
 function resetProductionStateForRoom(roomName) {
     var roomMemory = Memory.rooms && Memory.rooms[roomName];
@@ -438,17 +397,6 @@ global.listRoomsToClaim = function () {
         return "roomsToClaim is empty";
     }
     return "roomsToClaim: " + JSON.stringify(Memory.roomsToClaim);
-};
-
-
-// give console command to find which creep has togo to E56S28
-// example usage: findCreepToGo("E56S28")
-global.findCreepToGo = function (roomName) {
-    var creeps = _.filter(Game.creeps, c => c.memory.toGo && c.memory.toGo[0] == roomName);
-    if (creeps.length == 0) {
-        return "No creeps with toGo to " + roomName;
-    }
-    return "Creeps with toGo to " + roomName + ": " + JSON.stringify(creeps.map(c => c.name));
 };
 
 // --- Clear all room memory ---
