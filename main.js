@@ -5,6 +5,7 @@ var roleBoost = require('role.boost');
 var roleFactory = require('role.factory');
 var roleLab = require('role.lab');
 var roleObserver = require('role.observer');
+var rolePowerCreep = require('role.powerCreep');
 var roomPowerSpawn = require('room.powerSpawn');
 var scp = require('screepsplus');
 var market = require('market');
@@ -25,6 +26,7 @@ var prototypes = require('prototypes');
 var roomPlanning = require('room.planning');
 var roomClaiming = require('room.claim');
 var roomRemoteHarvesting = require('room.remoteHarvesting');
+var roomDepositHarvesting = require('room.depositHarvesting');
 var roomPowerHarvesting = require('room.powerHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
@@ -103,6 +105,9 @@ loopInner = function () {
     var claimOrders = roomClaiming.roomGetSpawnOrders(roomsToClaim);
 
     if (Game.time % 10 == 0)
+        roomDepositHarvesting.assignDepositHarvestingRooms();
+
+    if (Game.time % 10 == 0)
         roomPowerHarvesting.assignPowerHarvestingRooms();
 
     if (claimOrders) {
@@ -160,10 +165,22 @@ loopInner = function () {
             }
 
             if (!spawnOrder) {
-                var powerOrder = roomPowerHarvesting.getPowerHarvestingOrder(roomName);
-                if (powerOrder)
-                    spawnOrder = powerOrder;
+                var order = roomPowerHarvesting.getPowerHarvestingOrder(roomName);
+                if (order)
+                    spawnOrder = order;
             }
+
+            if (!spawnOrder) {
+                var order = roomDepositHarvesting.getDepositHarvestingOrder(roomName);
+                if (order)
+                    spawnOrder = order;
+            }
+            
+            // if (!spawnOrder) {
+            //     var depositOrder = roomDepositHarvesting.getDepositHarvestingOrder(roomName);
+            //     if (depositOrder)
+            //         spawnOrder = depositOrder;
+            // }
 
             //var roomN = "E55S21";
             //var powerN = "E55S20";
@@ -241,6 +258,18 @@ loopInner = function () {
         var elapsed = Game.cpu.getUsed() - cpuStart;
         room.memory.cputime = elapsed;
     }
+
+    for (var powerCreepName in Game.powerCreeps) {
+        var powerCreep = Game.powerCreeps[powerCreepName];
+
+        try {
+            rolePowerCreep.run(powerCreep);
+        }
+        catch (err) {
+            console.log("Power creep error:", powerCreepName, err.stack || err);
+        }
+    }
+
     //roleLink.runManual();
 
     const statsInterval = 1;
