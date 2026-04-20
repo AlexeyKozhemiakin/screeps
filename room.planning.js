@@ -60,12 +60,12 @@ var roomPlanning = {
             return s.structureType == type;
         });
 
-        if( extention.length > 0 && structureType != type){
-            console.log("Removing",type, "at ", pos, " in ", room.name, " to build ", structureType);
+        if (extention.length > 0 && structureType != type) {
+            console.log("Removing", type, "at ", pos, " in ", room.name, " to build ", structureType);
 
             extention[0].destroy();
             return;
-           
+
         }
 
         if (existingStructures.some(function (s) {
@@ -287,11 +287,11 @@ var roomPlanning = {
 
         var pattern6 = [
             "......r......",
-            ".....r.r.....",
-            "....r.bbr....",
-            "...r.rbr.r...",
-            "..r...r...r..",
-            ".rer.rmr.rer.",
+            ".....rer.....",
+            "....rebbr....",
+            "...rerbrer...",
+            "..reeereeer..",
+            ".rerermrerer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             "..reeereeer..",
@@ -303,11 +303,11 @@ var roomPlanning = {
 
         var pattern7 = [
             "......r......",
-            "....er.re....",
-            "..eer.bbree..",
+            "....erere....",
+            "..eerebbree..",
             "..ererbrbre..",
-            ".ereeerbb.re.",
-            ".rerfrmr.rer.",
+            ".ereeerbbere.",
+            ".rerfrmrerer.",
             "reetrsrlrteer",
             ".rererPrerer.",
             ".ereeerpeere.",
@@ -317,7 +317,7 @@ var roomPlanning = {
             "......r......"
         ];
 
-         var pattern8 = [
+        var pattern8 = [
             "......r......",
             "....erore....",
             "..eerbbbree..",
@@ -476,7 +476,7 @@ var roomPlanning = {
         if (!planEnabled)
             return;
 
- 
+
         //console.log("Auto planning for room ", room.name, room.controller);
         var buildEnabled = room.find(FIND_FLAGS, { filter: f => (f.name.includes("build")) }).length > 0;
 
@@ -502,13 +502,14 @@ var roomPlanning = {
                 (a, b) => a.pos.getRangeTo(spawnPoint) - b.pos.getRangeTo(spawnPoint)
             );
 
-            var linkUnlocked = room.controller.level >= 5;
+            var link1 = room.controller.level >= 5;
+            var link2 = room.controller.level >= 6;
+            var link3 = room.controller.level >= 7;
 
+            this.tryRoad(spawnPoint, sources[0], room, 1, buildEnabled, buildLink = link3);
+            this.tryRoad(spawnPoint, sources[1], room, 1, buildEnabled, buildLink = link1);
 
-            this.tryRoad(spawnPoint, sources[0], room, 1, buildEnabled);
-            this.tryRoad(spawnPoint, sources[1], room, 1, buildEnabled, buildLink = linkUnlocked);
-
-            this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled);
+            this.tryRoad(spawnPoint, room.controller, room, 3, buildEnabled, buildLink = link2);
         }
 
 
