@@ -26,7 +26,8 @@ var roomRemoteHarvesting = {
             var enemies = remoteRoom.find(FIND_HOSTILE_CREEPS,
                 {
                     filter: (c => (c.getActiveBodyparts(ATTACK) > 0 ||
-                        c.getActiveBodyparts(RANGED_ATTACK) > 0) && (c.owner.username != ""))
+                        c.getActiveBodyparts(RANGED_ATTACK) > 0) &&
+                        !(c.owner.username == "" || c.owner.username == "Source Keeper"))
                 });
 
             var numAttack = 1;
@@ -51,10 +52,10 @@ var roomRemoteHarvesting = {
 
             var attackers = _.filter(Game.creeps,
                 c => c.memory.role == "attack" &&
-                    c.memory.toGo && c.memory.toGo.includes(roomName));
+                    c.memory.toGo && c.memory.toGo.includes(roomName) &&
+                    (c.ticksToLive > 150 + 50 + 10 || c.spawning)
+            );
 
-            // if(enemies.length > 0)
-            //  console.log("Remote room ", roomName, " has ", enemies.length, " enemies and ", attackers.length, " attackers");
             var conquerFlag = remoteRoom.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
 
             remoteRoom.memory.dangerous = conquerFlag || enemies.length > 0 || enemyReservation;
@@ -71,8 +72,12 @@ var roomRemoteHarvesting = {
 
             var defendFlag = remoteRoom.find(FIND_FLAGS, { filter: f => f.name.includes("defend") })[0];
 
+            if (remoteRoom.name == "E56S24") {
+                defendFlag = true;
+            }
+
             if (defendFlag) {
-                console.log("Remote room ", roomName, " has defend flag ", defendFlag.name, " and ", attackers.length, " defenders");
+                //console.log("Remote room ", roomName, " has defend flag ", defendFlag.name, " and ", attackers.length, " defenders");
                 if (attackers.length < 1) {
                     var memory = utils.createAttackMemory(parentRoom, roomName, remoteRoom);
 
@@ -84,7 +89,7 @@ var roomRemoteHarvesting = {
 
             if (remoteBuild) {
                 var remoteBuilders = _.filter(Game.creeps, c => c.memory.role == "builder" && c.memory.toGo && c.memory.toGo.includes(roomName));
-                if (remoteBuilders.length == 0) {
+                if (remoteBuilders.length < 2) {
                     return { "buildRoom": roomName };
                 }
 
@@ -141,6 +146,11 @@ var roomRemoteHarvesting = {
                         WORK, WORK, WORK, WORK, WORK, WORK,
                         MOVE, MOVE, MOVE, MOVE, MOVE];
 
+                if (remoteRoom.name == "E56S24")
+                     remoteHarvesterParts =
+                        [MOVE, CARRY,
+                            WORK, WORK, WORK, WORK, WORK, WORK, WORK, 
+                            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE];
 
                 if (attachedCreeps.length == 0) {
                     var memory = {
@@ -153,7 +163,11 @@ var roomRemoteHarvesting = {
                     return { "memory": memory };
                 }
 
-                var amnt = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME; // 3000/300 = 10 per sec
+                var sourceEnergy = SOURCE_ENERGY_CAPACITY;
+                if (remoteRoom.name == "E56S24") {
+                    sourceEnergy = SOURCE_ENERGY_KEEPER_CAPACITY;
+                }
+                var amnt = sourceEnergy / ENERGY_REGEN_TIME; // 3000/300 = 10 per sec
 
                 var memory = utils.createDeliverer(source.container.id, parentRoom.storage.id, amnt, RESOURCE_ENERGY);
 
