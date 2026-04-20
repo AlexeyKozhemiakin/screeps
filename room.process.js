@@ -1,4 +1,5 @@
 var roleHarvester = require('role.harvester');
+var roleDepositHarvester = require('role.depositHarvester');
 var roleMineralHarvester = require('role.mineralHarvester');
 var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
@@ -13,6 +14,7 @@ roomProcess = {
 
         var funcMap = {
             'harvester': roleHarvester,
+            'depositHarvester': roleDepositHarvester,
             'upgrader': roleUpgrader,
             'builder': roleBuilder,
             'deliverer': roleDeliverer,

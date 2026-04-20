@@ -16,6 +16,7 @@ var roleMineralHarvester = {
             return false;
         }
 
+        // it needs to be 0 otherwise it doest start regen
         return mineral.mineralAmount > 0;
     },
 

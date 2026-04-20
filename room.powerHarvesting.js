@@ -31,7 +31,7 @@ var roomPowerHarvesting = {
 
 
             // already assigned to some room
-            if (_.some(Game.rooms, r => r.memory.powerHarvesting && r.memory.powerHarvesting.includes(roomName)))
+            if (utils.isRoomAssignedToHarvestingMemory(roomName, "powerHarvesting"))
                 continue;
 
             var hits = observedRoom.powerBank.hits || 0;
@@ -42,21 +42,9 @@ var roomPowerHarvesting = {
                 requiredAttackParts = Math.ceil(hits / (ticksToDecay - HEADROOM) / ATTACK_POWER);
             }
 
-            var closestLevel8Room = null;
-            var closestLevel8Distance = null;
-
-            for (var i = 0; i < myLevel8Rooms.length; i++) {
-                var myRoomName = myLevel8Rooms[i];
-                var distance = 50 * Game.map.getRoomLinearDistance(roomName, myRoomName);
-                var route = Game.map.findRoute(roomName, myRoomName);
-                if (route != ERR_NO_PATH) {
-                    distance = 50 * route.length;
-                }
-                if (closestLevel8Distance === null || distance < closestLevel8Distance) {
-                    closestLevel8Distance = distance;
-                    closestLevel8Room = myRoomName;
-                }
-            }
+            var closestAssignment = utils.getClosestRoomAssignment(roomName, myLevel8Rooms);
+            var closestLevel8Room = closestAssignment.roomName;
+            var closestLevel8Distance = closestAssignment.distance;
 
             var efficiency = 1 - closestLevel8Distance / 1500;
 
@@ -163,13 +151,13 @@ var roomPowerHarvesting = {
         }
 
         for (var bank of powerBanks) {
-            console.log("Power bank in ", bank.roomName,
+            /*console.log("Power bank in ", bank.roomName,
                 "assigned to ", roomName, " has power ",
                 " has ", bank.power,
                 " hits ", bank.hits,
                 " ticksToDecay ", bank.ticksToDecay,
                 " attack ", bank.requiredAttackParts,
-                " observed - ", Game.time - bank.observedAt, " ticks ago");
+                " observed - ", Game.time - bank.observedAt, " ticks ago");*/
 
 
             // for each 4 x 30(attack_power) = 120 = 60 in damage = 5x12(heal power) heal needed
@@ -226,11 +214,11 @@ var roomPowerHarvesting = {
                         (c.ticksToLive > delay || c.spawning));
 
                 //console.log("Bank ", bank.roomName, " has ", attackers.length, " attackers and ", healers.length, " healers");
-                console.log("Healer 1 in room ", healers.length > 0 ? healers[0].pos : "none", " has ticksToLive ", healers.length > 0 ? healers[0].ticksToLive : "none");
-                console.log("Healer 2 in room ", healers.length > 1 ? healers[1].pos : "none", " has ticksToLive ", healers.length > 1 ? healers[1].ticksToLive : "none");
+                //console.log("Healer 1 in room ", healers.length > 0 ? healers[0].pos : "none", " has ticksToLive ", healers.length > 0 ? healers[0].ticksToLive : "none");
+                //console.log("Healer 2 in room ", healers.length > 1 ? healers[1].pos : "none", " has ticksToLive ", healers.length > 1 ? healers[1].ticksToLive : "none");
                 
 
-                console.log("Attacker 1 in room ", attackers.length > 0 ? attackers[0].name : "none", " has ticksToLive ", attackers.length > 0 ? attackers[0].ticksToLive : "none");
+               // console.log("Attacker 1 in room ", attackers.length > 0 ? attackers[0].name : "none", " has ticksToLive ", attackers.length > 0 ? attackers[0].ticksToLive : "none");
                 //console 
                 if (healers.length < 2 * attackers.length) {
                     var memory = { role: "healer", toGo: [bank.roomName], parts: powerhealerParts };
@@ -247,15 +235,14 @@ var roomPowerHarvesting = {
                     CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
                     CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY];
 
-            console.log("Power bank in ", bank.roomName, " has delay ", delay, " ticks for deliverer to arrive");
+            //console.log("Power bank in ", bank.roomName, " has delay ", delay, " ticks for deliverer to arrive");
 
             // each tick is roughly 1000 hits
             var extraDelivererDelay = 120;
             if (bank.hits > 1000 * (delay + extraDelivererDelay))
                 continue;
 
-            console.log("Spawning deliverer for power bank in ", 
-                bank.roomName, " with delay ", delay, " ticks");
+            //console.log("Spawning deliverer for power bank in ",  bank.roomName, " with delay ", delay, " ticks");
             
             var deliverers = _.filter(Game.creeps,
                 c => c.memory.role == "deliverer" &&

@@ -1,19 +1,54 @@
 var roleMineralHarvester = require('role.mineralHarvester');
+var basic = require('role.basic');
 var draw = require('room.draw.visuals');
 
 const RICH_ROOM_ENERGY = 8000;
 const LOOKAHEAD_TICKS = 300;
 
 var utils = {
+    RICH_ROOM_ENERGY: RICH_ROOM_ENERGY,
+
+    isRoomAssignedToHarvestingMemory: function (observedRoomName, memoryKey) {
+        return _.some(Game.rooms, function (room) {
+            return room.memory && room.memory[memoryKey] &&
+                room.memory[memoryKey].indexOf(observedRoomName) != -1;
+        });
+    },
+
+    getClosestRoomAssignment: function (observedRoomName, roomNames) {
+        var bestRoomName = null;
+        var bestDistance = null;
+
+        for (var i = 0; i < roomNames.length; i++) {
+            var myRoomName = roomNames[i];
+            var distance = 50 * Game.map.getRoomLinearDistance(observedRoomName, myRoomName);
+            var route = Game.map.findRoute(observedRoomName, myRoomName, {
+                routeCallback: function (roomName) {
+                    return basic.getRouteWeight(roomName);
+                }
+            });
+
+            if (route != ERR_NO_PATH)
+                distance = 50 * route.length;
+
+            if (bestDistance === null || distance < bestDistance) {
+                bestDistance = distance;
+                bestRoomName = myRoomName;
+            }
+        }
+
+        return {
+            roomName: bestRoomName,
+            distance: bestDistance
+        };
+    },
 
     roomDraw: function (room) {
         //room.visual.clear();
 
 
 
-        if (room.controller && room.controller.link)
-            room.visual.circle(room.controller.link.pos, { radius: 0.5, stroke: 'green', strokeWidth: 0.1 });
-
+       
         room.spawns.forEach(spawn => {
             if (spawn.spawning) {
                 var spawningCreep = Game.creeps[spawn.spawning.name];
@@ -190,9 +225,17 @@ var utils = {
             //console.log("Source ", sourceId, " has ", attachedWorkParts, " work parts attached, slots=", slots, " creepsCount=", attachedCreeps.length, " in room ", room.name);
             var hasContainer = source.container || source.storage || source.link;
 
-            var needMore = attachedWorkParts <= 4 && attachedCreeps.length < slots;
-            //var needMore2 = !hasContainer && attachedCreeps.length < 2 * slots;
+            // Calculate required WORK parts using POWER_INFO for regen sources
+            var energyPerTick = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME;
+            var regenEffect = source.effects && _.find(source.effects, function (e) { return e.effect == PWR_REGEN_SOURCE; });
+            if (regenEffect) {
+                energyPerTick += POWER_INFO[PWR_REGEN_SOURCE].effect[regenEffect.level - 1] / POWER_INFO[PWR_REGEN_SOURCE].period;
 
+                //console.log("Source ", sourceId, " has regen effect level ", regenEffect.level, " energy per tick=", energyPerTick);
+            }
+            var harvestPartsNeeded = Math.ceil(energyPerTick / HARVEST_POWER);
+
+            var needMore = attachedWorkParts < harvestPartsNeeded && attachedCreeps.length < slots;
 
             if (needMore) {
                 var pathLen = source.pos.findPathTo(spawn.pos, { ignoreCreeps: true }).length;
@@ -203,9 +246,9 @@ var utils = {
                     continue;
                 }
 
+                var gapParts = harvestPartsNeeded - attachedWorkParts;
                 mem.role = 'harvester';
-                mem.parts = this.getBodyParts(room.energyAvailable,
-                    hasContainer ? "harvesterContainer" : "harvester");
+                mem.parts = utils.createHarvesterBody(gapParts, room, hasContainer);
 
                 mem.preferredSourceId = sourceId;
 
@@ -218,17 +261,31 @@ var utils = {
         // BUILDER PLANNING
         var buildSize = _.sum(room.find(FIND_CONSTRUCTION_SITES), site => site.progressTotal - site.progress);
         var needBuild = buildSize > 0;
-        var numBld = 1;
-        //console.log("Room ", room.name, " build size ", buildSize);
-        // Why? priority to building instead of updating
-        if (room.controller.level <= 2) {
-            numBld = sources.length + 1;
-            // 1 builder per source to speed up building in the beginning
-        }
+        var builderPartsNeeded = 0;
+        if (needBuild) {
+            builderPartsNeeded = 5;
 
-        // Why? - Increased building ok
-        if (room.storage && room.storage.store.energy > RICH_ROOM_ENERGY && buildSize > 10000) {
-            numBld = 2;
+            if (room.controller.level <= 2)
+                builderPartsNeeded = 5 * (sources.length + 1);
+
+            if (room.storage && room.storage.store.energy > RICH_ROOM_ENERGY && buildSize > 10000)
+                builderPartsNeeded = 10;
+
+            if (room.storage && room.storage.store.energy > 100000 && buildSize > 50000)
+                builderPartsNeeded = 20;
+        }
+        
+        //if(buildSize > 50000 && )
+        var gapBuilderParts = 0;
+        if (builderPartsNeeded > 0) {
+            gapBuilderParts = this.calculateRoleGap(
+                roomCreeps,
+                'builder',
+                builderPartsNeeded,
+                room.spawn,
+                room.controller,
+                WORK
+            );
         }
 
 
@@ -240,11 +297,11 @@ var utils = {
         // in reality it has to be more complex - check actual energy capacity
         // building is really killing rooms dont increaase it PLEASE
         var hasLowEnergy =
-            (room.spawn.container ? room.spawn.container.store.energy < 100 : true);
+            (room.spawn.container ? room.spawn.container.store.energy < 1000 : true);
 
 
         var hasLotsOfEnergy =
-            (room.spawn.container ? room.spawn.container.store.energy > 1500 : true);
+            (room.spawn.container ? room.spawn.container.store.energy > 1600 : true);
 
 
         if (room.storage) {
@@ -253,7 +310,7 @@ var utils = {
         }
 
 
-        var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 150000;
+        var hasHugeEnergySurplus = room.storage && room.storage.store.energy > 180000;
 
         room.memory.hasLowEnergy = hasLowEnergy;
         room.memory.hasLotsOfEnergy = hasLotsOfEnergy;
@@ -262,10 +319,12 @@ var utils = {
         // UPGRADER PLANNING
         // plan using capacity of upgrade parts depending on available energy, that will allow to put more parts in one creep instead of several standard
         var upgradePartsNeeded = 10;
+        var canDelayUpgrade = room.controller.ticksToDowngrade == null ||
+            room.controller.ticksToDowngrade >= 2 * CREEP_LIFE_TIME;
 
         // do not upgrade if need build for poor rooms
-        if (hasLowEnergy && needBuild &&
-            room.controller.ticksToDowngrade > 2 * CREEP_LIFE_TIME) {
+
+        if (hasLowEnergy && needBuild && canDelayUpgrade) {
             upgradePartsNeeded = 0;
         }
         //else if (hasLowEnergy)
@@ -276,10 +335,10 @@ var utils = {
             upgradePartsNeeded += 7;
 
         if (hasHugeEnergySurplus) {
-            upgradePartsNeeded += 10;
+            upgradePartsNeeded += 15;
         }
 
-        // always upgrade to level 2
+        // always upgrade to level 2F
         if (room.controller.level == 1)
             upgradePartsNeeded = 5;
 
@@ -330,14 +389,18 @@ var utils = {
             //if (room.name == "E48S27")
             //    numLocals = 2;
 
+            var powerCreepInRoom = _.some(Game.powerCreeps, p => p.room.name == room.name);
+
+            if (powerCreepInRoom)
+                numLocals = 0; // no local delivers when power creep is present, to save CPU for more important tasks
+
+            //if (numLocals == 0)
+            //    console.log("Power creep in room ", room.name, " disabling local deliverers");
+
             if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
-                    var roomSwpawnRoaded = room.controller.level >= 3;
-                    if (roomSwpawnRoaded)
-                        mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 1.5), "delivererLight");
-                    else
-                        mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 2), "deliverer");
 
+                    mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 1.5), "delivererLight");
                     mem.role = 'deliverer';
                 }
         }
@@ -452,14 +515,18 @@ var utils = {
                 mineralHarvestPartsNeeded = 30;
         }
 
-        var gapMineralHarvestParts = this.calculateRoleGap(
-            roomCreeps,
-            'mineralHarvester',
-            mineralHarvestPartsNeeded,
-            room.spawn,
-            room.extractor.container,
-            WORK
-        );
+
+        var gapMineralHarvestParts = 0;
+
+        if (room.extractor)
+            gapMineralHarvestParts = this.calculateRoleGap(
+                roomCreeps,
+                'mineralHarvester',
+                mineralHarvestPartsNeeded,
+                room.spawn,
+                room.extractor.container,
+                WORK
+            );
 
 
         room.memory.needMineralHarvester = needMinerals;
@@ -522,11 +589,16 @@ var utils = {
         else if (mem.role != null) {
             // parts already created where?
         }
-        else if (needBuild && builders.length < numBld) {
+        else if (gapBuilderParts > 0) {
+            var builderMoveRatio = room.controller.level < 6 ? 1 : 3;
             mem.role = "builder";
+            mem.parts = utils.createWorkBody(gapBuilderParts, room, [], builderMoveRatio, 2);
         }
         else if (gapUpgradeParts > 0) {
             mem.role = 'upgrader';
+            gapUpgradeParts = Math.min(gapUpgradeParts, 17);
+             // max 15 parts in one upgrader, 
+             // that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
             mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
         }
         else if (gapMineralHarvestParts > 0) {
@@ -583,7 +655,8 @@ var utils = {
         // it's not early game and energy was <= 300 condition
         // was stuck again with 450 energy and 0 creeps
         var noDelivererRecovery = !isEarlyGame && deliverers.length == 0 &&
-            (room.spawn.container || room.storage);
+            (room.spawn.container || room.storage) && !powerCreepInRoom;
+
         room.memory.coldStart = !isEarlyGame && roomCreeps.length < 3 || noDelivererRecovery;
 
         if (room.memory.coldStart) {
@@ -627,7 +700,8 @@ var utils = {
             " upgradeGap=" + gapUpgradeParts +
             " mineralPartsNeeded=" + mineralHarvestPartsNeeded +
             " mineralGap=" + gapMineralHarvestParts +
-            " numBld=" + numBld +
+            " builderPartsNeeded=" + builderPartsNeeded +
+            " builderGap=" + gapBuilderParts +
             " energyAvailable=" + room.energyAvailable +
             " energyCapacity=" + room.energyCapacityAvailable +
             " role=" + mem.role;//" memory=" + JSON.stringify(mem);
@@ -741,23 +815,28 @@ var utils = {
     },
 
     /**
-     * Create a body with fixed base parts and additional WORK plus periodic MOVE parts.
+     * Create a body with fixed base parts and additional WORK plus periodic MOVE and CARRY parts.
      * @param {number} requestedWorkParts - Maximum number of WORK parts to add.
      * @param {Room} room - The room object to use for energy limits.
      * @param {string[]} baseParts - Parts always included before scaling WORK.
      * @param {number} moveEveryWorkParts - Add one MOVE after this many WORK parts.
+     * @param {number} [carryEveryWorkParts] - Add one CARRY after this many WORK parts (0 or omitted = no extra CARRY).
      * @returns {string[]} Array of body parts.
      */
-    createWorkBody: function (requestedWorkParts, room, baseParts, moveEveryWorkParts) {
+    createWorkBody: function (requestedWorkParts, room, baseParts, moveEveryWorkParts, carryEveryWorkParts) {
         var maxWork = Math.max(0, requestedWorkParts || 0);
         var energyBudget = room.energyCapacityAvailable;
         var parts = (baseParts || []).slice();
         var extraParts = [];
         var usedEnergy = this.getPartsCost(parts);
         var workCount = 0;
+        carryEveryWorkParts = carryEveryWorkParts || 0;
 
         for (var i = 0; i < maxWork; i++) {
             if (usedEnergy + BODYPART_COST[WORK] > energyBudget)
+                break;
+
+            if(parts.length + extraParts.length >= MAX_CREEP_SIZE - 2 ) // body part limit
                 break;
 
             extraParts.push(WORK);
@@ -771,29 +850,29 @@ var utils = {
                 extraParts.push(MOVE);
                 usedEnergy += BODYPART_COST[MOVE];
             }
+
+            if (carryEveryWorkParts > 0 && workCount % carryEveryWorkParts == 0) {
+                if (usedEnergy + BODYPART_COST[CARRY] > energyBudget)
+                    break;
+
+                extraParts.push(CARRY);
+                usedEnergy += BODYPART_COST[CARRY];
+            }
         }
 
         parts = parts.concat(extraParts);
         return parts.sort().reverse();
     },
 
-    /**
-     * Create an upgrader body limited by gapUpgradeParts and room energy capacity.
-     * @param {number} gapUpgradeParts - Maximum number of WORK parts to add.
-     * @param {Room} room - The room object to use for energy limits.
-     * @returns {string[]} Array of body parts.
-     */
     createUpgraderBody: function (gapUpgradeParts, room) {
         return this.createWorkBody(gapUpgradeParts, room, [MOVE, CARRY], 3);
     },
 
-    /**
-     * Create a mineral harvester body limited by requested WORK parts and room energy capacity.
-     * Uses a light MOVE ratio because the creep mostly stands on the extractor/container pair.
-     * @param {number} gapMineralHarvestParts - Maximum number of WORK parts to add.
-     * @param {Room} room - The room object to use for energy limits.
-     * @returns {string[]} Array of body parts.
-     */
+    createHarvesterBody: function (gapHarvestParts, room, hasContainer) {
+        var moveRatio = hasContainer ? 3 : 1;
+        return this.createWorkBody(gapHarvestParts, room, [MOVE, CARRY], 2);
+    },
+
     createMineralHarvesterBody: function (gapMineralHarvestParts, room) {
         return this.createWorkBody(gapMineralHarvestParts, room, [MOVE, CARRY], 3);
     },
@@ -811,7 +890,7 @@ var utils = {
         return ret.path;
     }
     ,
-    createDeliverer: function (fromId, toId, energyPerTick, resType) {
+    createDeliverer: function (fromId, toId, energyPerTick, resType, maxCapacity = 3000) {
         if (fromId == toId)
             return null;
 
@@ -856,7 +935,7 @@ var utils = {
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
-        if (travelTime > 170)
+        if (travelTime > 200)
             console.log("delivery tax for ",
                 fromId, '->', toId, " travelTime=", travelTime,
                 " requiredCapacity=", requiredCapacity, " energyPerTick=", energyPerTick,
@@ -885,6 +964,7 @@ var utils = {
         // that will be replaced soon and should not block new deliverer creation
         remainingCapacity = requiredCapacity - existingLookaheadCapacity;
 
+        remainingCapacity = Math.min(remainingCapacity, maxCapacity);
 
         var carryParts = Math.ceil(remainingCapacity / CARRY_CAPACITY);
         var moveParts = carryParts
