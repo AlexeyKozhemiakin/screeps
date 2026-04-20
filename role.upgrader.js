@@ -123,7 +123,7 @@ var roleUpgrader =
             return;
         }
         else {
-            creep.memory.upgrading = false;
+            creep.memory.task = "pickup";
             source = basic.findSource(creep);
 
             var err = creep.harvest(source);
@@ -133,13 +133,21 @@ var roleUpgrader =
                     creep.moveTo(source, { range: 1, visualizePathStyle: { stroke: '#ffaa00' } });
             }
             else if (err == ERR_FULL) {
-                upgrading = true;
+                creep.memory.task = "upgrade";
             }
         }
 
     },
 
     run: function (creep) {
+        if (!creep.memory.task)
+            creep.memory.task = "pickup";
+
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+
         if (!basic.moveToRoom(creep))
             return;
 
@@ -151,32 +159,27 @@ var roleUpgrader =
 
         //console.log("upgrader", creep.name, creep.room.name, creep.store);
 
-        // apparently after fixing this code the auto pick stops working and creep is loosing a step and efficiency
-        //if(creep.memory.upgrading && creep.store.energy <= creep.getActiveBodyparts(WORK)*UPGRADE_CONTROLLER_POWER) {
-        //    creep.memory.upgrading = false;
-        //    creep.say('🔄');
-        //}
-
-        // this is need to stop harvesting
-        if (!creep.memory.upgrading && _.sum(creep.store) == creep.store.getCapacity()) {
-            creep.memory.upgrading = true;
+        if (creep.memory.task == "pickup" && _.sum(creep.store) == creep.store.getCapacity()) {
+            creep.memory.task = "upgrade";
             creep.say('⚡️');
         }
 
+        if (creep.memory.task == "upgrade" && _.sum(creep.store) == 0)
+            creep.memory.task = "pickup";
 
-        if (creep.memory.upgrading) {
+        if (creep.memory.task == "upgrade") {
             basic.repairEmergency(creep);
             this.runUpgrade(creep);
 
-
-            // why 2?
-            if (_.sum(creep.carry) <= creep.getActiveBodyparts(WORK) * UPGRADE_CONTROLLER_POWER) {
-                //creep.say("easy");
+            if (_.sum(creep.store) <= creep.getActiveBodyparts(WORK) * UPGRADE_CONTROLLER_POWER) {
                 this.runPickup(creep);
             }
+            return;
         }
-        else {
+
+        if (creep.memory.task == "pickup") {
             this.runPickup(creep);
+            return;
         }
     }
 };
