@@ -1,4 +1,6 @@
 
+var utils = require('utils');
+
 function resetProductionStateForRoom(roomName) {
     var roomMemory = Memory.rooms && Memory.rooms[roomName];
     var visibleRoom = Game.rooms && Game.rooms[roomName];
@@ -529,8 +531,70 @@ global.calculateAndStorePrices = function () {
 
     //Memory.prices = undefined;
     return "Done.";
-}
+};
 
+global.roadEfficiency = function () {
+    var repairCostOfRoadPerTick =  (ROAD_DECAY_AMOUNT / REPAIR_POWER )/ ROAD_DECAY_TIME;
+    var numRoads = 50;
+
+    var costOfCarry = BODYPART_COST[CARRY] * 10 / CREEP_LIFE_TIME;
+
+    console.log("Energy repair cost per tick for " + numRoads + " roads: " + (numRoads*repairCostOfRoadPerTick).toFixed(2) +
+        ", Cost of carry: " + costOfCarry.toFixed(2));
+};
+
+// Usage: testRoadedPath()
+// Usage: testRoadedPath("69d60a6ae16a8056b7968305", "69dbcbf9058adf6a4ceb935b")
+global.testRoadedPath = function (fromId, toId) {
+    fromId = fromId || "6a03852bb22d771d8abe56d6";
+    toId = toId || "69dbcbf9058adf6a4ceb935b";
+
+    var from = Game.getObjectById(fromId);
+    var to = Game.getObjectById(toId);
+
+    if (!from || !to) {
+        return "Missing object: from=" + (!!from) + ", to=" + (!!to);
+    }
+
+    var utilsRoaded = utils.isRoaded(from, to);
+
+    var path = utils.getPathMultiroom(from, to, 1);
+    if (!path || path.length === 0) {
+        return "No path found between " + fromId + " and " + toId;
+    }
+
+    var middlePath = path.slice(1, path.length - 1);
+    var missingRoads = [];
+
+    for (var i = 0; i < middlePath.length; i++) {
+        var step = middlePath[i];
+        var room = Game.rooms[step.roomName];
+
+        if (!room) {
+            missingRoads.push(step.roomName + ":" + step.x + "," + step.y + "(no-vision)");
+            continue;
+        }
+
+        var look = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
+        var hasRoad = _.some(look, function (structure) {
+            return structure.structureType === STRUCTURE_ROAD;
+        });
+
+        if (!hasRoad) {
+            missingRoads.push(step.roomName + ":" + step.x + "," + step.y);
+        }
+    }
+
+    return JSON.stringify({
+        fromId: fromId,
+        toId: toId,
+        pathLength: path.length,
+        middleTiles: middlePath.length,
+        utilsRoaded: utilsRoaded,
+        roaded: missingRoads.length === 0,
+        missingRoads: missingRoads.slice(0, 20)
+    });
+};
 // Analyze market history from archived Memory + live transactions
 // Usage: analyzeMarketHistory()                    — all resources, summary
 // Usage: analyzeMarketHistory("energy")            — filter by resource
