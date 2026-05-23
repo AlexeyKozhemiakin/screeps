@@ -64,7 +64,7 @@ var roleDepositHarvester = {
         //    return;
         
         if (creep.store.getUsedCapacity() > 50)
-            creep.memory.task = "deliver";
+            this.runDeliver(creep);
 
         if (creep.memory.task == "deliver" && creep.store.getUsedCapacity() == 0)
             creep.memory.task = "harvest";
