@@ -11,8 +11,8 @@ var roomPowerHarvesting = {
         var myLevel8Rooms = _.chain(Game.rooms)
             .filter(function (room) {
 
-                var enoughEnergy = (room.storage && room.storage.store[RESOURCE_ENERGY] > 20000);
-                var notEnoughPower = room.terminal && (room.terminal.store[RESOURCE_POWER] || 0) < 20000;
+                var enoughEnergy = (room.storage && room.storage.store[RESOURCE_ENERGY] > 30000);
+                var notEnoughPower = room.terminal && (room.terminal.store[RESOURCE_POWER] || 0) < 15000;
 
                 return room && room.controller &&
                     room.controller.my && room.controller.level >= 8 && enoughEnergy && notEnoughPower;
