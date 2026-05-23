@@ -17,7 +17,7 @@ var roleMineralHarvester = {
         }
 
         // it needs to be 0 otherwise it doest start regen
-        return mineral.mineralAmount > 0;
+        return mineral.mineralAmount > 0; 
     },
 
     runHarvest: function (creep) {
