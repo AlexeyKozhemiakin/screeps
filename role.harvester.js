@@ -2,7 +2,7 @@ var basic = require("role.basic");
 
 var roleHarvester = {
 
-    
+
 
     selectTarget: function (creep) {
         var target;
@@ -14,7 +14,7 @@ var roleHarvester = {
         if (creep.memory.preferredSourceId) {
             var source = Game.getObjectById(creep.memory.preferredSourceId);
 
-            
+
             if (source.storage) {
                 target = source.storage;
             }
@@ -30,10 +30,10 @@ var roleHarvester = {
                 }
                 // pre harvest for builers and upgraders
                 // dont do it if there are no other creeps nearby - no one to use it                
-                else if(source.container.store.energy < 1500){
+                else if (source.container.store.energy < 1500) {
                     target = source.container;
                 }
-                else if (creep.room.controller.container && 
+                else if (creep.room.controller && creep.room.controller.container &&
                     creep.room.controller.container == target) {
                     target = source.container;
                 }
@@ -41,11 +41,11 @@ var roleHarvester = {
                     target = source.container;
                 }
             }
-            
-            
+
+
             if (target == undefined) {
                 var nearbyDeliverers = creep.pos.findInRange(FIND_MY_CREEPS, 1, { filter: c => c.memory.role == "deliverer" });
-                
+
                 if (nearbyDeliverers.length > 0) {
                     creep.say("handoff");
                     target = nearbyDeliverers[0];
@@ -73,18 +73,19 @@ var roleHarvester = {
         }
 
 
-        // this was causing issues with object cloning\serialization
         // need to explain the logic
         if (target == undefined) {
-            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, { 
-                filter: c => c.memory.role == "builder" && 
-                c.room.name == creep.room.name && c.store.getFreeCapacity() > 0 });
+            target = creep.pos.findClosestByRange(FIND_MY_CREEPS, {
+                filter: c => c.memory.role == "builder" &&
+                    c.room.name == creep.room.name && c.store.getFreeCapacity() > 0
+            });
         }
 
         if (target == undefined) {
             target = creep.pos.findClosestByRange(FIND_MY_CREEPS, {
-                 filter: c => c.memory.role == "upgrader" && 
-                 c.room.name == creep.room.name && c.store.getFreeCapacity() > 0 });
+                filter: c => c.memory.role == "upgrader" &&
+                    c.room.name == creep.room.name && c.store.getFreeCapacity() > 0
+            });
         }
 
 
@@ -112,8 +113,10 @@ var roleHarvester = {
                     visualizePathStyle:
                         { ignoreCreeps: false, stroke: '#ffffff' }
                 });
-                if (err != OK && err != ERR_TIRED)
+                if (err != OK && err != ERR_TIRED) {
+                    console.log(target);
                     creep.say(err);
+                }
             }
         }
         else if (ERR_NOT_ENOUGH_RESOURCES == transferCode) {
@@ -135,7 +138,7 @@ var roleHarvester = {
         }
 
         // it will lose 3 steps to pick up but will save time on harvesting
-        if (basic.runDropped(creep, 1, RESOURCE_ENERGY, 30))
+        if (basic.runDropped(creep, 3, RESOURCE_ENERGY, 50))
             return;
 
         var source = basic.findSource(creep);
@@ -155,7 +158,7 @@ var roleHarvester = {
                     visualizePathStyle: { stroke: '#ffffff' },
                     ignoreCreeps: false
                 });
-                
+
                 if (err == ERR_NO_PATH)
                     err = creep.moveTo(source, {
                         visualizePathStyle: { stroke: '#ffffff' },
@@ -196,18 +199,23 @@ var roleHarvester = {
             creep.memory.task = "harvest";
         }
 
-        
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+
+
 
         if (creep.memory.task == "deliver") {
             this.runDeliver(creep, true);
 
             if (_.sum(creep.store) == 0) {
-                creep.memory.task = "harvest";                
+                creep.memory.task = "harvest";
             }
         }
 
         if (creep.memory.task == "harvest") {
-            if(!basic.repairEmergency(creep))
+            if (!basic.repairEmergency(creep))
                 this.runHarvest(creep);
 
             
