@@ -48,7 +48,7 @@ var utils = {
 
 
 
-       
+
         room.spawns.forEach(spawn => {
             if (spawn.spawning) {
                 var spawningCreep = Game.creeps[spawn.spawning.name];
@@ -274,7 +274,7 @@ var utils = {
             if (room.storage && room.storage.store.energy > 100000 && buildSize > 50000)
                 builderPartsNeeded = 20;
         }
-        
+
         //if(buildSize > 50000 && )
         var gapBuilderParts = 0;
         if (builderPartsNeeded > 0) {
@@ -590,15 +590,15 @@ var utils = {
             // parts already created where?
         }
         else if (gapBuilderParts > 0) {
-            var builderMoveRatio = room.controller.level < 6 ? 1 : 3;
+            var builderMoveRatio = 1;// room.controller.level < 6 ? 1 : 3;
             mem.role = "builder";
-            mem.parts = utils.createWorkBody(gapBuilderParts, room, [], builderMoveRatio, 2);
+            mem.parts = utils.createWorkBody(gapBuilderParts, room, [CARRY, MOVE], builderMoveRatio, 2);
         }
         else if (gapUpgradeParts > 0) {
             mem.role = 'upgrader';
             gapUpgradeParts = Math.min(gapUpgradeParts, 17);
-             // max 15 parts in one upgrader, 
-             // that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
+            // max 15 parts in one upgrader, 
+            // that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
             mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
         }
         else if (gapMineralHarvestParts > 0) {
@@ -661,37 +661,37 @@ var utils = {
 
         if (room.memory.coldStart) {
 
-            if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
+            var deliverersBase = _.filter(deliverers,
+                d => d.memory.preferredSourceId == undefined
+                    && !d.memory.temporary);
+
+            var hasNoTempDeliverers = !_.some(deliverers, d => d.memory.temporary);
+            
+            var hasSomeResorts =
+                (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
+                (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100) ||
+                (room.terminal && room.terminal.store[RESOURCE_ENERGY] > 1000);
+
+
+            if (deliverersBase.length == 0 && hasNoTempDeliverers) {
                 // more proper amount
+                mem.role = "deliverer";
                 mem.parts = [CARRY, MOVE]
                 mem.temporary = true; // mark as temporary to exclude from some logic
-                console.log(room.name, " low deliverer budget=", energyBudget);
+                mem.preferredSourceId = undefined;
 
+                console.log(room.name, " low deliverer budget=", energyBudget);
             }
 
-            if (roomCreeps.length < 3 || harvesters.length == 0) {
+            else if (roomCreeps.length < 3 || harvesters.length == 0) {
                 energyBudget = room.energyAvailable; // use as min energy in start as possible
 
                 mem.temporary = true; // mark as temporary to exclude from some logic
-                console.log(room.name, " low creeps budget=", energyBudget);
+                console.log(room.name, "a low creeps budget=", energyBudget, " mem =", JSON.stringify(mem));
             }
 
-            var deliverersBase = _.filter(deliverers,
-                d => d.memory.preferredSourceId == undefined && !d.memory.temporary);
 
-            if (mem.role == null && deliverersBase.length == 0 && (
-                (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
-                (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100)
-            )) {
-                console.log(room.name, " no deliverers recovery, budget=", room.energyAvailable);
-                energyBudget = room.energyAvailable;
 
-                // create small local deliverer
-                mem.role = "deliverer";
-                mem.parts = [CARRY, MOVE];
-                mem.preferredSourceId = undefined;
-                mem.temporary = true; // mark as temporary to exclude from some logic
-            }
         }
 
 
@@ -751,21 +751,19 @@ var utils = {
         }
     },
 
-    isRoaded(from, target, room) {
+    isRoaded(from, target) {
         if (target == undefined || from == undefined)
             return false;
 
 
         //console.log("checking roading from ", pos, " to ", target);
-        var path = from.pos.findPathTo(target, { range: 1, ignoreCreeps: true });
+        var path = this.getPathMultiroom(from, target);
 
-
-
-        return this.isPathRoaded(path, room)
+        return this.isPathRoaded(path)
     },
 
 
-    isPathRoaded: function (path, room) {
+    isPathRoaded: function (path) {
         if (path.length <= 2)
             return true;
 
@@ -773,12 +771,21 @@ var utils = {
         // exclucde first and last pos, where creep will stand on, so only middle road is checked
         var middlePath = path.slice(1, path.length - 1);
         var roaded = _.every(middlePath, p => {
-            var look = room.lookForAt(LOOK_STRUCTURES, p.x, p.y);
-            var yesRoad = look.some(s => s.structureType == STRUCTURE_ROAD)
+            var yesRoad = false;
+            try {
+                if (p.x == 0 || p.y == 0 || p.x == 49 || p.y == 49) // check for exits, they are usually not roaded and it's not a problem
+                    return true;
+
+                var look = p.lookFor(LOOK_STRUCTURES);
+                yesRoad = look.some(s => s.structureType == STRUCTURE_ROAD);
+            } catch (e) {
+                //console.log("Error checking road at ", p, " error=", e);
+                return false;
+            }
+
             return yesRoad;
         });
 
-        //sconsole.log("isPathRoaded =", roaded, " for ", path.length, " steps");
         return roaded;
     },
 
@@ -836,7 +843,7 @@ var utils = {
             if (usedEnergy + BODYPART_COST[WORK] > energyBudget)
                 break;
 
-            if(parts.length + extraParts.length >= MAX_CREEP_SIZE - 2 ) // body part limit
+            if (parts.length + extraParts.length >= MAX_CREEP_SIZE - 2) // body part limit
                 break;
 
             extraParts.push(WORK);
@@ -878,22 +885,13 @@ var utils = {
     },
 
     getPathMultiroom: function (from, to, r = 1) {
-        if (from.room.name == to.room.name)
-            return from.pos.findPathTo(to.pos, { range: r, ignoreCreeps: true });
-
-        let goals = _.map([to], function (s) {
-            return { pos: s.pos, range: r };
-        });
-
-        let ret = PathFinder.search(from.pos, goals, {});
-
-        return ret.path;
+        return basic.getPathMultiroom(from, to, r);
     }
     ,
-    createDeliverer: function (fromId, toId, energyPerTick, resType, maxCapacity = 3000) {
+    createDeliverer: function (fromId, toId, energyPerTick, resType, maxCapacity = 1000) {
+
         if (fromId == toId)
             return null;
-
 
         var from = Game.getObjectById(fromId);
         var to = Game.getObjectById(toId);
@@ -916,7 +914,7 @@ var utils = {
         // +2 is turnaround delay tbd to remove it (currently 0)
         var travelTime = (path.length - 1) * 2 + 1;
 
-        var pathRoaded = this.isPathRoaded(path, from.room);
+        var pathRoaded = this.isPathRoaded(path);
 
         if (pathRoaded) {
             //console.log('deliverer all roaded ', fromId, '->', toId);
@@ -935,7 +933,7 @@ var utils = {
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
-        if (travelTime > 200)
+        if (travelTime > 300)
             console.log("delivery tax for ",
                 fromId, '->', toId, " travelTime=", travelTime,
                 " requiredCapacity=", requiredCapacity, " energyPerTick=", energyPerTick,
@@ -956,7 +954,8 @@ var utils = {
         var existingLookeahead = _.filter(Game.creeps,
             d => d.memory.role == "deliverer" &&
                 d.memory.preferredSourceId == fromId &&
-                d.ticksToLive > LOOKAHEAD_TICKS);
+                (d.ticksToLive > LOOKAHEAD_TICKS || d.spawning));
+
         var existingLookaheadCapacity = _.sum(_.map(existingLookeahead, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
 
 
@@ -1073,25 +1072,26 @@ var utils = {
 
         var attackPartsSmall = [TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
-            HEAL,
-            ATTACK, ATTACK];
+
+            ATTACK, HEAL, ATTACK];
 
         var attackPartsMedium = [
             TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
-            HEAL, HEAL,
-            RANGED_ATTACK, ATTACK, ATTACK, ATTACK, ATTACK
+            HEAL,
+            RANGED_ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, HEAL
         ];
+
         var attackPartsLarge = [
             TOUGH, TOUGH, TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE,
-            HEAL, HEAL, HEAL,
-            RANGED_ATTACK, ATTACK, ATTACK, ATTACK,
-            ATTACK, ATTACK, ATTACK, ATTACK
+            MOVE, MOVE, MOVE, MOVE,
+            HEAL, HEAL,
+            RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
+            ATTACK, ATTACK, ATTACK, ATTACK, HEAL
         ];
 
         var attackPartsExtraLarge = [
@@ -1322,7 +1322,7 @@ var utils = {
         var heavyHostiles = _.filter(hostiles, function (hostile) {
             return hostile.getActiveBodyparts(HEAL) >= 2 ||
                 hostile.getActiveBodyparts(ATTACK) >= 5 ||
-                hostile.getActiveBodyparts(RANGED_ATTACK) >= 5 ||
+                hostile.getActiveBodyparts(RANGED_ATTACK) >= 3 ||
                 hostile.getActiveBodyparts(TOUGH) >= 5;
         });
 

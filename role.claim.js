@@ -23,7 +23,7 @@ var roleClaim = {
 
 
         if (!creep.pos.isNearTo(target.pos)) {
-            var err = creep.moveTo(target, { visualizePathStyle: { stroke: '#ff0000' } });
+            var err = creep.moveTo(target, { range: 0, visualizePathStyle: { stroke: '#ff0000' } });
 
             if (err != OK) {
                 console.log(creep.room.name, " ", creep.name, " move err" + err);

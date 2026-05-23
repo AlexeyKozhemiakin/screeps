@@ -46,13 +46,14 @@ module.exports = {
             if (!room || !room.terminal || !room.storage)
                 continue;
 
-            if (room.storage.store[RESOURCE_ENERGY] < 200000)
+            if (room.storage.store[RESOURCE_ENERGY] < 150000)
                 continue;
 
             if (room.terminal.store[RESOURCE_ENERGY] < 5000)
                 continue;
 
             //console.log("Room ", roomName, " has excess energy ", room.terminal.store[RESOURCE_ENERGY]);
+            var targets = {};
             for (const targetRoomName in Game.rooms) {
                 const targetRoom = Game.rooms[targetRoomName];
                 if (!targetRoom || !targetRoom.controller|| !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
@@ -60,10 +61,17 @@ module.exports = {
 
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
                 if (totalInTarget < 50000) {
-                    var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 5000);
-                    if(res)
-                        return;// make it slower
+                   targets[targetRoomName] = totalInTarget;
                 }
+            }
+
+            var min = _.min(_.values(targets));
+            var targetRoomName = _.findKey(targets, v => v == min);
+            if (targetRoomName) {
+                //console.log("Sharing energy from ", roomName, " to ", targetRoomName);
+                var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 10000);
+                if(res)
+                    return;// make it slower
             }
         }
 
@@ -138,10 +146,20 @@ module.exports = {
     },
 
     shareResourcesInternal: function () {
+        //return;
         
+        //console.log("Sharing resources between rooms...");
+        for (const roomName in Game.rooms) {
+            const room = Game.rooms[roomName];
+            if (!room || !room.terminal)
+                continue;
 
-        return;
-
+            const silicone = room.terminal.store[RESOURCE_SILICON] || 0;
+            //console.log("Room ", roomName, " has ", silicone, " silicon in terminal");
+            if (silicone > 1000) {
+                this.shareResource(roomName, 'E51S24', RESOURCE_SILICON, Math.min(1000, silicone));
+            }
+        }
     },
 
     sellExcess: function () {
@@ -160,6 +178,7 @@ module.exports = {
             'reductant'     : 10000,
             'purifier'      : 10000,
             'ghodium_melt'  : 10000,
+                'ops'           : 30000,
             'battery'       : 5000
         };
 

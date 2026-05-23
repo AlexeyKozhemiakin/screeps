@@ -4,7 +4,9 @@
 
 var roleBasic = {
     portalAvoidRange: 3,
-    roomsToAvoid: ["E54S21", "E48S21", "E51S21"],
+    roomsToAvoid: ["E54S21", "E48S21", "E51S21", "E51S28",
+        "E55S24" //invader
+    ],
 
     getRouteWeight: function (roomName) {
         if (this.roomsToAvoid.indexOf(roomName) != -1)
@@ -19,7 +21,7 @@ var roleBasic = {
         x %= 10;
         y %= 10;
         if ((x == 4 || x == 5 || x == 6) && (y == 4 || y == 5 || y == 6))
-            return 10;
+            return 7;
 
         // prefer highways
         if (x == 0 || y == 0)
@@ -40,6 +42,86 @@ var roleBasic = {
 
         return undefined;
     },
+
+    isDangerousHostile: function (creep) {
+        if (!creep || !creep.owner)
+            return false;
+
+        if (creep.owner.username != 'Source Keeper')
+            return false;
+
+        return creep.getActiveBodyparts(ATTACK) > 0 ||
+            creep.getActiveBodyparts(RANGED_ATTACK) > 0 ||
+            creep.getActiveBodyparts(HEAL) > 0 ||
+            creep.getActiveBodyparts(WORK) >= 4;
+    },
+
+    avoidDangerousHostilesInCosts: function (roomName, costs, target) {
+        var room = Game.rooms[roomName];
+        if (!room)
+            return costs;
+
+        var hostiles = room.find(FIND_HOSTILE_CREEPS, {
+            filter: function (creep) {
+                return roleBasic.isDangerousHostile(creep);
+            }
+        });
+
+        if (!hostiles || hostiles.length == 0)
+            return costs;
+
+        var targetPos = roleBasic.getTargetPos(target);
+        var terrain = room.getTerrain();
+
+        for (var i = 0; i < hostiles.length; i++) {
+            var hostile = hostiles[i];
+            var avoidRange = hostile.getActiveBodyparts(RANGED_ATTACK) > 0 ? 4 : 3;
+
+            for (var dx = -avoidRange; dx <= avoidRange; dx++) {
+                var x = hostile.pos.x + dx;
+                if (x < 0 || x > 49)
+                    continue;
+
+                for (var dy = -avoidRange; dy <= avoidRange; dy++) {
+                    var y = hostile.pos.y + dy;
+                    if (y < 0 || y > 49)
+                        continue;
+
+                    if (targetPos &&
+                        targetPos.roomName == roomName &&
+                        targetPos.x == x &&
+                        targetPos.y == y)
+                        continue;
+
+                    if (terrain.get(x, y) == TERRAIN_MASK_WALL)
+                        continue;
+
+                    costs.set(x, y, 0xff);
+                }
+            }
+        }
+
+        return costs;
+    },
+
+    avoidCreepsInCosts: function (roomName, costs, target) {
+        var room = Game.rooms[roomName];
+        if (!room)
+            return costs;
+
+        var hostiles = room.find(FIND_CREEPS);
+
+        if (!hostiles || hostiles.length == 0)
+            return costs;
+
+        for (var creep of hostiles) {
+            costs.set(creep.pos.x, creep.pos.y, 0xff);
+        }
+
+
+        return costs;
+    },
+
 
     avoidPortalsInCosts: function (roomName, costs, target) {
         var room = Game.rooms[roomName];
@@ -87,10 +169,43 @@ var roleBasic = {
         return costs;
     },
 
+    applyRoomStructureCosts: function (roomName, costs) {
+        var room = Game.rooms[roomName];
+        if (!room)
+            return costs;
+
+        var structures = room.find(FIND_STRUCTURES);
+        var constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+
+        for (var i = 0; i < structures.length; i++) {
+            var structure = structures[i];
+
+            if (structure.structureType == STRUCTURE_ROAD) {
+                costs.set(structure.pos.x, structure.pos.y, 1);
+            }
+            else if (structure.structureType != STRUCTURE_CONTAINER &&
+                (structure.structureType != STRUCTURE_RAMPART || !structure.my)) {
+                costs.set(structure.pos.x, structure.pos.y, 255);
+            }
+        }
+
+        for (var j = 0; j < constructionSites.length; j++) {
+            var site = constructionSites[j];
+
+            if (site.structureType == STRUCTURE_ROAD)
+                costs.set(site.pos.x, site.pos.y, 1);
+        }
+
+        return costs;
+    },
+
     getFindPathOptions: function (target, range, extraOptions) {
         var options = {
-            ignoreCreeps: false,
+            ignoreCreeps: true,
             costCallback: function (roomName, costs) {
+                roleBasic.applyRoomStructureCosts(roomName, costs);
+                roleBasic.avoidDangerousHostilesInCosts(roomName, costs, target);
+                roleBasic.avoidCreepsInCosts(roomName, costs, target);
                 return roleBasic.avoidPortalsInCosts(roomName, costs, target);
             }
         };
@@ -111,27 +226,444 @@ var roleBasic = {
         return options;
     },
 
-    moveToVisibleRoomController: function (creep, roomToGo) {
+    debugPathSelection: function (creep, label, target) {
+        if (!creep || creep.name != 'deliverer8115')
+            return;
+
+        var targetPos = this.getTargetPos(target);
+        var targetStr = targetPos ? targetPos.roomName + ':' + targetPos.x + ',' + targetPos.y : 'none';
+        console.log('[path-debug]', creep.name, label,
+            'room=' + creep.room.name,
+            'pos=' + creep.pos.x + ',' + creep.pos.y,
+            'target=' + targetStr);
+    },
+
+    debugPathDetail: function (creep, label, detail, target) {
+        if (!creep || creep.name != 'deliverer5123')
+            return;
+
+        var targetPos = this.getTargetPos(target);
+        var targetStr = targetPos ? targetPos.roomName + ':' + targetPos.x + ',' + targetPos.y : 'none';
+        console.log('[path-debug]', creep.name, label,
+            detail,
+            'room=' + creep.room.name,
+            'pos=' + creep.pos.x + ',' + creep.pos.y,
+            'target=' + targetStr);
+    },
+
+    clearCrossRoomPathCache: function (creep) {
+        if (creep && creep.memory)
+            delete creep.memory._crossRoomPath;
+    },
+
+    getCrossRoomPathCacheKey: function (fromPos, toPos, r, includeCreeps) {
+        return fromPos.roomName + ':' + toPos.roomName + ':' + toPos.x + ':' + toPos.y + ':' + r + ':' + (includeCreeps ? 'traffic' : 'clear');
+    },
+
+    deserializePath: function (serializedPath) {
+        if (!serializedPath || serializedPath.length == 0)
+            return [];
+
+        return _.map(serializedPath, function (step) {
+            return new RoomPosition(step.x, step.y, step.roomName);
+        });
+    },
+
+    serializePath: function (path) {
+        if (!path || path.length == 0)
+            return [];
+
+        return _.map(path, function (step) {
+            return {
+                x: step.x,
+                y: step.y,
+                roomName: step.roomName
+            };
+        });
+    },
+
+    trimPathFromCurrentPos: function (creep, path) {
+        if (!creep || !path || path.length == 0)
+            return [];
+
+        for (var i = 0; i < path.length; i++) {
+            var step = path[i];
+            if (step.roomName == creep.room.name && step.x == creep.pos.x && step.y == creep.pos.y)
+                return path.slice(i + 1);
+        }
+
+        return path;
+    },
+
+    getCachedCrossRoomPath: function (creep, targetPos, r, includeCreeps) {
+        if (!creep || !creep.memory || !creep.memory._crossRoomPath)
+            return undefined;
+
+        var cache = creep.memory._crossRoomPath;
+        var fromPos = creep.pos;
+        var cacheKey = this.getCrossRoomPathCacheKey(fromPos, targetPos, r, includeCreeps);
+        if (cache.key != cacheKey)
+            return undefined;
+
+        if (cache.tick == undefined || Game.time - cache.tick > 5)
+            return undefined;
+
+        return this.trimPathFromCurrentPos(creep, this.deserializePath(cache.path));
+    },
+
+    saveCrossRoomPath: function (creep, targetPos, r, includeCreeps, path) {
+        if (!creep || !creep.memory || !targetPos)
+            return;
+
+        creep.memory._crossRoomPath = {
+            key: this.getCrossRoomPathCacheKey(creep.pos, targetPos, r, includeCreeps),
+            tick: Game.time,
+            path: this.serializePath(path)
+        };
+    },
+
+    applyCreepTrafficCosts: function (roomName, costs, movingCreep, target, hardBlock) {
+        var room = Game.rooms[roomName];
+        if (!room)
+            return costs;
+
+        var targetPos = roleBasic.getTargetPos(target);
+        var creeps = room.find(FIND_CREEPS);
+        var blockedCount = 0;
+        var blockedNames = [];
+
+        for (var i = 0; i < creeps.length; i++) {
+            var otherCreep = creeps[i];
+            if (movingCreep && otherCreep.id == movingCreep.id)
+                continue;
+
+            if (targetPos && targetPos.roomName == roomName && targetPos.x == otherCreep.pos.x && targetPos.y == otherCreep.pos.y)
+                continue;
+
+            var currentCost = costs.get(otherCreep.pos.x, otherCreep.pos.y);
+            if (currentCost >= 0xff)
+                continue;
+
+            if (hardBlock) {
+                costs.set(otherCreep.pos.x, otherCreep.pos.y, 0xff);
+                blockedCount++;
+                if (blockedNames.length < 3)
+                    blockedNames.push(otherCreep.name + '@' + otherCreep.pos.x + ',' + otherCreep.pos.y);
+            }
+            else if (currentCost <= 1)
+                costs.set(otherCreep.pos.x, otherCreep.pos.y, 3);
+            else
+                costs.set(otherCreep.pos.x, otherCreep.pos.y, Math.max(currentCost, 10));
+        }
+
+        if (hardBlock && movingCreep && movingCreep.name == 'deliverer8115') {
+            roleBasic.debugPathDetail(movingCreep,
+                'traffic hardBlock',
+                'roomName=' + roomName + ' blocked=' + blockedCount + ' sample=' + blockedNames.join('|'),
+                target);
+        }
+
+        return costs;
+    },
+
+    isPositionNearDangerousHostile: function (roomName, pos, target) {
+        var room = Game.rooms[roomName];
+        if (!room || !pos)
+            return false;
+
+        var targetPos = roleBasic.getTargetPos(target);
+        if (targetPos && targetPos.roomName == roomName && targetPos.x == pos.x && targetPos.y == pos.y)
+            return false;
+
+        var hostiles = room.find(FIND_HOSTILE_CREEPS, {
+            filter: function (creep) {
+                return roleBasic.isDangerousHostile(creep);
+            }
+        });
+
+        for (var i = 0; i < hostiles.length; i++) {
+            var hostile = hostiles[i];
+            var avoidRange = hostile.getActiveBodyparts(RANGED_ATTACK) > 0 ? 4 : 3;
+            if (Math.max(Math.abs(pos.x - hostile.pos.x), Math.abs(pos.y - hostile.pos.y)) <= avoidRange)
+                return true;
+        }
+
+        return false;
+    },
+
+    updateMoveStuckState: function (creep, key) {
+        if (!creep.memory._basicMoveState || creep.memory._basicMoveState.key != key) {
+            creep.memory._basicMoveState = {
+                key: key,
+                x: creep.pos.x,
+                y: creep.pos.y,
+                roomName: creep.room.name,
+                lastX: undefined,
+                lastY: undefined,
+                lastRoomName: undefined,
+                stuckTicks: 0
+            };
+
+            return false;
+        }
+
+        var state = creep.memory._basicMoveState;
+        var samePosition = state.x == creep.pos.x && state.y == creep.pos.y && state.roomName == creep.room.name;
+        var oscillating = state.lastX == creep.pos.x && state.lastY == creep.pos.y && state.lastRoomName == creep.room.name;
+
+        if (samePosition || oscillating) {
+            state.stuckTicks = (state.stuckTicks || 0) + 1;
+        }
+        else {
+            state.stuckTicks = 0;
+        }
+
+        state.lastX = state.x;
+        state.lastY = state.y;
+        state.lastRoomName = state.roomName;
+        state.x = creep.pos.x;
+        state.y = creep.pos.y;
+        state.roomName = creep.room.name;
+
+        return state.stuckTicks >= 2;
+    },
+
+    resetMoveStuckState: function (creep, key) {
+        if (!creep.memory._basicMoveState)
+            return;
+
+        if (!key || creep.memory._basicMoveState.key == key)
+            delete creep.memory._basicMoveState;
+    },
+
+    getRoomRoute: function (fromRoomName, toRoomName) {
+        if (!roleBasic._routeCache)
+            roleBasic._routeCache = {};
+
+        var cacheKey = fromRoomName + toRoomName;
+        var route = roleBasic._routeCache[cacheKey];
+
+        if (!route) {
+            route = Game.map.findRoute(fromRoomName, toRoomName, {
+                routeCallback: function (roomName) {
+                    return roleBasic.getRouteWeight(roomName);
+                }
+            });
+            roleBasic._routeCache[cacheKey] = route;
+        }
+
+        return route;
+    },
+
+    getPathMultiroom: function (from, to, r = 1, options) {
+        var fromPos = this.getTargetPos(from);
+        var toPos = this.getTargetPos(to);
+        var includeCreeps = options && options.includeCreeps;
+        var movingCreep = options && options.movingCreep;
+
+        if (!fromPos || !toPos)
+            return [];
+
+        if (fromPos.roomName == toPos.roomName) {
+            var sameRoomPath = fromPos.findPathTo(toPos,
+                this.getFindPathOptions(to, r, {
+                    ignoreCreeps: !includeCreeps,
+                    costCallback: function (roomName, costs) {
+                        roleBasic.applyRoomStructureCosts(roomName, costs);
+                        roleBasic.avoidDangerousHostilesInCosts(roomName, costs, to);
+                        if (includeCreeps)
+                            roleBasic.applyCreepTrafficCosts(roomName, costs, movingCreep, to, true);
+                        return roleBasic.avoidPortalsInCosts(roomName, costs, to);
+                    }
+                }));
+
+            return _.map(sameRoomPath, function (step) {
+                return new RoomPosition(step.x, step.y, fromPos.roomName);
+            });
+        }
+
+        var roomRoute = this.getRoomRoute(fromPos.roomName, toPos.roomName);
+        if (roomRoute === ERR_NO_PATH) {
+            console.log('getPathMultiroom no route', from.id, fromPos.roomName, '->', to.id, toPos.roomName);
+            return [];
+        }
+
+        var goals = [{ pos: toPos, range: r }];
+        var allowedRooms = {};
+        allowedRooms[fromPos.roomName] = true;
+        allowedRooms[toPos.roomName] = true;
+
+        for (var routeIndex = 0; routeIndex < roomRoute.length; routeIndex++) {
+            allowedRooms[roomRoute[routeIndex].room] = true;
+        }
+
+        var callback = function (roomName) {
+            if (!allowedRooms[roomName])
+                return false;
+
+            if (!Game.rooms[roomName])
+                return;
+
+            var costs = new PathFinder.CostMatrix();
+            roleBasic.applyRoomStructureCosts(roomName, costs);
+            roleBasic.avoidDangerousHostilesInCosts(roomName, costs, toPos);
+            if (includeCreeps)
+                roleBasic.applyCreepTrafficCosts(roomName, costs, movingCreep, toPos, true);
+            return roleBasic.avoidPortalsInCosts(roomName, costs, toPos);
+        };
+
+        var ret = PathFinder.search(fromPos, goals, {
+            plainCost: 2,
+            swampCost: 4,
+            maxRooms: roomRoute.length + 1,
+            maxOps: 12000,
+            roomCallback: callback
+        });
+
+        if (ret.incomplete) {
+            console.log('getPathMultiroom incomplete',
+                from.id, fromPos.roomName + ':' + fromPos.x + ',' + fromPos.y,
+                '->', to.id, toPos.roomName + ':' + toPos.x + ',' + toPos.y,
+                'range=' + r,
+                'pathLen=' + ret.path.length,
+                'ops=' + ret.ops,
+                'cost=' + ret.cost,
+                'rooms=' + (roomRoute.length + 1));
+        }
+
+        return ret.path;
+    },
+
+    getVisibleRoomExitTarget: function (creep, roomToGo, exitDir, targetRoom, target) {
+        var targetPos = this.getTargetPos(target);
+        if (targetPos && targetRoom && targetPos.roomName == targetRoom.name) {
+            var preferredExit = new RoomPosition(
+                exitDir == FIND_EXIT_LEFT ? 0 : exitDir == FIND_EXIT_RIGHT ? 49 : targetPos.x,
+                exitDir == FIND_EXIT_TOP ? 0 : exitDir == FIND_EXIT_BOTTOM ? 49 : targetPos.y,
+                creep.room.name
+            );
+
+            var exits = creep.room.find(exitDir);
+            if (!exits || exits.length == 0)
+                return preferredExit;
+
+            exits = _.sortBy(exits, function (pos) {
+                return pos.getRangeTo(preferredExit);
+            });
+
+            return creep.pos.findClosestByPath(exits, this.getFindPathOptions(target, 0, {
+                ignoreCreeps: true,
+                maxRooms: 1
+            })) || creep.pos.findClosestByRange(exits) || preferredExit;
+        }
+
+        if (!targetRoom || !targetRoom.controller)
+            return undefined;
+
+        var targetExitDir = Game.map.findExit(targetRoom, creep.room);
+        if (targetExitDir < 0)
+            return this.findClosestExitAvoidingPortals(creep, exitDir, target);
+
+        var targetExit = targetRoom.controller.pos.findClosestByPath(targetExitDir,
+            this.getFindPathOptions(targetRoom.controller, 1, {
+                ignoreCreeps: true,
+                maxRooms: 1
+            }));
+
+        if (!targetExit)
+            return this.findClosestExitAvoidingPortals(creep, exitDir, target);
+
+        return new RoomPosition(
+            exitDir == FIND_EXIT_LEFT ? 0 : exitDir == FIND_EXIT_RIGHT ? 49 : targetExit.x,
+            exitDir == FIND_EXIT_TOP ? 0 : exitDir == FIND_EXIT_BOTTOM ? 49 : targetExit.y,
+            creep.room.name
+        );
+    },
+
+    getVisibleNextRouteTarget: function (creep, route, roomToGo) {
+        if (!route || route.length == 0)
+            return undefined;
+
+        var nextRoomName = route[0].room;
+        var nextRoom = Game.rooms[nextRoomName];
+        if (!nextRoom)
+            return undefined;
+
+        if (route.length > 1) {
+            var nextExitDir = Game.map.findExit(nextRoom, route[1].room);
+            if (nextExitDir >= 0) {
+                var nextExits = nextRoom.find(nextExitDir);
+                if (nextExits && nextExits.length > 0) {
+                    return creep.pos.findClosestByPath(nextExits, this.getFindPathOptions(undefined, 0, {
+                        ignoreCreeps: true,
+                        maxRooms: 2
+                    }));
+                }
+            }
+
+            return new RoomPosition(25, 25, nextRoomName);
+        }
+
+        var exitDir = Game.map.findExit(creep.room, roomToGo);
+        if (exitDir < 0)
+            return undefined;
+
+        return this.getVisibleRoomExitTarget(creep, roomToGo, exitDir, nextRoom);
+    },
+
+    moveToVisibleRoomController: function (creep, roomToGo, target) {
+        this.debugPathSelection(creep, 'moveToVisibleRoomController ' + roomToGo, target);
+
         var targetRoom = Game.rooms[roomToGo];
         if (!targetRoom || !targetRoom.controller)
             return undefined;
 
-        var path = creep.pos.findPathTo(targetRoom.controller, this.getFindPathOptions(targetRoom.controller, 1, {
-            maxRooms: 16
-        }));
-
-        if (!path || path.length == 0)
+        var route = this.getRoomRoute(creep.room.name, roomToGo);
+        if (route == ERR_NO_PATH)
             return ERR_NO_PATH;
 
-        var code = creep.moveByPath(path);
+        if (!route || route.length != 1 || route[0].room != roomToGo)
+            return undefined;
 
-        if (code == ERR_NOT_FOUND && path[0])
-            code = creep.move(path[0].direction);
+        var exitDir = Game.map.findExit(creep.room, roomToGo);
+        if (exitDir < 0)
+            return undefined;
 
-        return code;
+        if ((exitDir == FIND_EXIT_LEFT && creep.pos.x == 0) ||
+            (exitDir == FIND_EXIT_RIGHT && creep.pos.x == 49) ||
+            (exitDir == FIND_EXIT_TOP && creep.pos.y == 0) ||
+            (exitDir == FIND_EXIT_BOTTOM && creep.pos.y == 49))
+            return creep.move(exitDir);
+
+        var moveTarget = this.getVisibleRoomExitTarget(creep, roomToGo, exitDir, targetRoom, target);
+        if (!moveTarget)
+            return ERR_NO_PATH;
+
+        this.debugPathDetail(creep,
+            'moveToVisibleRoomController target ' + roomToGo,
+            'exitDir=' + exitDir + ' moveTarget=' + moveTarget.roomName + ':' + moveTarget.x + ',' + moveTarget.y,
+            target);
+
+        var visibleMoveCode = creep.moveTo(moveTarget, this.getMoveToOptions(moveTarget, '#35bd1d', 0, {
+            costCallback: function (roomName, costs) {
+                roleBasic.applyRoomStructureCosts(roomName, costs);
+                roleBasic.avoidDangerousHostilesInCosts(roomName, costs, moveTarget);
+                roleBasic.avoidPortalsInCosts(roomName, costs, moveTarget);
+                return roleBasic.applyCreepTrafficCosts(roomName, costs, creep, moveTarget, true);
+            },
+            reusePath: 0,
+            maxRooms: 1
+        }));
+
+        this.debugPathDetail(creep,
+            'moveToVisibleRoomController result ' + roomToGo,
+            'code=' + visibleMoveCode,
+            moveTarget);
+
+        return visibleMoveCode;
     },
 
-    findClosestExitAvoidingPortals: function (creep, exitDir) {
+    findClosestExitAvoidingPortals: function (creep, exitDir, target) {
         var exits = creep.room.find(exitDir);
         var portals = creep.room.find(FIND_STRUCTURES, {
             filter: function (structure) {
@@ -165,20 +697,39 @@ var roleBasic = {
             return !blocked[pos.x + ":" + pos.y];
         });
 
-        if (safeExits.length > 0)
-            return creep.pos.findClosestByRange(safeExits);
+        if (creep.memory.role == 'builder') {
+            safeExits = _.filter(safeExits, function (pos) {
+                return !roleBasic.isPositionNearDangerousHostile(creep.room.name, pos, target);
+            });
+        }
 
-        return creep.pos.findClosestByRange(exits);
+        if (safeExits.length > 0)
+            return creep.pos.findClosestByPath(safeExits, this.getFindPathOptions(target, 0, {
+                ignoreCreeps: true,
+                maxRooms: 1
+            })) || creep.pos.findClosestByRange(safeExits);
+
+        return creep.pos.findClosestByPath(exits, this.getFindPathOptions(target, 0, {
+            ignoreCreeps: true,
+            maxRooms: 1
+        })) || creep.pos.findClosestByRange(exits);
     },
 
-    moveToRoom: function (creep, roomToGo = undefined) {
+    moveToRoom: function (creep, roomToGo = undefined, target = undefined) {
         if (!roomToGo && creep.memory.toGo)
             roomToGo = creep.memory.toGo[0];
 
         if (!roomToGo)
             return true;
 
+        this.debugPathSelection(creep, 'moveToRoom ' + roomToGo, target);
+
+        var moveStateKey = 'room:' + roomToGo;
+
         if (roomToGo == creep.room.name) {
+            this.resetMoveStuckState(creep, moveStateKey);
+
+            //return true;
             //console.log(creep.name, " in the room");
             if (creep.pos.x == 0)
                 creep.move(RIGHT);
@@ -197,15 +748,17 @@ var roleBasic = {
         if (creep.fatigue > 0)
             return false;
 
-        var visibleRoomCode = this.moveToVisibleRoomController(creep, roomToGo);
+        var isStuck = this.updateMoveStuckState(creep, moveStateKey);
+
+        var visibleRoomCode = this.moveToVisibleRoomController(creep, roomToGo, target);
         if (visibleRoomCode == OK) {
-            creep.say("Go" + roomToGo);
+            creep.say("Go2" + roomToGo);
             return false;
         }
 
         if (visibleRoomCode != undefined && visibleRoomCode != ERR_NO_PATH && visibleRoomCode != ERR_NOT_FOUND) {
             console.log("err", visibleRoomCode, " creep visible move to ", creep.name, " to ", roomToGo);
-            creep.say("Go" + roomToGo);
+            creep.say("Go3" + roomToGo);
             return false;
         }
 
@@ -214,22 +767,7 @@ var roleBasic = {
         //            filter: flag => (flag.color == COLOR_ORANGE && flag.secondaryColor == COLOR_ORANGE)
         //       });
 
-        // Use runtime cache for routes (NOT Memory) because Game.map.findRoute() returns
-        // RoomPosition objects which cannot be serialized
-        if (!roleBasic._routeCache)
-            roleBasic._routeCache = {};
-
-        var cacheKey = creep.room + roomToGo;
-        var route = roleBasic._routeCache[cacheKey];
-
-        if (!route) {
-            route = Game.map.findRoute(creep.room, roomToGo, {
-                routeCallback: function (roomName) {
-                    return roleBasic.getRouteWeight(roomName);
-                }
-            });
-            roleBasic._routeCache[cacheKey] = route;
-        }
+        var route = this.getRoomRoute(creep.room.name, roomToGo);
 
         if (route == ERR_NO_PATH) {
             console.log("no route from ", creep.room.name, " to ", roomToGo);
@@ -239,14 +777,29 @@ var roleBasic = {
         const exitDir = Game.map.findExit(creep.room, route[0].room);
         if (exitDir < 0) {
             console.log("no exit from ", creep.room.name, " to ", route[0].room, " for ", creep.name);
-            delete roleBasic._routeCache[cacheKey];
+            delete roleBasic._routeCache[creep.room.name + roomToGo];
             return false;
         }
 
-        moveTarget = this.findClosestExitAvoidingPortals(creep, exitDir);
+        if (isStuck) {
+            delete roleBasic._routeCache[creep.room.name + roomToGo];
+            delete creep.memory._move;
+        }
 
-        var code = creep.moveTo(moveTarget, this.getMoveToOptions(moveTarget, '#35bd1d', undefined, {
-            reusePath: 5,
+        moveTarget = this.getVisibleNextRouteTarget(creep, route, roomToGo);
+
+        if (isStuck)
+            moveTarget = this.findClosestExitAvoidingPortals(creep, exitDir, moveTarget || target);
+        else if (!moveTarget)
+            moveTarget = this.findClosestExitAvoidingPortals(creep, exitDir);
+
+        var moveOptions = this.getMoveToOptions(moveTarget, '#35bd1d', 0, {
+            reusePath: isStuck ? 0 : 5,
+            maxRooms: moveTarget && moveTarget.roomName != creep.room.name ? 2 : 1
+        });
+
+        var code = creep.moveTo(moveTarget, moveTarget && moveTarget.roomName != creep.room.name ? moveOptions : this.getMoveToOptions(moveTarget, '#35bd1d', undefined, {
+            reusePath: isStuck ? 0 : 5,
             maxRooms: 1
         }));
 
@@ -264,7 +817,7 @@ var roleBasic = {
 
         //console.log(creep.name, " moving to room ", roomToGo, " code ", code);
 
-        creep.say("Go" + roomToGo);
+        creep.say("Go1" + roomToGo);
 
         return false;
     },
@@ -315,14 +868,22 @@ var roleBasic = {
     },
 
     avoidEnemies: function (creep) {
+
         var distance = 5;
 
+        if (creep.room.name == "E56S25")
+            distance = 3;
 
         var enemies = creep.pos.findInRange(FIND_HOSTILE_CREEPS, distance - 1, {
             filter: c => (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
         });
 
-        var closestEnemy = enemies[0];
+        var lairs = creep.pos.findInRange(FIND_HOSTILE_STRUCTURES, distance - 1, {
+            filter: s => s.structureType == STRUCTURE_KEEPER_LAIR &&
+                s.ticksToSpawn && s.ticksToSpawn < 5
+        });
+
+        var closestEnemy = enemies[0] || lairs[0];
 
         if (!closestEnemy)
             return false;
@@ -375,22 +936,90 @@ var roleBasic = {
     },
 
     goTo: function (creep, target, r = 1, stroke = '#ffffff') {
+        this.debugPathSelection(creep, 'goTo r=' + r, target);
 
-        if(creep.fatigue > 0)
+        var targetPos = this.getTargetPos(target);
+        if (!targetPos)
+            return ERR_INVALID_TARGET;
+
+        if (creep.fatigue > 0)
             return ERR_TIRED;
-        
+
+
+        if (targetPos.roomName != creep.room.name) {
+            var moveStateKey = 'target:' + targetPos.roomName + ':' + targetPos.x + ':' + targetPos.y + ':' + r;
+            var isStuck = this.updateMoveStuckState(creep, moveStateKey);
+            var crossRoomPath = this.getCachedCrossRoomPath(creep, targetPos, r, true);
+
+            if (!crossRoomPath || crossRoomPath.length == 0 || isStuck) {
+                crossRoomPath = this.getPathMultiroom(creep, target, r, {
+                    includeCreeps: true,
+                    movingCreep: creep
+                });
+
+                if (crossRoomPath && crossRoomPath.length > 0)
+                    this.saveCrossRoomPath(creep, targetPos, r, true, crossRoomPath);
+                else
+                    this.clearCrossRoomPathCache(creep);
+            }
+
+            this.debugPathDetail(creep,
+                'goTo crossRoom state',
+                'isStuck=' + isStuck + ' pathLen=' + (crossRoomPath ? crossRoomPath.length : 0) + ' cached=' + (!!creep.memory._crossRoomPath),
+                target);
+
+            if (!crossRoomPath || crossRoomPath.length == 0) {
+                this.debugPathDetail(creep, 'goTo fallback moveToRoom', 'reason=emptyCrossRoomPath', target);
+                this.clearCrossRoomPathCache(creep);
+                this.moveToRoom(creep, targetPos.roomName, target);
+                return OK;
+            }
+
+            if (isStuck) {
+                delete creep.memory._move;
+            }
+
+            var code = creep.moveByPath(crossRoomPath);
+            if (code == ERR_NOT_FOUND && crossRoomPath[0])
+                code = creep.move(creep.pos.getDirectionTo(crossRoomPath[0]));
+
+            this.debugPathDetail(creep, 'goTo moveByPath', 'code=' + code, target);
+
+            if (code == ERR_NO_PATH || code == ERR_INVALID_TARGET) {
+                this.clearCrossRoomPathCache(creep);
+                this.debugPathDetail(creep, 'goTo fallback moveToRoom', 'reason=moveByPathCode:' + code, target);
+                this.moveToRoom(creep, targetPos.roomName, target);
+                return OK;
+            }
+
+            return code;
+        }
+
+        this.resetMoveStuckState(creep);
+
         // we start from far away and try to ignore creeps, if we got stuck we retry
         // closer we go the more we care about creeps
         var range = creep.pos.getRangeTo(target);
         var err = undefined;
+        var sameRoomOptions = {
+            ignoreCreeps: false,
+            maxRooms: 1
+        };
 
         if (range > 10) {
-            err = creep.moveTo(target, this.getMoveToOptions(target, stroke, r));
+
+            var opts1 = this.getMoveToOptions(target, stroke, r, sameRoomOptions)
+            err = creep.moveTo(target, { ignoreCreeps: false });
+            creep.say("gt10");
 
             if (err == ERR_NO_PATH) {
-                err = creep.moveTo(target, this.getMoveToOptions(target, stroke, r, {
+                var opts = this.getMoveToOptions(target, stroke, r, {
+                    maxRooms: 1,
                     reusePath: 0
-                }));
+                });
+
+
+                err = creep.moveTo(target, { ignoreCreeps: false });
             }
             else {
                 if (err != OK)
@@ -398,12 +1027,15 @@ var roleBasic = {
             }
         }
         else if (range > 4) {
-            err = creep.moveTo(target, this.getMoveToOptions(target, stroke, r));
+            err = creep.moveTo(target,
+                this.getMoveToOptions(target, stroke, r, sameRoomOptions));
 
         }
         else {
-            err = creep.moveTo(target, this.getMoveToOptions(target, stroke));
+            err = creep.moveTo(target,
+                this.getMoveToOptions(target, stroke, undefined, sameRoomOptions));
         }
+
         return err;
     },
 
@@ -415,26 +1047,33 @@ var roleBasic = {
         if (!resType)
             fRes = (res) => { return res.amount > limit; }
 
-        var dropped = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES, { filter: fRes });
+        var dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
+            filter: function (res) {
+                return creep.pos.getRangeTo(res) <= range && fRes(res);
+            }
+        });
 
-        if (dropped == undefined) {
+        if (!dropped) {
             var fTomb = (tomb) => { return tomb.store[resType] > limit; };
             if (!resType)
                 fTomb = (tomb) => { return _.sum(tomb.store) > limit; };
 
-            dropped = creep.pos.findClosestByRange(FIND_TOMBSTONES, { filter: fTomb });
+            dropped = creep.pos.findClosestByPath(FIND_TOMBSTONES, {
+                filter: function (tomb) {
+                    return creep.pos.getRangeTo(tomb) <= range && fTomb(tomb);
+                }
+            });
         }
 
-        var rangeToDrop = creep.pos.getRangeTo(dropped);
+
         //if(range > 1)
         //console.log("range", rangeToDrop , dropped, "rangeLimit", range, "creep.room", creep.room);
-        if (!dropped || rangeToDrop > range) {
+        if (!dropped) {
             return false;
         }
 
         //creep.say("see drop");
         //console.log("see drop" + " " + dropped + " " + dropped.amount + " " + dropped.room.name + " " + dropped.pos.x + " " + dropped.pos.y);
-
         if (!creep.pos.isNearTo(dropped)) {
             creep.moveTo(dropped, { visualizePathStyle: { stroke: '#ff00cc' } });
             return true;
@@ -497,7 +1136,7 @@ var roleBasic = {
         if (!spawn)
             return false;
 
-        if(spawn.spawning)
+        if (spawn.spawning)
             return false;
 
         if (nearbyRange != undefined && creep.pos.getRangeTo(spawn) > nearbyRange)
@@ -546,11 +1185,16 @@ var roleBasic = {
         return true;
     },
 
-    repairEmergency: function (creep, range = 1) {
-        var N = 0.5;
+
+    repairEmergency: function (creep, range = 1, N = 0.5) {
+
         if (creep.store.energy < 20)
             return false;
 
+        return this.repair(creep, range, N);
+    },
+
+    repair: function (creep, range = 1, N = 0.5) {
         // Find all damaged roads/containers in the room, then filter by range
         var damagedBuild = creep.pos.findClosestByPath(FIND_STRUCTURES, {
             filter: s =>
@@ -565,7 +1209,7 @@ var roleBasic = {
         if (!damagedBuild)
             return false;
 
-        if (!creep.pos.isNearTo(damagedBuild)) {
+        if (creep.pos.getRangeTo(damagedBuild) > 3) {
             creep.moveTo(damagedBuild);
             return true;
         }

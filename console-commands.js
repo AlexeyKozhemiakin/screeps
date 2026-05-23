@@ -1,4 +1,6 @@
 
+var utils = require('utils');
+
 function resetProductionStateForRoom(roomName) {
     var roomMemory = Memory.rooms && Memory.rooms[roomName];
     var visibleRoom = Game.rooms && Game.rooms[roomName];
@@ -422,6 +424,46 @@ global.clearRoomMemory = function (roomName) {
     return "Cleared Memory.rooms[\"" + roomName + "\"].";
 };
 
+// --- Clear delivererRca memory for one room or all rooms ---
+// Usage: clearDelivererRca("E56S23")
+// Usage: clearDelivererRca()
+global.clearDelivererRca = function (roomName) {
+    var clearedRooms = [];
+    var name;
+
+    if (!Memory.rooms) {
+        return "No Memory.rooms found";
+    }
+
+    if (!roomName) {
+        for (name in Memory.rooms) {
+            if (!Memory.rooms[name] || !Memory.rooms[name].delivererRca) {
+                continue;
+            }
+
+            delete Memory.rooms[name].delivererRca;
+            clearedRooms.push(name);
+        }
+
+        if (clearedRooms.length === 0) {
+            return "No delivererRca found in any room";
+        }
+
+        return "Cleared delivererRca for " + clearedRooms.length + " rooms: " + clearedRooms.join(", ");
+    }
+
+    if (!Memory.rooms[roomName]) {
+        return "No Memory.rooms entry for " + roomName;
+    }
+
+    if (!Memory.rooms[roomName].delivererRca) {
+        return "No delivererRca found for " + roomName;
+    }
+
+    delete Memory.rooms[roomName].delivererRca;
+    return "Cleared delivererRca for " + roomName;
+};
+
 // add function to calculate price of materials and store them in memory
 // Usage: calculateAndStorePrices()
 global.calculateAndStorePrices = function () {
@@ -529,14 +571,78 @@ global.calculateAndStorePrices = function () {
 
     //Memory.prices = undefined;
     return "Done.";
-}
+};
 
+global.roadEfficiency = function () {
+    var repairCostOfRoadPerTick =  (ROAD_DECAY_AMOUNT / REPAIR_POWER )/ ROAD_DECAY_TIME;
+    var numRoads = 50;
+
+    var costOfCarry = BODYPART_COST[CARRY] * 10 / CREEP_LIFE_TIME;
+
+    console.log("Energy repair cost per tick for " + numRoads + " roads: " + (numRoads*repairCostOfRoadPerTick).toFixed(2) +
+        ", Cost of carry: " + costOfCarry.toFixed(2));
+};
+
+// Usage: testRoadedPath()
+// Usage: testRoadedPath("69d60a6ae16a8056b7968305", "69dbcbf9058adf6a4ceb935b")
+global.testRoadedPath = function (fromId, toId) {
+    fromId = fromId || "6a03852bb22d771d8abe56d6";
+    toId = toId || "69dbcbf9058adf6a4ceb935b";
+
+    var from = Game.getObjectById(fromId);
+    var to = Game.getObjectById(toId);
+
+    if (!from || !to) {
+        return "Missing object: from=" + (!!from) + ", to=" + (!!to);
+    }
+
+    var utilsRoaded = utils.isRoaded(from, to);
+
+    var path = utils.getPathMultiroom(from, to, 1);
+    if (!path || path.length === 0) {
+        return "No path found between " + fromId + " and " + toId;
+    }
+
+    var middlePath = path.slice(1, path.length - 1);
+    var missingRoads = [];
+
+    for (var i = 0; i < middlePath.length; i++) {
+        var step = middlePath[i];
+        var room = Game.rooms[step.roomName];
+
+        if (!room) {
+            missingRoads.push(step.roomName + ":" + step.x + "," + step.y + "(no-vision)");
+            continue;
+        }
+
+        var look = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
+        var hasRoad = _.some(look, function (structure) {
+            return structure.structureType === STRUCTURE_ROAD;
+        });
+
+        if (!hasRoad) {
+            missingRoads.push(step.roomName + ":" + step.x + "," + step.y);
+        }
+    }
+
+    return JSON.stringify({
+        fromId: fromId,
+        toId: toId,
+        pathLength: path.length,
+        middleTiles: middlePath.length,
+        utilsRoaded: utilsRoaded,
+        roaded: missingRoads.length === 0,
+        missingRoads: missingRoads.slice(0, 20)
+    });
+};
 // Analyze market history from archived Memory + live transactions
 // Usage: analyzeMarketHistory()                    — all resources, summary
 // Usage: analyzeMarketHistory("energy")            — filter by resource
 // Usage: analyzeMarketHistory(null, true)           — group by date
 // Usage: analyzeMarketHistory("energy", true)       — filter + group by date
 global.analyzeMarketHistory = function (filterResource, groupByDate) {
+    var LOW_PRICE_THRESHOLD = 5;
+
     // ---- Collect all transactions: archived + live unarchived ----
     var archived = (Memory.marketHistory && Memory.marketHistory.txns) || [];
     var lastTick = (Memory.marketHistory && Memory.marketHistory.lastTick) || 0;
@@ -616,13 +722,25 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
             if (!agg[key]) {
                 agg[key] = {
                     date: date, direction: t.dir, resource: t.resourceType,
-                    amount: 0, totalCredits: 0, count: 0
+                    amount: 0, totalCredits: 0, count: 0,
+                    regularAmount: 0, regularCredits: 0, regularCount: 0,
+                    lowAmount: 0, lowCredits: 0, lowCount: 0
                 };
             }
             var r = agg[key];
             r.amount += t.amount;
             r.totalCredits += t.price * t.amount;
             r.count += 1;
+            if (t.price < LOW_PRICE_THRESHOLD) {
+                r.lowAmount += t.amount;
+                r.lowCredits += t.price * t.amount;
+                r.lowCount += 1;
+                return;
+            }
+
+            r.regularAmount += t.amount;
+            r.regularCredits += t.price * t.amount;
+            r.regularCount += 1;
         });
 
         var rows = Object.values(agg);
@@ -632,11 +750,12 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
             return a.resource.localeCompare(b.resource);
         });
 
-        var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits'];
+        var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg >=5', '<5 Trades', '<5 Avg', 'Total Credits'];
         var data = rows.map(function (r) {
-            var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var avgP = r.regularAmount > 0 ? (r.regularCredits / r.regularAmount).toFixed(3) : '-';
+            var lowAvg = r.lowAmount > 0 ? (r.lowCredits / r.lowAmount).toFixed(3) : '-';
             var total = r.totalCredits.toFixed(2);
-            return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, total];
+            return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, String(r.lowCount), lowAvg, total];
         });
 
         console.log('\n=== Market History by Date (' + all.length + ' transactions) ===\n');
@@ -684,6 +803,8 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
                 agg[key] = {
                     direction: t.dir, resource: t.resourceType,
                     amount: 0, totalCredits: 0, count: 0,
+                    regularAmount: 0, regularCredits: 0, regularCount: 0,
+                    lowAmount: 0, lowCredits: 0, lowCount: 0,
                     minTick: t.time, maxTick: t.time
                 };
             }
@@ -691,6 +812,15 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
             r.amount += t.amount;
             r.totalCredits += t.price * t.amount;
             r.count += 1;
+            if (t.price < LOW_PRICE_THRESHOLD) {
+                r.lowAmount += t.amount;
+                r.lowCredits += t.price * t.amount;
+                r.lowCount += 1;
+            } else {
+                r.regularAmount += t.amount;
+                r.regularCredits += t.price * t.amount;
+                r.regularCount += 1;
+            }
             r.minTick = Math.min(r.minTick, t.time);
             r.maxTick = Math.max(r.maxTick, t.time);
         });
@@ -702,12 +832,13 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         });
 
         var now = Game.time;
-        var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Span'];
+        var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg >=5', '<5 Trades', '<5 Avg', 'Total Credits', 'Span'];
         var data = rows.map(function (r) {
-            var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var avgP = r.regularAmount > 0 ? (r.regularCredits / r.regularAmount).toFixed(3) : '-';
+            var lowAvg = r.lowAmount > 0 ? (r.lowCredits / r.lowAmount).toFixed(3) : '-';
             var total = r.totalCredits.toFixed(2);
             var span = tickToDateStr(r.minTick) + ' — ' + tickToDateStr(r.maxTick);
-            return [r.direction, r.resource, String(r.count), String(r.amount), avgP, total, span];
+            return [r.direction, r.resource, String(r.count), String(r.amount), avgP, String(r.lowCount), lowAvg, total, span];
         });
 
         console.log('\n=== Market Transaction History (' + all.length + ' transactions) ===\n');

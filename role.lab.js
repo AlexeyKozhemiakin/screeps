@@ -131,7 +131,8 @@ var roleLab = {
         // production and market sharing can happen independently
 
         var lowAmount = 500;
-        var highAmount = 4000;
+        var highAmount = 8000;
+        var productionSwitchGap = 2000;
         var goals = {};
         var transferLimit = highAmount;
 
@@ -269,7 +270,7 @@ var roleLab = {
         // so we always produce the scarcest resource first.
         if (room.memory.productionTarget == null) {
             var bestRes = null;
-            var bestDeficit = 0;
+            var bestDeficit = productionSwitchGap;
             for (var res in manualReagents) {
                 if (REAGENTS[res] == null) continue; // skip base minerals
                 var amt = this.getTotalMineralAmount(room, res);

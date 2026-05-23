@@ -114,6 +114,7 @@ var roomPlanning = {
         if (from == undefined || to == undefined)
             return;
 
+        
 
         var nearByContainer = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
             filter: s => s.structureType == STRUCTURE_CONTAINER
@@ -124,18 +125,32 @@ var roomPlanning = {
             filter: s => s.structureType == STRUCTURE_CONTAINER
         })[0];
 
-
-        //this.drawPath(roadPath, room);
-
         // build only after container exists?
         if (nearByContainer) {
             if (buildEnabled) {
                 // i want more stable roads so need to see if there is a construction site of
                 //  road and if exists in +1 range do not build new
-                var newRoad = from.pos.findPathTo(nearByContainer, { ignoreCreeps: true, heuristicWeight: 1.1 });
 
-                for (var step of newRoad) {
-                    this.tryBuild(STRUCTURE_ROAD, new RoomPosition(step.x, step.y, room.name), room);
+                var roadPath = utils.getPathMultiroom(from, to, range);
+
+
+                // TODO planning vs building mode to make roads stable
+                roadPath = [];
+
+                for (var step of roadPath) {
+                    try {
+                        // lookaround and do not build if there are construction sites of roads nearby
+                        var nearByRoadSite = step.findInRange(FIND_CONSTRUCTION_SITES, 1, {
+                            filter: s => s.structureType == STRUCTURE_ROAD
+                        })[0];
+
+                        if (!nearByRoadSite)
+                            this.tryBuild(STRUCTURE_ROAD, step, room);
+                        //else
+                        //    console.log("Road construction site already exists near ", step, " in ", room.name);
+                    } catch (e) {
+                        //console.log("Error in tryRoad:", e);
+                    }
                 }
             }
         }
@@ -156,10 +171,13 @@ var roomPlanning = {
         if ((nearByContainer || nearByContainerSite) && !buildLink)
             return;
 
-
         var roadPath = utils.getPathMultiroom(from, to, range);
+
         //var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true });
         roadPath = roadPath.reverse();
+
+        if (roadPath.length == 0)
+            console.log("No path from ", from, " to ", to, " in ", room.name);
 
         // if building nearby make 1 stp further, this is for containers
         // old fashioned way in some old rooms, this causing diagonal placement
@@ -169,6 +187,7 @@ var roomPlanning = {
         //container in 1st step
         if (roadPath.length > 1) {
             var containerPos = new RoomPosition(roadPath[tick].x, roadPath[tick].y, room.name);
+
             room.visual.circle(containerPos, { fill: 'transparent', radius: 0.3, stroke: 'blue' });
 
             // for links

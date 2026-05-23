@@ -8,7 +8,7 @@ var roomClaiming = {
         var roomsClaimed = _.filter(requestedRooms, roomName => {
             var room = Game.rooms[roomName];
             if (!room)
-                return false ; // need visibility first
+                return false; // need visibility first
 
             if (room.controller.my)
                 return true;
@@ -19,9 +19,9 @@ var roomClaiming = {
         var roomsFinalized = _.filter(requestedRooms, roomName => {
             var room = Game.rooms[roomName];
             if (!room)
-                return false ; // need visibility first
+                return false; // need visibility first
 
-            if (room.controller.my && room.spawn)
+            if (room.controller.my && room.controller.level > 2)
                 return true;
 
             return false;
@@ -38,10 +38,10 @@ var roomClaiming = {
             var roomName = requestedRooms[i];
 
             // already claimed
-            if(roomsFinalized.includes(roomName))
+            if (roomsFinalized.includes(roomName))
                 continue;
 
-            
+
 
             // todo - need to fix this to check dynamically
             var bigRooms = _.filter(Game.rooms,
@@ -81,7 +81,13 @@ var roomClaiming = {
 
             //  need to scout with agressive scout rooms with walls around controller
             var controllerWalls = room.controller.pos.findInRange(FIND_STRUCTURES, 1, { filter: s => s.structureType == STRUCTURE_WALL });
-            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS);
+            var enemyCreeps = room.find(FIND_HOSTILE_CREEPS,
+                {
+                    filter: (c => (c.getActiveBodyparts(ATTACK) > 0 ||
+                        c.getActiveBodyparts(RANGED_ATTACK) > 0) &&
+                        (c.owner.username != "" && c.owner.username != "Source Keeper"))
+                });
+
             var enemyStructures = room.find(FIND_STRUCTURES, {
                 filter: object => (
                     object.structureType == STRUCTURE_INVADER_CORE)
@@ -101,8 +107,27 @@ var roomClaiming = {
                     spawnOrder.memory = utils.createAttackMemory(sponsorRoom, roomName, room);
                     return spawnOrder;
                 }
-                
+
                 continue;
+            }
+
+            // defend
+            if (room.controller && room.controller.level <= 2) {
+                
+                room.createFlag(room.controller.pos, "defend" + roomName, COLOR_RED, COLOR_WHITE);
+
+                var numAttack = 1;
+                var attackers = _.filter(Game.creeps, c => c.memory.role == "attack" && (c.memory.toGo && c.memory.toGo[0] == roomName));
+
+                if (attackers.length < numAttack) {
+                    console.log("needAttack", roomName);
+                    spawnOrder.memory = utils.createAttackMemory(sponsorRoom, roomName, room);
+                    return spawnOrder;
+                }
+
+            }
+            else {
+                room.removeFlag("defend" + roomName);
             }
 
             if (room.controller.reservation && room.controller.reservation.ticksToEnd > 100)
@@ -130,14 +155,15 @@ var roomClaiming = {
                     spawnOrder.claimRoom = roomName;
                     return spawnOrder;
                 }
-                
+
                 continue;
             }
 
             // build only spawns in remote rooms for now
             var roomSpawns = _.filter(Game.spawns, s => s.room.name == roomName);
-            var spawnExists = roomSpawns.length > 0;
-            if (spawnExists)
+            var stopSupportWhen = room.controller.level > 2;
+            //console.log(room, stopSupportWhen);
+            if (stopSupportWhen)
                 continue;
 
             var constructionSites = room.find(FIND_CONSTRUCTION_SITES);

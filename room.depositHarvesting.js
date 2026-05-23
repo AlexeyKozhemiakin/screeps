@@ -131,14 +131,14 @@ var roomDepositHarvesting = {
                 if (harvestWindow <= 0)
                     continue;
 
-                console.log("Deposit harvesting plan ", room.name,
-                    " -> ", observedRoomName,
-                    " type ", deposit.depositType,
-                    " cooldown ", deposit.cooldown,
-                    " decay ", deposit.ticksToDecay,
-                    " delay ", delay,
-                    " observed ", Game.time - observedDepositRoom.observedAt,
-                    " ticks ago");
+                //console.log("Deposit harvesting plan ", room.name,
+                //    " -> ", observedRoomName,
+                //    " type ", deposit.depositType,
+                //    " cooldown ", deposit.cooldown,
+                //    " decay ", deposit.ticksToDecay,
+                //    " delay ", delay,
+                //    " observed ", Game.time - observedDepositRoom.observedAt,
+                //    " ticks ago");
 
                 var harvesters = _.filter(Game.creeps,
                     c => c.memory.role == "depositHarvester" &&
@@ -162,15 +162,15 @@ var roomDepositHarvesting = {
                 }
 
                 // dont do 1 cooldown since it spawning too much deliverers
-                var cooldown = Math.max(deposit.cooldown, 3);
+                var cooldown = Math.max(deposit.cooldown, 1);
                 var amnt = HARVEST_DEPOSIT_POWER * _.sum(parts, p => p == WORK ? 1 : 0) / (cooldown);
                 
                 var memory = utils.createDeliverer(deposit.id, room.storage.id,
                     amnt, deposit.depositType,
                     CARRY_CAPACITY * _.sum(parts, p => p == CARRY ? 1 : 0));
 
-                console.log("Existing harvesters for deposit ", deposit.id, ": ", harvesters.length,
-                    " needed deliverer capacity ", amnt);
+                //console.log("Existing harvesters for deposit ", deposit.id, ": ", harvesters.length,
+                //    " needed deliverer capacity ", amnt);
 
                 if (memory) {
                     return { memory: memory };

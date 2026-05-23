@@ -7,7 +7,7 @@ const REGEN_MINERAL_SEARCH_RANGE = 20; // TODO this is a hack to avoid going too
 function hasNoActiveEffect(target, powerType) {
     var effects = target.effects || [];
     return !_.some(effects, function (effect) {
-        return effect.effect == powerType && effect.ticksRemaining > 0;
+        return effect.effect == powerType && effect.ticksRemaining > 15;
     });
 }
 

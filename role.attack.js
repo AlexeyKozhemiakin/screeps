@@ -8,15 +8,28 @@ var basic = require("role.basic");
  * @param {RoomObject} target
  * @returns {boolean} true if still moving, false if adjacent
  */
-function moveToTargetWithStuckDetection(creep, target) {
+function moveToTargetWithStuckDetection(creep, target, r = 1) {
     if (target == undefined) {
         return false;
     }
-    if (creep.pos.isNearTo(target.pos)) {
+    var debug = creep.name == "attack8652";
+
+
+    
+    var range = creep.pos.getRangeTo(target.pos);
+
+     if(debug)
+        console.log("1  ", creep.name, " to ", target, " in room ", 
+    creep.room.name, " range ", range, "r= ", r, " target pos ", target.pos);
+   
+
+    if (range <= r) {
         creep.memory._wallBreakMode = false;
         return false;
     }
 
+    if(debug)
+        console.log("moveToTargetWithStuckDetection ", creep.name, " to ", target, " in room ", creep.room.name);
     // Stuck detection: track previous position and count stuck ticks
     var lastPos = creep.memory._lastPos;
     if (lastPos && lastPos.x === creep.pos.x && lastPos.y === creep.pos.y && lastPos.room === creep.room.name) {
@@ -35,7 +48,8 @@ function moveToTargetWithStuckDetection(creep, target) {
     if (!wallBreakMode && !isStuck) {
         var err = creep.moveTo(target.pos, {
             visualizePathStyle: { stroke: '#1900ff' },
-            reusePath: 5
+            reusePath: 5,
+            range: r
         });
         if (err !== ERR_NO_PATH) {
             return true;
@@ -49,7 +63,7 @@ function moveToTargetWithStuckDetection(creep, target) {
     // Wall-breaking mode: use PathFinder with walls as expensive-but-passable.
     // Cost range scales by HP so the pathfinder routes through the weakest walls.
     var sameRoom = creep.room.name === target.pos.roomName;
-    var wallBreakResult = PathFinder.search(creep.pos, { pos: target.pos, range: 1 }, {
+    var wallBreakResult = PathFinder.search(creep.pos, { pos: target.pos, range: r }, {
         roomCallback: function (roomName) {
             // If target is in the same room, block other rooms so creeps
             // don't leave through exits instead of breaking through walls.
@@ -116,6 +130,7 @@ function moveToTargetWithStuckDetection(creep, target) {
         creep.moveTo(target.pos, {
             visualizePathStyle: { stroke: '#ff0000' },
             reusePath: 0,
+            range: r,
             ignoreDestructibleStructures: true
         });
         creep.say('no path');
@@ -180,6 +195,8 @@ var roleAttack = {
     attack: function (creep) {
         var target = undefined;
 
+        var debug = creep.room.name == "E56S24";
+        var range = 1;
 
         if (false)
             if (target == undefined)
@@ -212,7 +229,7 @@ var roleAttack = {
                 });
         }
 
-        if (creep.getActiveBodyparts(HEAL) > 0)
+        if (creep.getActiveBodyparts(HEAL) > 0) {
             if (target == undefined)
                 if (creep.hits < 0.6 * creep.hitsMax) {
                     creep.heal(creep);
@@ -234,11 +251,54 @@ var roleAttack = {
                             creep.heal(heal);
 
                         }
-                        return;
                     }
 
                 }
+        }
 
+        if (target == undefined) {
+
+            var lairs = creep.room.find(FIND_STRUCTURES, {
+                filter: object => (
+                    object.structureType == STRUCTURE_KEEPER_LAIR// &&
+                    //object.pos.findInRange(FIND_SOURCES, 4).length > 0
+                )
+                // filter out lairs with sources
+            });
+
+            if (lairs)
+                lairs = _.sortBy(lairs, l => l.ticksToSpawn);
+
+            //console.log("lairs ", lairs);
+
+            if (lairs && lairs.length > 0) {
+                //console.log("lairs ", lairs[0]);
+                target = lairs[0];
+                // reposition to a better place for attacking lairs
+                var flags = target.pos.findInRange(FIND_FLAGS, 6,
+                    { filter: f => f.name.includes("defend") });
+
+                if (flags.length > 0) {
+                    target = flags[0];
+                }
+                range = 1;
+            }
+        }
+
+
+        if (target == undefined) {
+            var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") })[0];
+
+            if (flag) {
+                // 
+                var structures = creep.room.lookForAt(LOOK_STRUCTURES, flag.pos.x, flag.pos.y);
+                if (structures.length > 0) {
+                    target = structures[0];
+                }
+                else
+                    target = flag;
+            }
+        }
 
         // powerbanks
         if (target == undefined) {
@@ -293,6 +353,13 @@ var roleAttack = {
         }
 
         if (target == undefined) {
+            target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
+                filter: object => (
+                    (object.structureType == STRUCTURE_LINK))
+            });
+        }
+
+        if (target == undefined) {
             target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS, {
                 filter: (c) => c.owner != "Screeps" ||
                     (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
@@ -306,21 +373,7 @@ var roleAttack = {
             });
         }
 
-        if (target == undefined) {
-            var lairs = creep.room.find(FIND_STRUCTURES, {
-                filter: object => (
-                    object.structureType == STRUCTURE_KEEPER_LAIR)
-            });
 
-            if (lairs)
-                lairs = _.sortBy(lairs, l => l.ticksToSpawn);
-
-
-            if (lairs && lairs.length > 0) {
-                console.log("lairs ", lairs[0]);
-                target = lairs[0];
-            }
-        }
 
 
 
@@ -328,12 +381,26 @@ var roleAttack = {
         //    target = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
         //}
 
+        // objects with empty storage
         if (target == undefined) {
             target = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
                 filter: object => object.structureType != STRUCTURE_WALL &&
-                    object.structureType != STRUCTURE_RAMPART &&
                     (!object.store || object.store.getUsedCapacity() === 0)
             });
+        }
+
+        if (target == undefined) {
+            var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("defend") })[0];
+
+            if (flag) {
+                // 
+                var structures = creep.room.lookForAt(LOOK_STRUCTURES, flag.pos.x, flag.pos.y);
+                if (structures.length > 0) {
+                    target = structures[0];
+                }
+                else
+                    target = flag;
+            }
         }
 
 
@@ -357,45 +424,30 @@ var roleAttack = {
             }
         }
 
-        if (target == undefined) {
-            var flag = creep.room.find(FIND_FLAGS, { filter: f => f.name.includes("conquer") || f.name.includes("defend") })[0];
-
-            if (flag) {
-                // 
-                var structures = creep.room.lookForAt(LOOK_STRUCTURES, flag.pos.x, flag.pos.y);
-                if (structures.length > 0) {
-                    target = structures[0];
-                }
-                else
-                    target = flag;
-            }
-        }
-
-
         //console.log("this room");
         // console.log("attack target ", target, " in room ", creep.room.name);
 
-
         if (creep.getActiveBodyparts(RANGED_ATTACK) > 0) {
+
             var rangedTarget = creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS,
                 {
-                    filter: (c) => c.owner != "Screeps" &&
-                        (c.getActiveBodyparts(ATTACK) > 0 || c.getActiveBodyparts(RANGED_ATTACK) > 0)
+                    filter: (c) => c.owner != "Screeps"
                 });
 
             if (rangedTarget) {
-                var range = creep.pos.getRangeTo(rangedTarget);
+                var rng = creep.pos.getRangeTo(rangedTarget);
 
-                if (range <= 3 && range > 1)
+                if (rng <= 3)
                     creep.rangedAttack(rangedTarget);
 
+                //console.log("ranged attack ", rangedTarget, " in room ", creep.room.name);
             }
         }
 
 
 
         if (creep.getActiveBodyparts(ATTACK) > 0)
-            if (moveToTargetWithStuckDetection(creep, target)) {
+            if (moveToTargetWithStuckDetection(creep, target, range)) {
                 // Self-heal if damaged
                 this.healSelfOrAround(creep);
                 return true;
@@ -448,6 +500,7 @@ var roleAttack = {
                 return true;
             }
 
+            console.log("attack err ", err, " for target ", target, " in room ", creep.room.name);
             creep.say("att err" + err);
         }
 
@@ -462,26 +515,23 @@ var roleAttack = {
 
     healSelfOrAround(creep) {
         if (creep.getActiveBodyparts(HEAL) == 0)
-            return;
+            return ERR_NO_BODYPART;
 
         if (creep.hits < creep.hitsMax) {
-            creep.heal(creep);
-            return;
+            return creep.heal(creep);
         }
 
         var needHeal = creep.pos.findInRange(FIND_MY_CREEPS, 1,
             { filter: c => c.hits < c.hitsMax });
 
         if (!needHeal || needHeal.length == 0)
-            return;
+            return ERR_NOT_FOUND;
 
         needHeal = _.sortBy(needHeal, c => c.hits / c.hitsMax);
 
         var heal = needHeal[0];
 
-        creep.heal(heal);
-
-        return;
+        return creep.heal(heal);
     },
 
     /** @param {Creep} creep **/
@@ -496,6 +546,10 @@ var roleAttack = {
         }
 
         if (creep.memory.task == "recycle") {
+            var healCode = this.healSelfOrAround(creep);
+            if (healCode == OK)
+                return;
+
             basic.recycleCreep(creep);
             return;
         }

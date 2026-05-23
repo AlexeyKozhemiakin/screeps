@@ -4,6 +4,11 @@ var roleBuilder = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
+        if(creep.memory && creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+        
         if (basic.leaveDangerousRoom(creep))
             return;
 
@@ -39,6 +44,8 @@ var roleBuilder = {
             //creep.say('🚧 build');
             return;
         }
+
+
     },
     deliverToBase: function (creep) {
         var target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
@@ -69,7 +76,7 @@ var roleBuilder = {
     },
 
     runHarvest: function (creep) {
-        if (basic.runDropped(creep, 3, RESOURCE_ENERGY, 50))
+        if (basic.runDropped(creep, 4, RESOURCE_ENERGY, 50))
             return;
 
         // Withdraw from hostile structures
@@ -111,7 +118,7 @@ var roleBuilder = {
         if (source == undefined) {
             source = creep.pos.findInRange(FIND_STRUCTURES, 3, {
                 filter: o => ((o.structureType == STRUCTURE_CONTAINER) &&
-                    (o.store[RESOURCE_ENERGY] > 500))
+                    (o.store[RESOURCE_ENERGY] > 300))
             })[0];
         }
 
@@ -126,7 +133,7 @@ var roleBuilder = {
         if (source == undefined) {
             source = creep.pos.findClosestByPath(FIND_STRUCTURES, {
                 filter: (i) => ((i.structureType == STRUCTURE_STORAGE) &&
-                    i.store[RESOURCE_ENERGY] > 500)
+                    i.store[RESOURCE_ENERGY] > 300)
             });
         }
 
@@ -136,8 +143,8 @@ var roleBuilder = {
                     i.store[RESOURCE_ENERGY] > 2 * creep.carryCapacity))
             });
 
-            if (source && creep.pos.getRangeTo(source.pos) > 10)
-                source = undefined;
+            //if (source && creep.pos.getRangeTo(source.pos) > 10)
+            //    source = undefined;
         }
 
 
@@ -162,8 +169,8 @@ var roleBuilder = {
                     */
 
         // stick to container
-        if(source == undefined) {
-            if(creep.room.controller && creep.room.controller.level >= 3 && creep.room.spawn && creep.room.spawn.container) {
+        if (source == undefined) {
+            if (creep.room.controller && creep.room.controller.level >= 3 && creep.room.spawn && creep.room.spawn.container) {
                 source = creep.room.spawn.container;
             }
         }
@@ -229,7 +236,19 @@ var roleBuilder = {
     runBuild: function (creep) {
         var target = this.selectTarget(creep);
 
+
+
         if (!target) {
+            //creep.memory.repairEnabled = true;
+            // make a flag
+            // what can be the case when its not advisable to repair?
+            if (true) {
+                if (basic.repair(creep, 50, 0.9)) {
+                    creep.say("🔧");
+                    return;
+                }
+            }
+
             this.noBuild(creep);
             return;
         }
@@ -238,7 +257,8 @@ var roleBuilder = {
 
         if (creep.pos.getRangeTo(target.pos) > 3) {
             if (creep.fatigue == 0)
-                creep.moveTo(target.pos, { range: 3, visualizePathStyle: { stroke: '#ffffff' } });
+                creep.moveTo(target.pos,
+                    { ignoreCreeps: false, range: 3, visualizePathStyle: { stroke: '#ffffff' } });
             return;
         }
 
@@ -324,32 +344,21 @@ var roleBuilder = {
     }
     ,
     noBuild: function (creep) {
-        if (creep.memory.toGo && creep.memory.toGo[0] == creep.room.name) {
-            creep.say("now upgrader");
+
+        if (basic.repair(creep, 15)) {
+            creep.say("e1");
+            return;
+        }
+
+        if (creep.memory.toGo && creep.memory.toGo[0] == creep.room.name &&
+            creep.room.controller && creep.room.controller.my 
+            && creep.room.controller.level <= 2) {
             creep.memory.role = "upgrader";
-        }
-        else if (!creep.memory.toGo) {
-
-            if (basic.repairEmergency(creep, 15)) {
-                creep.say("e1");
-                return;
-            }
-
-            if (creep.room.controller.level > 1)
-                basic.recycleCreep(creep);
-            else
-                creep.memory.role = "upgrader";
-            return;
-        }
-        else {
-            //basic.recycleCreep(creep);
-            creep.say("e2");
-            if (basic.repairEmergency(creep, 15)) {
-                return;
-            }
+            creep.memory.task = undefined;
             return;
         }
 
+        basic.recycleCreep(creep);
         //console.log(creep.room, "nothing to build going to room below");
 
         return;

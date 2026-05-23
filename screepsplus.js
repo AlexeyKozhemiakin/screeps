@@ -107,6 +107,14 @@ function collect_stats() {
     Memory.stats.roomSummary = summarize_rooms();
 }
 
+var MANUAL_STATS_ROOMS = {
+    E56S24: true,
+};
+
+function isManualStatsRoom(room) {
+    return room && MANUAL_STATS_ROOMS[room.name] === true;
+}
+
 // Summarizes the situation in a room in a single object.
 // Room can be a string room name or an actual room object.
 function summarize_room_internal(room) {
@@ -120,7 +128,9 @@ function summarize_room_internal(room) {
         return null;
     }
 
-    if (!room.controller.my)
+    var includeManually = isManualStatsRoom(room);
+
+    if (!room.controller.my && !includeManually)
         return null
 
     var owner = room.controller.owner ? room.controller.owner.username : "none";
@@ -128,7 +138,8 @@ function summarize_room_internal(room) {
     //console.log(, 
     // /   room.controller.reservation ? room.controller.reservation.username : "none");
 
-    if (owner != 'Zenga' &&
+    if (!includeManually &&
+        owner != 'Zenga' &&
         reserv != 'Zenga') {
         return null;
     }

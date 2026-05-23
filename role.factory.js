@@ -37,9 +37,13 @@ var PRODUCTION_THRESHOLD = 100000;
 var FACTORY_INGREDIENT_WATERMARK = 1500;
 
 // Minimum energy in storage before we start making batteries (fallback when no mineral qualifies).
-var BATTERY_ENERGY_THRESHOLD = 500000;
-// Each battery batch needs 600 energy; keep ~5 batches loaded.
-var FACTORY_BATTERY_ENERGY_WATERMARK = 3000;
+var BATTERY_ENERGY_THRESHOLD = 700000;
+// When room energy drops below this lower watermark, reverse the energy recipe
+// back into room energy before doing optional factory work.
+// Keep this well below BATTERY_ENERGY_THRESHOLD to avoid flip-flopping.
+var BATTERY_UNARCHIVE_ENERGY_THRESHOLD = 250000;
+var FACTORY_SINGLE_INGREDIENT_BATCHES = 3;
+var FACTORY_ENERGY_INPUT_BATCHES = 5;
 
 // ---------- Higher-tier production ----------
 // Recipes, component lists, levels and amounts are read from the runtime
@@ -50,11 +54,11 @@ var FACTORY_BATTERY_ENERGY_WATERMARK = 3000;
 var HIGHER_TIER_INGREDIENT_THRESHOLD = 500;
 
 // Target fill level per ingredient inside the factory (keeps ~several batches loaded).
-var HIGHER_TIER_INGREDIENT_WATERMARK = 500;
+var HIGHER_TIER_INGREDIENT_WATERMARK = 1000;
 
 // Products to attempt in priority order (highest tier first).
 // Each entry: product key from COMMODITIES.
-var HIGHER_TIER_PRODUCTS = ['composite'];
+var HIGHER_TIER_PRODUCTS = ['wire'];
 
 // Rooms allowed to produce higher-tier products. Empty array = all rooms allowed.
 var HIGHER_TIER_ROOMS = ['E51S24'];
@@ -104,9 +108,58 @@ var roleFactory = {
         return factories.length > 0 ? factories[0] : null;
     },
 
+    getSingleNonEnergyIngredient: function (product) {
+        if (!COMMODITIES || !COMMODITIES[product] || !COMMODITIES[product].components)
+            return null;
+
+        var components = COMMODITIES[product].components;
+        var ingredients = Object.keys(components).filter(function (key) {
+            return key !== RESOURCE_ENERGY;
+        });
+
+        return ingredients.length === 1 ? ingredients[0] : null;
+    },
+
+    getSingleIngredientWatermark: function (product, ingredient) {
+        if (!COMMODITIES || !COMMODITIES[product] || !COMMODITIES[product].components)
+            return FACTORY_INGREDIENT_WATERMARK;
+
+        var amount = COMMODITIES[product].components[ingredient];
+        if (!amount)
+            return FACTORY_INGREDIENT_WATERMARK;
+
+        if (ingredient === RESOURCE_ENERGY)
+            return amount * FACTORY_ENERGY_INPUT_BATCHES;
+
+        return amount * FACTORY_SINGLE_INGREDIENT_BATCHES;
+    },
+
     // Return { mineral, product } or { ingredients, product } for the best
     // recipe the factory should work on, or null if nothing qualifies.
     selectProduction: function (room, factory) {
+        var storage  = room.storage;
+        var terminal = room.terminal;
+
+        // Emergency fallback: reverse the single-input energy recipe before any
+        // optional production work when the room economy is running low.
+        var energyIngredient = this.getSingleNonEnergyIngredient(RESOURCE_ENERGY);
+        if (energyIngredient && COMMODITIES && COMMODITIES[RESOURCE_ENERGY] && COMMODITIES[RESOURCE_ENERGY].components) {
+            var energyPerBatch = COMMODITIES[RESOURCE_ENERGY].components[energyIngredient] || 0;
+            if (energyPerBatch > 0) {
+                var energyTotal = 0;
+                if (storage)  energyTotal += storage.store[RESOURCE_ENERGY]  || 0;
+                if (terminal) energyTotal += terminal.store[RESOURCE_ENERGY] || 0;
+
+                var ingredientTotal = factory.store[energyIngredient] || 0;
+                if (storage)  ingredientTotal += storage.store[energyIngredient]  || 0;
+                if (terminal) ingredientTotal += terminal.store[energyIngredient] || 0;
+
+                if (energyTotal < BATTERY_UNARCHIVE_ENERGY_THRESHOLD && ingredientTotal >= energyPerBatch) {
+                    return { mineral: energyIngredient, product: RESOURCE_ENERGY };
+                }
+            }
+        }
+
         // --- Higher-tier products (composite, etc.) ---
         var higherResult = this.selectHigherTier(room, factory);
         if (higherResult)
@@ -123,9 +176,6 @@ var roleFactory = {
         // --- Tier-0: Raw mineral -> bar ---
         // Uses factoryProductionTarget to lock onto one bar until the raw
         // mineral drops below threshold (same pattern as lab productionTarget).
-        var storage  = room.storage;
-        var terminal = room.terminal;
-
         // Check locked target first
         var locked = room.memory.factoryProductionTarget;
         if (locked && MINERAL_TO_BAR[locked]) {
@@ -167,12 +217,12 @@ var roleFactory = {
         }
 
         // Fallback: convert excess energy to batteries
-        if (COMMODITIES && COMMODITIES['battery']) {
+        if (COMMODITIES && COMMODITIES[RESOURCE_BATTERY]) {
             var energyTotal = 0;
             if (storage)  energyTotal += storage.store[RESOURCE_ENERGY]  || 0;
             if (terminal) energyTotal += terminal.store[RESOURCE_ENERGY] || 0;
             if (energyTotal >= BATTERY_ENERGY_THRESHOLD)
-                return { mineral: RESOURCE_ENERGY, product: 'battery' };
+            return { mineral: RESOURCE_ENERGY, product: RESOURCE_BATTERY };
         }
 
         return null;
@@ -271,8 +321,8 @@ var roleFactory = {
                         }
                     }
                     if (rawMineral) {
-                        console.log('[factory] ' + room.name + ' prereq (locked): producing ' + locked
-                            + ' from ' + rawMineral + ' (bar stock: ' + lockedTotal + ')');
+                        //console.log('[factory] ' + room.name + ' prereq (locked): producing ' + locked
+                        //    + ' from ' + rawMineral + ' (bar stock: ' + lockedTotal + ')');
                         return { mineral: rawMineral, product: locked };
                     }
                 }
@@ -365,9 +415,7 @@ var roleFactory = {
         }
 
         // --- Single-ingredient path (bars / battery) ---
-        var watermark = selected.mineral === RESOURCE_ENERGY
-            ? FACTORY_BATTERY_ENERGY_WATERMARK
-            : FACTORY_INGREDIENT_WATERMARK;
+        var watermark = this.getSingleIngredientWatermark(selected.product, selected.mineral);
         room.memory.factoryDemand = {
             factoryId : factory.id,
             type      : selected.mineral,

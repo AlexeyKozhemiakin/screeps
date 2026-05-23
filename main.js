@@ -1,4 +1,5 @@
 var utils = require('utils');
+var basic = require('role.basic');
 var roleTower = require('role.tower');
 var roleLink = require('role.link');
 var roleBoost = require('role.boost');
@@ -30,6 +31,92 @@ var roomDepositHarvesting = require('room.depositHarvesting');
 var roomPowerHarvesting = require('room.powerHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
+
+function debugRouteBetweenIds(fromId, toId) {
+    var from = Game.getObjectById(fromId);
+    var to = Game.getObjectById(toId);
+
+    if (!from || !to || !from.pos || !to.pos) {
+        console.log('debugRouteBetweenIds missing endpoint', fromId, !!from, toId, !!to);
+        return;
+    }
+
+    var roomRoute = Game.map.findRoute(from.pos.roomName, to.pos.roomName, {
+        routeCallback: function (roomName) {
+            return basic.getRouteWeight(roomName);
+        }
+    });
+
+    if (roomRoute === ERR_NO_PATH) {
+        console.log('debugRouteBetweenIds no route', fromId, from.pos.roomName, toId, to.pos.roomName);
+        return;
+    }
+
+    var path = utils.getPathMultiroom(from, to, 1);
+
+    if (!path || !path.length) {
+        console.log('debugRouteBetweenIds empty path', fromId, toId);
+        return;
+    }
+
+    var lastStep = path[path.length - 1];
+    var remainingRange = lastStep.getRangeTo(to.pos);
+    var travelLength = path.length + Math.max(0, remainingRange - 1);
+    var label = 'len=' + travelLength + ' steps';
+
+    if (roomRoute.length) {
+        label += ' rooms=' + (roomRoute.length + 1);
+    }
+
+    new RoomVisual(from.pos.roomName).circle(from.pos, {
+        radius: 0.45,
+        stroke: '#00ff88',
+        fill: 'transparent'
+    });
+    new RoomVisual(from.pos.roomName).text('A', from.pos.x, from.pos.y - 0.6, {
+        color: '#00ff88',
+        font: 0.6
+    });
+
+    new RoomVisual(to.pos.roomName).circle(to.pos, {
+        radius: 0.45,
+        stroke: '#ff3355',
+        fill: 'transparent'
+    });
+    new RoomVisual(to.pos.roomName).text('B', to.pos.x, to.pos.y - 0.6, {
+        color: '#ff3355',
+        font: 0.6
+    });
+
+    for (var pathIndex = 0; pathIndex < path.length - 1; pathIndex++) {
+        var current = path[pathIndex];
+        var next = path[pathIndex + 1];
+
+        if (current.roomName !== next.roomName)
+            continue;
+
+        new RoomVisual(current.roomName).line(current, next, {
+            color: '#00d4ff',
+            width: 0.18,
+            opacity: 0.6,
+            lineStyle: 'dashed'
+        });
+    }
+
+    new RoomVisual(from.pos.roomName).text(label, from.pos.x + 1, from.pos.y, {
+        color: '#00d4ff',
+        align: 'left',
+        font: 0.5
+    });
+
+    if (from.pos.roomName !== to.pos.roomName) {
+        new RoomVisual(to.pos.roomName).text(label, to.pos.x - 1, to.pos.y, {
+            color: '#00d4ff',
+            align: 'right',
+            font: 0.5
+        });
+    }
+}
 
 
 //const profiler = require('screeps-profiler');
@@ -81,6 +168,8 @@ loopInner = function () {
             market.sellExcess();
 
             market.shareEnergyInternal();
+
+            market.shareResourcesInternal();
 
             roleLab.manageInventory();
             roleLab.setupReactions();
@@ -152,7 +241,7 @@ loopInner = function () {
             roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU
-        if (roomTime % 5 == 0) {
+        if (roomTime % 10 == 0) {
 
             var spawnOrder = roomRemoteHarvesting.getOrder(room);
 
@@ -270,6 +359,9 @@ loopInner = function () {
         }
     }
 
+    //debugRouteBetweenIds('6980f151251adc8ca0e59738', '579faa390700be0674d30aa3');
+    //debugRouteBetweenIds('6980f151251adc8ca0e59738', '579faa390700be0674d30aa2');
+    //debugRouteBetweenIds('6980f151251adc8ca0e59738', '579faa390700be0674d30aa4');
     //roleLink.runManual();
 
     const statsInterval = 1;
