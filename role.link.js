@@ -59,9 +59,15 @@ var linkMod = {
 
                 if (link == baseLink)
                     continue;
+                var limit = this.CONTROLLER_LINK_ENERGY_LIMIT;
+                
+                
+                // urgent push
+                if (link.energy > 700)
+                    limit = 800;
 
                 if (controllerLink.energy < 500)
-                    if (this.runInternal(link, controllerLink, this.CONTROLLER_LINK_ENERGY_LIMIT))
+                    if (this.runInternal(link, controllerLink, limit))
                         return;
             }
 
