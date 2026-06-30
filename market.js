@@ -226,8 +226,7 @@ module.exports = {
     },
 
     shareResourcesInternal: function () {
-        return;
-
+        //return;
         //console.log("Sharing resources between rooms...");
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];

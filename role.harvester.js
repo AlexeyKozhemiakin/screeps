@@ -205,7 +205,10 @@ var roleHarvester = {
             creep.memory.task = "harvest";
         }
 
-
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
 
 
 

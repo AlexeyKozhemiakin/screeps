@@ -203,6 +203,7 @@ var roomPlanning = {
         if (from == undefined || to == undefined)
             return;
 
+        
 
 
         var nearByContainer = to.pos.findInRange(FIND_STRUCTURES, range + 1, {

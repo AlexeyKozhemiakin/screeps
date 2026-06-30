@@ -84,6 +84,11 @@ loopInner = function () {
             market.sellExcess();
             market.shareEnergyInternal();
             market.shareResourcesInternal();
+
+            roleLab.manageInventory();
+            roleLab.setupReactions();
+
+            market.adjustOrders();
         }
 
         if (Game.time % 20 == 0) {

@@ -127,7 +127,7 @@ var roomClaiming = {
 
             }
             else {
-                //room.removeFlag("defend" + roomName);
+                room.removeFlag("defend" + roomName);
             }
 
             if (room.controller.reservation && room.controller.reservation.ticksToEnd > 100)
