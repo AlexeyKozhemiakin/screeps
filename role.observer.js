@@ -196,7 +196,8 @@ var roleObserver = {
                 id: deposits[k].id,
                 depositType: deposits[k].depositType,
                 cooldown: deposits[k].lastCooldown,
-                ticksToDecay: deposits[k].ticksToDecay
+                ticksToDecay: deposits[k].ticksToDecay,
+                slots: deposits[k].slots()
             });
         }
 

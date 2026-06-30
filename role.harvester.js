@@ -188,6 +188,12 @@ var roleHarvester = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
+
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+
         if (basic.leaveDangerousRoom(creep))
             return;
 
@@ -199,10 +205,7 @@ var roleHarvester = {
             creep.memory.task = "harvest";
         }
 
-        if (creep.memory.task == "recycle") {
-            basic.recycleCreep(creep);
-            return;
-        }
+
 
 
 
@@ -218,9 +221,8 @@ var roleHarvester = {
             if (!basic.repairEmergency(creep))
                 this.runHarvest(creep);
 
-            
-            if (creep.store.getFreeCapacity() <=  creep.getActiveBodyparts(WORK) * HARVEST_POWER) 
-            {
+
+            if (creep.store.getFreeCapacity() <= creep.getActiveBodyparts(WORK) * HARVEST_POWER) {
                 this.runDeliver(creep, false);
             }
         }

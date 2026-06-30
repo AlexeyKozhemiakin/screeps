@@ -1,6 +1,6 @@
 var utils = require("utils");
 
-const MAX_COOLDOWN = 40;
+const MAX_COOLDOWN = 180;
 const MAX_ROUTE_DISTANCE = 150;
 
 const HARVEST_BUFFER = 150;
@@ -13,9 +13,9 @@ var roomDepositHarvesting = {
         var eligibleRooms = _.chain(Game.rooms)
             .filter(function (room) {
                 var enoughEnergy = room.storage && room.storage.store[RESOURCE_ENERGY] > utils.RICH_ROOM_ENERGY;
-
+                // level 7 to have several spawns
                 return room && room.controller &&
-                    room.controller.my && room.controller.level >= 6 && enoughEnergy;
+                    room.controller.my && room.controller.level >= 7 && enoughEnergy;
             })
             .map(function (room) {
                 return room.name;
@@ -74,16 +74,16 @@ var roomDepositHarvesting = {
     },
 
     getDepositHarvestingOrder: function (roomName) {
-        var room = Game.rooms[roomName];
-        if (!room)
+        var parentRoom = Game.rooms[roomName];
+        if (!parentRoom)
             return;
 
-        if (!room.memory.depositHarvesting || room.memory.depositHarvesting.length == 0)
+        if (!parentRoom.memory.depositHarvesting || parentRoom.memory.depositHarvesting.length == 0)
             return;
 
         // remove old harvest targets from memory
-        for (var i = room.memory.depositHarvesting.length - 1; i >= 0; i--) {
-            var assignedRoomName = room.memory.depositHarvesting[i];
+        for (var i = parentRoom.memory.depositHarvesting.length - 1; i >= 0; i--) {
+            var assignedRoomName = parentRoom.memory.depositHarvesting[i];
             var observedRoom = Memory.observer.rooms[assignedRoomName];
 
             if (!observedRoom)
@@ -94,26 +94,26 @@ var roomDepositHarvesting = {
 
                 console.log("No harvestable deposit in observed room ", assignedRoomName,
                     " anymore, removing from deposit harvesting list of ", roomName);
-                room.memory.depositHarvesting.splice(i, 1);
+                parentRoom.memory.depositHarvesting.splice(i, 1);
             }
         }
 
-        if (room.memory.depositHarvesting.length == 0)
+        if (parentRoom.memory.depositHarvesting.length == 0)
             return;
 
-        for (var roomKey in room.memory.depositHarvesting) {
-            var observedRoomName = room.memory.depositHarvesting[roomKey];
-            var observedDepositRoom = Memory.observer.rooms[observedRoomName];
+        for (var roomKey in parentRoom.memory.depositHarvesting) {
+            var observedRoomName = parentRoom.memory.depositHarvesting[roomKey];
+            var remoteRoom = Memory.observer.rooms[observedRoomName];
 
-            if (!observedDepositRoom ||
-                !observedDepositRoom.deposits ||
-                observedDepositRoom.deposits.length == 0)
+            if (!remoteRoom ||
+                !remoteRoom.deposits ||
+                remoteRoom.deposits.length == 0)
                 continue;
 
-            var route = Game.map.findRoute(room.name, observedRoomName);
+            var route = Game.map.findRoute(parentRoom.name, observedRoomName);
 
             if (route == ERR_NO_PATH) {
-                console.log("Deposit harvesting has no route from ", room.name, " to ", observedRoomName);
+                console.log("Deposit harvesting has no route from ", parentRoom.name, " to ", observedRoomName);
                 continue;
             }
 
@@ -121,8 +121,8 @@ var roomDepositHarvesting = {
             var spawnDelay = CREEP_SPAWN_TIME * MAX_CREEP_SIZE;
             var delay = spawnDelay + travelTicks + HARVEST_BUFFER;
 
-            for (var depositKey in observedDepositRoom.deposits) {
-                var deposit = observedDepositRoom.deposits[depositKey];
+            for (var depositKey in remoteRoom.deposits) {
+                var deposit = remoteRoom.deposits[depositKey];
 
                 if (!this.isHarvestableDeposit(deposit))
                     continue;
@@ -131,25 +131,27 @@ var roomDepositHarvesting = {
                 if (harvestWindow <= 0)
                     continue;
 
-                console.log("Deposit harvesting plan ", room.name,
-                    " -> ", observedRoomName,
-                    " type ", deposit.depositType,
-                    " cooldown ", deposit.cooldown,
-                    " decay ", deposit.ticksToDecay,
-                    " delay ", delay,
-                    " observed ", Game.time - observedDepositRoom.observedAt,
-                    " ticks ago");
+                //console.log("Deposit harvesting plan ", room.name,
+                //    " -> ", observedRoomName,
+                //    " type ", deposit.depositType,
+                //    " cooldown ", deposit.cooldown,
+                //    " decay ", deposit.ticksToDecay,
+                //    " delay ", delay,
+                //    " observed ", Game.time - remoteRoom.observedAt,
+                //    " ticks ago");
 
                 var harvesters = _.filter(Game.creeps,
                     c => c.memory.role == "depositHarvester" &&
                         c.memory.toGo && c.memory.toGo.includes(observedRoomName) &&
                         c.memory.tag == "depositHarvesting" + depositKey);
 
+                var maxHarvesters = Math.max(1, deposit.slots || 1);
+
                 var parts = [MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
                     WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK, WORK,
                     CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY];
 
-                if (harvesters.length < 1) {
+                if (harvesters.length < maxHarvesters) {
                     var memory = {
                         role: "depositHarvester",
                         toGo: [observedRoomName],
@@ -161,22 +163,50 @@ var roomDepositHarvesting = {
                     return { memory: memory };
                 }
 
-                // dont do 1 cooldown since it spawning too much deliverers
-                var cooldown = Math.max(deposit.cooldown, 3);
-                var amnt = HARVEST_DEPOSIT_POWER * _.sum(parts, p => p == WORK ? 1 : 0) / (cooldown);
-                
-                var memory = utils.createDeliverer(deposit.id, room.storage.id,
-                    amnt, deposit.depositType,
-                    CARRY_CAPACITY * _.sum(parts, p => p == CARRY ? 1 : 0));
+                // at least 10 cooldown to avoid too high in initial seconds
 
-                console.log("Existing harvesters for deposit ", deposit.id, ": ", harvesters.length,
-                    " needed deliverer capacity ", amnt);
+                var cooldown = Math.max(deposit.cooldown, 10);
+                var amnt = maxHarvesters * HARVEST_DEPOSIT_POWER * _.sum(parts, p => p == WORK ? 1 : 0) / (cooldown);
+
+                var memory = utils.createDeliverer(deposit.id, parentRoom.storage.id,
+                    amnt, deposit.depositType, 500);
+
+                //console.log("Existing harvesters for deposit ", deposit.id, ": ", harvesters.length,
+                //    " needed deliverer capacity ", amnt);
 
                 if (memory) {
                     return { memory: memory };
                 }
+            }
 
 
+            var remoteRoomObj = Game.rooms[observedRoomName];
+            if (!remoteRoomObj) {
+                //console.log("Remote room ", observedRoomName, " not visible, cannot check for defend flag,  skipping attack assignment for deposit harvesting");
+                continue;
+            }
+
+            var hostileWorkers = remoteRoomObj.find(FIND_HOSTILE_CREEPS, { filter: c => c.getActiveBodyparts(WORK) > 0 });
+            //if (hostileWorkers.length > 0) {
+            //    console.log("Hostile workers in remote room ", observedRoomName, " found, skipping attack assignment for deposit harvesting");
+            //}
+
+            var defendFlag = remoteRoomObj.find(FIND_CREEPS,
+                { filter: f => f.name.includes("defend") })[0];
+
+
+            if (defendFlag || hostileWorkers.length > 0) {
+                //console.log("Defending deposit in remote room ", observedRoomName, " found, skipping attack assignment for deposit harvesting");
+                var attackers = _.filter(Game.creeps,
+                    c => c.memory.role == "attack" &&
+                        c.memory.toGo && c.memory.toGo.includes(observedRoomName) &&
+                        (c.ticksToLive > 150 + 50 + 10 || c.spawning)
+                );
+                if (attackers.length < 1) {
+                    var memory = utils.createAttackMemory(remoteRoomObj);
+
+                    return { "memory": memory };
+                }
             }
         }
     },

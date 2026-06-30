@@ -3,6 +3,10 @@ var utils = require("utils");
 const HEADROOM = 500; // need to have some headroom to account for travel time and healing of power bank
 
 var roomPowerHarvesting = {
+    hasObservedHostiles: function (observedRoom) {
+        return !!(observedRoom && observedRoom.hostileCount > 0);
+    },
+
     assignPowerHarvestingRooms: function () {
 
         if (!Memory.observer || !Memory.observer.rooms)
@@ -131,6 +135,11 @@ var roomPowerHarvesting = {
             if (!observedRoom || !observedRoom.powerBank)
                 continue;
 
+            if (this.hasObservedHostiles(observedRoomName)) {
+                console.log("Hostile creep in observed power room. Skipping for now. TODO attackers ", observedRoomName);
+            }
+
+
             var hits = observedRoom.powerBank.hits || 0;
             var ticksToDecay = observedRoom.powerBank.ticksToDecay || 0;
             var requiredAttackParts = 0;
@@ -216,9 +225,9 @@ var roomPowerHarvesting = {
                 //console.log("Bank ", bank.roomName, " has ", attackers.length, " attackers and ", healers.length, " healers");
                 //console.log("Healer 1 in room ", healers.length > 0 ? healers[0].pos : "none", " has ticksToLive ", healers.length > 0 ? healers[0].ticksToLive : "none");
                 //console.log("Healer 2 in room ", healers.length > 1 ? healers[1].pos : "none", " has ticksToLive ", healers.length > 1 ? healers[1].ticksToLive : "none");
-                
 
-               // console.log("Attacker 1 in room ", attackers.length > 0 ? attackers[0].name : "none", " has ticksToLive ", attackers.length > 0 ? attackers[0].ticksToLive : "none");
+
+                // console.log("Attacker 1 in room ", attackers.length > 0 ? attackers[0].name : "none", " has ticksToLive ", attackers.length > 0 ? attackers[0].ticksToLive : "none");
                 //console 
                 if (healers.length < 2 * attackers.length) {
                     var memory = { role: "healer", toGo: [bank.roomName], parts: powerhealerParts };
@@ -243,7 +252,7 @@ var roomPowerHarvesting = {
                 continue;
 
             //console.log("Spawning deliverer for power bank in ",  bank.roomName, " with delay ", delay, " ticks");
-            
+
             var deliverers = _.filter(Game.creeps,
                 c => c.memory.role == "deliverer" &&
                     c.memory.tag == "powerPickup+" + bank.roomName);

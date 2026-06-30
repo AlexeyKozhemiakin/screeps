@@ -138,6 +138,7 @@ var roleLab = {
 
         // Per-compound target overrides (default is highAmount)
         var targetOverrides = {
+            'H': 20000,
             'GH': 10000,
             'GH2O': 10000
         };
@@ -159,7 +160,7 @@ var roleLab = {
 
             // Base compounds
             'OH': ['O', 'H'],
-            
+
             'ZK': ['Z', 'K'],
             'UL': ['U', 'L'],
             'G': ['ZK', 'UL'],
@@ -204,7 +205,7 @@ var roleLab = {
 
         // If there's a current production target, check if it's done
         if (room.memory.productionTarget) {
-           
+
 
             var _tgt = room.memory.productionTarget;
             var _tgtAmt = getTargetAmount(_tgt);
@@ -235,24 +236,16 @@ var roleLab = {
                 //console.log(`Room ${room.name} needs ${gapAmount} of ${targetRes} (current: ${currentAmount}), trying to acquire from other rooms or market...`);         
 
                 // First try: share from other rooms
-                for (var sourceRoomName in Game.rooms) {
-                    var sourceRoom = Game.rooms[sourceRoomName];
-                    if (!sourceRoom || !sourceRoom.terminal || sourceRoomName === room.name)
-                        continue;
-
-                    var sourceAmount = sourceRoom.terminal.store[targetRes];
-
-                    if (sourceAmount && sourceAmount > resTarget + gapAmount ) {
-                        console.log('Sharing ' + gapAmount + ' of ' + targetRes + ' from ' + sourceRoomName + ' to ' + room.name);
-                        market.shareResource(sourceRoomName, room.name, targetRes, gapAmount);
-                        needAttention = false;
-                        break;
-                    }
-                }
+                needAttention = !market.shareResourceFromOtherRooms(room, targetRes, resTarget, gapAmount);
 
                 // Second try: buy from market if sharing didn't work
                 if (needAttention) {
-                    market.matchOrderInternal(room.name, targetRes, gapAmount, ORDER_SELL);
+                    var desperateNeed = currentAmount < lowAmount;
+                    if (desperateNeed) {
+                        //console.log(`Room ${room.name} is in desperate need of ${targetRes} (current: ${currentAmount}), trying to buy from market with relaxed price constraints...`);
+                        gapAmount = lowAmount;//- currentAmount; // if we're below lowAmount, try to buy enough to get back to 2*lowAmount to reduce chances of being in desperate need again next tick
+                    }
+                    market.matchOrderInternal(room.name, targetRes, gapAmount, ORDER_SELL, desperateNeed ? 3 : undefined);
                     // Check if market matching succeeded
                     var newAmount = this.getTotalMineralAmount(room, targetRes);
                     if (newAmount >= resTarget) {
@@ -317,33 +310,32 @@ var roleLab = {
     },
 
     manageInventory: function (room) {
-        // Update all rooms (cycle)
-        for (var roomName in Game.rooms) {
-            var r = Game.rooms[roomName];
-            if (!r || !r.terminal || !r.controller ||!r.controller.my)
-                continue;
-            
-            var goals = this.autoGenerateGoalsForRoom(r);
-            r.memory.inventoryGoal = goals;
+        if (!room) {
+            for (var roomName in Game.rooms) {
+                this.manageInventory(Game.rooms[roomName]);
+            }
+            return;
         }
-        return;
+
+        if (!room.terminal || !room.controller || !room.controller.my)
+            return;
+
+        room.memory.inventoryGoal = this.autoGenerateGoalsForRoom(room);
     },
 
-    setupReactions: function () {
-
-        for (var roomName in Game.rooms) {
-            var room = Game.rooms[roomName];
-
-            if (!room) {
-                console.log("Room ", roomName, " not accessible or doesn't exist");
-                continue;
+    setupReactions: function (room) {
+        if (!room) {
+            for (var roomName in Game.rooms) {
+                this.setupReactions(Game.rooms[roomName]);
             }
-            var goal = room.memory.inventoryGoal;
-            if (!goal)
-                continue;
-
-            this.setupReactionsForRoom(room, goal);
+            return;
         }
+
+        var goal = room.memory.inventoryGoal;
+        if (!goal)
+            return;
+
+        this.setupReactionsForRoom(room, goal);
     },
 
     setupReactionsForRoom: function (room, goals) {
@@ -371,7 +363,7 @@ var roleLab = {
         }
     },
 
-    
+
 
     setupRoomReagents: function (room, targetRes, goals) {
         if (room.memory.productionTarget && room.memory.productionTarget !== targetRes)
@@ -406,7 +398,7 @@ var roleLab = {
                 else {
                     // Base mineral missing — keep productionTarget so sharing/market
                     // logic can acquire it next tick instead of wiping the target.
-                    
+
                     //console.log("Waiting for base mineral ", reagent, " for producing ", targetRes, " in ", room.name);
                 }
                 return;
@@ -414,7 +406,7 @@ var roleLab = {
         }
 
 
-         
+
         var labs = room.find(FIND_MY_STRUCTURES, {
             filter: function (structure) { return structure.structureType === STRUCTURE_LAB; }
         });
@@ -449,7 +441,7 @@ var roleLab = {
                 ready = false;
                 if ((lab.store[labMineralType] || 0) > 0) {
                     //console.log('Lab ' + lab.id + ' in ' + room.name + ' has wrong mineral (' + labMineralType + '), needs to be emptied before switching to ' + expected);
-                    
+
                 }
             }
         }
@@ -481,7 +473,7 @@ var roleLab = {
         // Set mineral demands for input/output labs
         labs[0].mineralDemand = reagents[0];
         labs[1].mineralDemand = reagents[1];
-        
+
 
         // that was done mostly to show icons
         // additionally to allow boosts if applicable
@@ -520,14 +512,18 @@ var roleLab = {
         }
     },
 
-    runReactions: function () {
-        for (var roomName in Game.rooms) {
-            var room = Game.rooms[roomName];
-            if (!room || !room.controller || !room.controller.my || !room.memory.labSetup)
-                continue;
-
-            this.runRoomReactions(room);
+    runReactions: function (room) {
+        if (!room) {
+            for (var roomName in Game.rooms) {
+                this.runReactions(Game.rooms[roomName]);
+            }
+            return;
         }
+
+        if (!room.controller || !room.controller.my || !room.memory.labSetup)
+            return;
+
+        this.runRoomReactions(room);
     },
 
     runRoomReactions: function (room) {

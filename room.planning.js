@@ -1,4 +1,5 @@
 var utils = require("utils");
+var basic = require('role.basic');
 
 var roomPlanning = {
     roomAutoBuild: function (room) {
@@ -45,6 +46,10 @@ var roomPlanning = {
             return;
         }
 
+
+        //if(structureType == STRUCTURE_ROAD)
+        //    console.log("Trying to build road in ", room.name, " at ", pos);
+
         if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).length > 0)
             return false;
 
@@ -81,8 +86,7 @@ var roomPlanning = {
         if (structureType == STRUCTURE_SPAWN)
             name = "spawn_" + Game.time;
 
-        //if (room.name == "E48S23")
-        //    console.log("Trying to build ", structureType, " in ", room.name, " at ", pos, " with name ", name);
+
         try {
             var code = pos.createConstructionSite(structureType, name);
         } catch (e) {
@@ -95,10 +99,6 @@ var roomPlanning = {
         }
         else {
 
-            //if (room.name == "E48S23")
-            //    console.log("Cant build", structureType, "in", room.name, " at ", pos, ":", utils.getError(code));
-
-            //console.log("Cant build", structureType, "in", room.name, ":", utils.getError(code));
             return false;
         }
     },
@@ -110,9 +110,99 @@ var roomPlanning = {
         }
     },
 
+    debugRouteBetweenIds: function (fromId, toId) {
+        var from = Game.getObjectById(fromId);
+        var to = Game.getObjectById(toId);
+
+        if (!from || !to || !from.pos || !to.pos) {
+            console.log('debugRouteBetweenIds missing endpoint', fromId, !!from, toId, !!to);
+            return;
+        }
+
+        var roomRoute = Game.map.findRoute(from.pos.roomName, to.pos.roomName, {
+            routeCallback: function (roomName) {
+                return basic.getRouteWeight(roomName);
+            }
+        });
+
+        if (roomRoute === ERR_NO_PATH) {
+            console.log('debugRouteBetweenIds no route', fromId, from.pos.roomName, toId, to.pos.roomName);
+            return;
+        }
+
+        var path = utils.getPathMultiroomForRoad(from, to, 1);
+
+        if (!path || !path.length) {
+            console.log('debugRouteBetweenIds empty path', fromId, toId);
+            return;
+        }
+
+        var pathRoaded = utils.isPathRoaded(path);
+        //console.log('debugRouteBetweenIds pathRoaded', pathRoaded, 'pathLen', path.length, fromId, toId);
+
+        var lastStep = path[path.length - 1];
+        var remainingRange = lastStep.getRangeTo(to.pos);
+        var travelLength = path.length + Math.max(0, remainingRange - 1);
+        var label = 'len=' + travelLength + ' steps';
+
+        if (roomRoute.length) {
+            label += ' rooms=' + (roomRoute.length + 1);
+        }
+
+        new RoomVisual(from.pos.roomName).circle(from.pos, {
+            radius: 0.45,
+            stroke: '#00ff88',
+            fill: 'transparent'
+        });
+        new RoomVisual(from.pos.roomName).text('A', from.pos.x, from.pos.y - 0.6, {
+            color: '#00ff88',
+            font: 0.6
+        });
+
+        new RoomVisual(to.pos.roomName).circle(to.pos, {
+            radius: 0.45,
+            stroke: '#ff3355',
+            fill: 'transparent'
+        });
+        new RoomVisual(to.pos.roomName).text('B', to.pos.x, to.pos.y - 0.6, {
+            color: '#ff3355',
+            font: 0.6
+        });
+
+        for (var pathIndex = 0; pathIndex < path.length - 1; pathIndex++) {
+            var current = path[pathIndex];
+            var next = path[pathIndex + 1];
+
+            if (current.roomName !== next.roomName)
+                continue;
+
+            new RoomVisual(current.roomName).line(current, next, {
+                color: '#00d4ff',
+                width: 0.18,
+                opacity: 0.6,
+                lineStyle: 'dashed'
+            });
+        }
+
+        new RoomVisual(from.pos.roomName).text(label, from.pos.x + 1, from.pos.y, {
+            color: '#00d4ff',
+            align: 'left',
+            font: 0.5
+        });
+
+        if (from.pos.roomName !== to.pos.roomName) {
+            new RoomVisual(to.pos.roomName).text(label, to.pos.x - 1, to.pos.y, {
+                color: '#00d4ff',
+                align: 'right',
+                font: 0.5
+            });
+        }
+    },
+
     tryRoad(from, to, room, range = 1, buildEnabled = false, buildLink = false) {
         if (from == undefined || to == undefined)
             return;
+
 
 
         var nearByContainer = to.pos.findInRange(FIND_STRUCTURES, range + 1, {
@@ -124,18 +214,47 @@ var roomPlanning = {
             filter: s => s.structureType == STRUCTURE_CONTAINER
         })[0];
 
-
-        //this.drawPath(roadPath, room);
-
         // build only after container exists?
         if (nearByContainer) {
             if (buildEnabled) {
                 // i want more stable roads so need to see if there is a construction site of
                 //  road and if exists in +1 range do not build new
-                var newRoad = from.pos.findPathTo(nearByContainer, { ignoreCreeps: true, heuristicWeight: 1.1 });
 
-                for (var step of newRoad) {
-                    this.tryBuild(STRUCTURE_ROAD, new RoomPosition(step.x, step.y, room.name), room);
+                var roadPath = utils.getPathMultiroomForRoad(from, to, range);
+
+                // TODO planning vs building mode to make roads stable
+                //roadPath = [];
+
+
+
+                for (var step of roadPath) {
+                    try {
+                        // lookaround and do not build if there are construction sites of roads nearby
+                        var nearByRoadSite = step.findInRange(FIND_CONSTRUCTION_SITES, 1, {
+                            filter: s => s.structureType == STRUCTURE_ROAD
+                        })[0];
+
+                        // "x":2,"y":33,"roomName":"E53S31"
+                        var look = step.lookFor(LOOK_STRUCTURES);
+                        var hasRoad = _.some(look, function (s) {
+                            return s.structureType == STRUCTURE_ROAD;
+                        });
+
+                        if (step.x == 0 || step.y == 0 || step.x == 49 || step.y == 49) // check for exits, they are usually not roaded and it's not a problem
+                            hasRoad = true;
+
+
+                        if (!nearByRoadSite && !hasRoad) {
+                            console.log("Trying to build road at ", step);
+                            var stepRoom = Game.rooms[step.roomName];
+                            this.tryBuild(STRUCTURE_ROAD, step, stepRoom);
+                            // stepRoom.visual.circle(step.x, step.y, { fill: 'transparent', radius: 0.1, stroke: 'yellow' });
+                        }
+                        //else
+                        //    console.log("Road construction site already exists near ", step, " in ", room.name);
+                    } catch (e) {
+                        //console.log("Error in tryRoad:", e);
+                    }
                 }
             }
         }
@@ -156,10 +275,13 @@ var roomPlanning = {
         if ((nearByContainer || nearByContainerSite) && !buildLink)
             return;
 
+        var roadPath = utils.getPathMultiroomForRoad(from, to, range);
 
-        var roadPath = utils.getPathMultiroom(from, to, range);
         //var roadPath = from.pos.findPathTo(to, { range: range, ignoreCreeps: true });
         roadPath = roadPath.reverse();
+
+        if (roadPath.length == 0)
+            console.log("No path from ", from, " to ", to, " in ", room.name);
 
         // if building nearby make 1 stp further, this is for containers
         // old fashioned way in some old rooms, this causing diagonal placement
@@ -169,6 +291,7 @@ var roomPlanning = {
         //container in 1st step
         if (roadPath.length > 1) {
             var containerPos = new RoomPosition(roadPath[tick].x, roadPath[tick].y, room.name);
+
             room.visual.circle(containerPos, { fill: 'transparent', radius: 0.3, stroke: 'blue' });
 
             // for links

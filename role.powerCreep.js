@@ -7,13 +7,16 @@ const REGEN_MINERAL_SEARCH_RANGE = 20; // TODO this is a hack to avoid going too
 function hasNoActiveEffect(target, powerType) {
     var effects = target.effects || [];
     return !_.some(effects, function (effect) {
-        return effect.effect == powerType && effect.ticksRemaining > 0;
+        return effect.effect == powerType && effect.ticksRemaining > 15;
     });
 }
 
 module.exports = {
     run: function (powerCreep) {
         if (!powerCreep)
+            return;
+
+        if (!powerCreep.room)
             return;
 
         if (this.renew(powerCreep))
@@ -32,6 +35,9 @@ module.exports = {
             return;
 
         if (this.operateExtension(powerCreep))
+            return;
+
+        if (this.operateFactory(powerCreep))
             return;
 
         this.actAsDeliverer(powerCreep);
@@ -67,11 +73,39 @@ module.exports = {
         if (!target)
             return false;
 
-        var range = POWER_INFO[powerType].range;
-        if (!powerCreep.pos.inRangeTo(target, range)) {
-            powerCreep.moveTo(target, { visualizePathStyle: { stroke: '#00ff6a' } });
+        const opsCost = POWER_INFO[powerType].ops;
+
+        if (powerType == PWR_OPERATE_FACTORY)
+            console.log(`Power creep ${powerCreep.name} is trying to use power ${powerType} on target ${target} with ops cost ${opsCost}`);
+
+        if (powerCreep.store[RESOURCE_OPS] < opsCost) {
+            var target = powerCreep.room.terminal;
+
+            if(powerCreep.store.getFreeCapacity() < 200)
+                roleDeliverer.runDeliver(powerCreep);
+
+            if (!target || target.store[RESOURCE_OPS] < opsCost)
+                return false;
+
+            if (!powerCreep.pos.isNearTo(target)) {
+                powerCreep.say("need ops");
+                if(powerCreep.store.getFreeCapacity() == 0)
+                    for (const resourceType in powerCreep.store) { powerCreep.drop(resourceType); }
+                powerCreep.moveTo(target, { visualizePathStyle: { stroke: '#ffaa00' } });
+                return true;
+            }
+
+            powerCreep.withdraw(target, RESOURCE_OPS, opsCost);
             return true;
         }
+
+
+        var range = POWER_INFO[powerType].range;
+        if (!powerCreep.pos.inRangeTo(target, range)) {
+            powerCreep.moveTo(target, { visualizePathStyle: { stroke: '#f900cf' } });
+            return true;
+        }
+
 
         powerCreep.say(sayText || "power");
         return powerCreep.usePower(powerType, target) == OK;
@@ -125,10 +159,7 @@ module.exports = {
 
     operateExtension: function (powerCreep) {
         return this.applyPower(powerCreep, PWR_OPERATE_EXTENSION, function (pc, pwr) {
-            if (!pc.room)
-                return null;
-
-            if (pc.room.energyAvailable >= pc.room.energyCapacityAvailable * 0.2)
+            if (pc.room.energyAvailable >= pc.room.energyCapacityAvailable * 0.7)
                 return null;
 
             var target = pc.room.storage;
@@ -140,6 +171,29 @@ module.exports = {
 
             return target;
         }, "fill ext");
+    },
+
+    operateFactory: function (powerCreep) {
+
+        return this.applyPower(powerCreep, PWR_OPERATE_FACTORY, function (pc, pwr) {
+
+
+            if (!pc.room.factory || !pc.room.factory.isActive())
+                return null;
+
+            if(pc.room.factory.level == undefined)
+                return pc.room.factory
+            
+            var factoryDemand = pc.room.memory.factoryDemand;
+            if (!factoryDemand || !factoryDemand.requiresPowerApplication)
+                return null;
+                
+            if(pc.room.factory.cooldown > 5)
+                return null;
+
+
+            return pc.room.factory;
+        }, "factory");
     },
 
     enablePowerInRoom: function (creep) {

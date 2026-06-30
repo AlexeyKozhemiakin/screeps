@@ -2,6 +2,14 @@
 var basic = require("role.basic");
 var roleMineralHarvester = {
 
+    getMineral: function (creep) {
+        if (creep.memory.preferredSourceId) {
+            return Game.getObjectById(creep.memory.preferredSourceId);
+        }
+
+        return creep.room.mineral;
+    },
+
     needHarvester: function (room) {
         if (!room.extractor) {
             return false;
@@ -17,11 +25,11 @@ var roleMineralHarvester = {
         }
 
         // it needs to be 0 otherwise it doest start regen
-        return mineral.mineralAmount > 0; 
+        return mineral.mineralAmount > 0;
     },
 
     runHarvest: function (creep) {
-        var mineral = creep.room.mineral;
+        var mineral = this.getMineral(creep);
         if (!mineral || mineral.mineralAmount <= 0) {
             if (creep.store.getUsedCapacity() > 0) {
                 creep.memory.task = "deliver";
@@ -40,7 +48,7 @@ var roleMineralHarvester = {
         }
 
         var extractor = creep.room.extractor;
-        
+
         if (!extractor || extractor.cooldown != 0) {
             return;
         }
@@ -54,8 +62,13 @@ var roleMineralHarvester = {
     },
 
     runDeliver: function (creep) {
-        var extractor = creep.room.extractor;
+        var mineral = this.getMineral(creep);
+        var extractor = mineral && mineral.room ? mineral.room.extractor : creep.room.extractor;
         var target = extractor ? extractor.container : undefined;
+
+        if (!target && mineral) {
+            target = mineral.container;
+        }
 
         if (!target) {
             creep.say("no where to put");
@@ -86,6 +99,18 @@ var roleMineralHarvester = {
 
     /** @param {Creep} creep **/
     run: function (creep) {
+        if (creep.memory.task == "recycle") {
+            basic.recycleCreep(creep);
+            return;
+        }
+
+        if (basic.leaveDangerousRoom(creep))
+            return;
+
+        if (!basic.moveToRoom(creep)) {
+            return;
+        }
+
         if (creep.memory.task == undefined) {
             creep.memory.task = "harvest";
         }
@@ -95,14 +120,17 @@ var roleMineralHarvester = {
         }
 
         if (creep.memory.task == "harvest") {
-            roleMineralHarvester.runHarvest(creep);
+            if (!basic.repairEmergency(creep))
+                roleMineralHarvester.runHarvest(creep);
+
+
             return;
         }
 
         if (creep.memory.task == "deliver") {
             roleMineralHarvester.runDeliver(creep);
             return;
-        }        
+        }
     }
 };
 

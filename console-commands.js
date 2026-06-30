@@ -190,6 +190,51 @@ function printTable(headers, rows, textCols) {
     return { widths: widths, sep: sep };
 }
 
+// --- Summarize owned visible factories by level ---
+// Usage: listFactories()
+global.listFactories = function () {
+    var rows = [];
+    var totalFactories = 0;
+    var levelCounts = {};
+
+    for (var roomName in Game.rooms) {
+        var room = Game.rooms[roomName];
+        if (!room || !room.controller || !room.controller.my)
+            continue;
+
+        var factory = room.factory;
+        if (!factory)
+            continue;
+
+        var level = factory.level || 0;
+        totalFactories++;
+        levelCounts[level] = (levelCounts[level] || 0) + 1;
+        rows.push([room.name, level, factory.isActive() ? 'yes' : 'no']);
+    }
+
+    if (rows.length === 0)
+        return 'No owned visible factories found';
+
+    rows.sort(function (a, b) {
+        if (a[1] !== b[1])
+            return a[1] - b[1];
+        return a[0].localeCompare(b[0]);
+    });
+
+    printTable(['Room', 'Level', 'Active'], rows);
+    console.log('Total factories: ' + totalFactories);
+
+    var levels = Object.keys(levelCounts).sort(function (a, b) {
+        return Number(a) - Number(b);
+    });
+    var summary = [];
+    for (var i = 0; i < levels.length; i++) {
+        summary.push('L' + levels[i] + '=' + levelCounts[levels[i]]);
+    }
+
+    return 'Factory levels: ' + summary.join(', ');
+};
+
 global.listPowerBanks = function () {
     if (!Memory.observer || !Memory.observer.rooms) {
         return "No observed rooms in memory";
@@ -461,7 +506,7 @@ global.calculateAndStorePrices = function () {
         RESOURCE_KEANIUM,   // 'K'
         RESOURCE_ZYNTHIUM,  // 'Z'
         RESOURCE_CATALYST,  // 'X'
-        RESOURCE_GHODIUM,   // 'G'
+        //RESOURCE_GHODIUM,   // 'G'
         RESOURCE_OPS,       // 'ops'
         RESOURCE_SILICON,   // 'silicon'
         RESOURCE_METAL,     // 'metal'
@@ -472,8 +517,12 @@ global.calculateAndStorePrices = function () {
     // Recursively compute the production cost of a resource using only
     // primitive market prices at the leaves.
     var deepCache = {};
+    var deepInProgress = {};
     function getDeepCost(resource) {
         if (deepCache[resource] !== undefined) return deepCache[resource];
+        if (deepInProgress[resource]) {
+            return raw_prices[resource] || 0;
+        }
         if (PRIMITIVE_SET[resource]) {
             deepCache[resource] = raw_prices[resource] || 0;
             return deepCache[resource];
@@ -483,16 +532,18 @@ global.calculateAndStorePrices = function () {
             deepCache[resource] = raw_prices[resource] || 0;
             return deepCache[resource];
         }
+        deepInProgress[resource] = true;
         var componentCost = 0;
         for (var comp in commodity.components) {
             componentCost += getDeepCost(comp) * commodity.components[comp];
         }
         var result = componentCost / commodity.amount;
+        delete deepInProgress[resource];
         deepCache[resource] = result;
         return result;
     }
 
-    console.log("resource          |  market $ | shallow $ |   deep $  | shallowMargin | deepMargin | level | reagents");
+    console.log("resource          |  market $ | shallow $ |   deep $  | shallowMargin | deepMargin | deepCr/tick | level | reagents");
 
     RESOURCES_ALL.forEach(resource => {
         if (!raw_prices[resource])
@@ -516,17 +567,24 @@ global.calculateAndStorePrices = function () {
         var deepCost = getDeepCost(resource);
 
         var shallowMargin = shallowCost > 0 ? ((marketPrice - shallowCost) / shallowCost * 100).toFixed(1) : "N/A";
-        var deepMarginStr = deepCost > 0 ? ((marketPrice - deepCost) / deepCost * 100).toFixed(1) : "-";
+        var deepMarginCrPerUnit = marketPrice - deepCost;
+        var deepMarginStr = deepCost > 0 ? (deepMarginCrPerUnit / deepCost * 100).toFixed(1) : "-";
+        var deepMarginPerTick = "-";
+        if (commodity.cooldown > 0) {
+            deepMarginPerTick = (deepMarginCrPerUnit * commodity.amount / commodity.cooldown).toFixed(3);
+        }
         var deepCostStr = deepCost > 0 ? deepCost.toFixed(2).padStart(10) : "         -";
 
+        
         var padResource = resource.padEnd(17);
         var padMarket = marketPrice.toFixed(1).padStart(10);
         var padShallow = shallowCost.toFixed(1).padStart(10);
         var padShallowM = shallowMargin.padStart(14);
         var padDeepM = deepMarginStr.padStart(11);
+        var padDeepTick = deepMarginPerTick.padStart(11);
         var reagents = Object.keys(commodity.components).join(", ");
 
-        console.log(padResource + " | " + padMarket + " | " + padShallow + " | " + deepCostStr + " | " + padShallowM + "% | " + padDeepM + "% | " + level + " | " + reagents);
+        console.log(padResource + " | " + padMarket + " | " + padShallow + " | " + deepCostStr + " | " + padShallowM + "% | " + padDeepM + "% | " + padDeepTick + " | " + level + " | " + reagents);
     });
 
     //Memory.prices = undefined;
@@ -600,7 +658,8 @@ global.testRoadedPath = function (fromId, toId) {
 // Usage: analyzeMarketHistory("energy")            — filter by resource
 // Usage: analyzeMarketHistory(null, true)           — group by date
 // Usage: analyzeMarketHistory("energy", true)       — filter + group by date
-global.analyzeMarketHistory = function (filterResource, groupByDate) {
+// Usage: analyzeMarketHistory("energy", true, 0.3)  — custom EMA alpha (0..1)
+global.analyzeMarketHistory = function (filterResource, groupByDate, emaAlpha) {
     // ---- Collect all transactions: archived + live unarchived ----
     var archived = (Memory.marketHistory && Memory.marketHistory.txns) || [];
     var lastTick = (Memory.marketHistory && Memory.marketHistory.lastTick) || 0;
@@ -640,6 +699,16 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
     // ---- Helpers ----
     var TICK_MS = 4200; // ~4.2s per tick average
     var nowMs = Date.now();
+    var alpha = Number(emaAlpha);
+    if (!(alpha > 0 && alpha <= 1)) {
+        alpha = 0.2;
+    }
+
+    // EMA is order-dependent, so process transactions chronologically.
+    var allByTime = all.slice().sort(function (a, b) {
+        return a.time - b.time;
+    });
+
     function tickToDateStr(tick) {
         var ms = nowMs - (Game.time - tick) * TICK_MS;
         var d = new Date(ms);
@@ -674,19 +743,25 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
     if (groupByDate) {
         // =========== GROUP BY DATE ===========
         var agg = {};
-        all.forEach(function (t) {
+        allByTime.forEach(function (t) {
             var date = tickToDateStr(t.time);
             var key = date + '|' + t.dir + '|' + t.resourceType;
             if (!agg[key]) {
                 agg[key] = {
                     date: date, direction: t.dir, resource: t.resourceType,
-                    amount: 0, totalCredits: 0, count: 0
+                    amount: 0, totalCredits: 0, count: 0,
+                    emaPrice: null
                 };
             }
             var r = agg[key];
             r.amount += t.amount;
             r.totalCredits += t.price * t.amount;
             r.count += 1;
+            if (r.emaPrice === null) {
+                r.emaPrice = t.price;
+            } else {
+                r.emaPrice = alpha * t.price + (1 - alpha) * r.emaPrice;
+            }
         });
 
         var rows = Object.values(agg);
@@ -696,14 +771,15 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
             return a.resource.localeCompare(b.resource);
         });
 
-        var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits'];
+        var headers = ['Date', 'Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'EMA Price', 'Total Credits'];
         var data = rows.map(function (r) {
             var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var emaP = r.emaPrice === null ? '0' : r.emaPrice.toFixed(3);
             var total = r.totalCredits.toFixed(2);
-            return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, total];
+            return [r.date, r.direction, r.resource, String(r.count), String(r.amount), avgP, emaP, total];
         });
 
-        console.log('\n=== Market History by Date (' + all.length + ' transactions) ===\n');
+        console.log('\n=== Market History by Date (' + all.length + ' transactions, EMA alpha=' + alpha.toFixed(2) + ') ===\n');
         var tbl = printTable(headers, data, [0, 1, 2]);
         var prevDate = '';
         data.forEach(function (d) {
@@ -742,13 +818,14 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
     } else {
         // =========== SUMMARY BY RESOURCE (default) ===========
         var agg = {};
-        all.forEach(function (t) {
+        allByTime.forEach(function (t) {
             var key = t.dir + '|' + t.resourceType;
             if (!agg[key]) {
                 agg[key] = {
                     direction: t.dir, resource: t.resourceType,
                     amount: 0, totalCredits: 0, count: 0,
-                    minTick: t.time, maxTick: t.time
+                    minTick: t.time, maxTick: t.time,
+                    emaPrice: null
                 };
             }
             var r = agg[key];
@@ -757,6 +834,11 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
             r.count += 1;
             r.minTick = Math.min(r.minTick, t.time);
             r.maxTick = Math.max(r.maxTick, t.time);
+            if (r.emaPrice === null) {
+                r.emaPrice = t.price;
+            } else {
+                r.emaPrice = alpha * t.price + (1 - alpha) * r.emaPrice;
+            }
         });
 
         var rows = Object.values(agg);
@@ -766,15 +848,16 @@ global.analyzeMarketHistory = function (filterResource, groupByDate) {
         });
 
         var now = Game.time;
-        var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'Total Credits', 'Span'];
+        var headers = ['Dir', 'Resource', 'Trades', 'Amount', 'Avg Price', 'EMA Price', 'Total Credits', 'Span'];
         var data = rows.map(function (r) {
             var avgP = r.amount > 0 ? (r.totalCredits / r.amount).toFixed(3) : '0';
+            var emaP = r.emaPrice === null ? '0' : r.emaPrice.toFixed(3);
             var total = r.totalCredits.toFixed(2);
             var span = tickToDateStr(r.minTick) + ' — ' + tickToDateStr(r.maxTick);
-            return [r.direction, r.resource, String(r.count), String(r.amount), avgP, total, span];
+            return [r.direction, r.resource, String(r.count), String(r.amount), avgP, emaP, total, span];
         });
 
-        console.log('\n=== Market Transaction History (' + all.length + ' transactions) ===\n');
+        console.log('\n=== Market Transaction History (' + all.length + ' transactions, EMA alpha=' + alpha.toFixed(2) + ') ===\n');
         var tbl = printTable(headers, data, [0, 1]);
 
         data.forEach(function (d) {
@@ -828,6 +911,111 @@ global.clearMarketHistory = function () {
     var count = Memory.marketHistory ? (Memory.marketHistory.txns || []).length : 0;
     Memory.marketHistory = { lastTick: 0, txns: [] };
     return "Cleared " + count + " archived market transactions.";
+};
+
+// --- Print creep destruction events from room memory ---
+// Usage: listCreepDestroyedEvents()
+// Usage: listCreepDestroyedEvents("E51S23")
+// Usage: listCreepDestroyedEvents(null, 100)
+
+global.listCreepDestroyedEvents = function (roomName, limit) {
+    var roomsMemory = Memory.rooms || {};
+    var targetRooms = [];
+    var maxRows = parseInt(limit, 10);
+
+    if (!maxRows || maxRows < 1) {
+        maxRows = 50;
+    }
+
+    if (roomName) {
+        targetRooms.push(roomName);
+    } else {
+        targetRooms = Object.keys(roomsMemory);
+    }
+
+    if (targetRooms.length === 0) {
+        return "No rooms in Memory.rooms.";
+    }
+
+    var rows = [];
+
+    for (var i = 0; i < targetRooms.length; i++) {
+        var currentRoomName = targetRooms[i];
+        var roomMem = roomsMemory[currentRoomName];
+        if (!roomMem || !roomMem.events) {
+            continue;
+        }
+
+        var roomEvents = roomMem.events;
+        var destroyedEvents = roomEvents[EVENT_OBJECT_DESTROYED] || roomEvents[String(EVENT_OBJECT_DESTROYED)] || [];
+
+        for (var j = 0; j < destroyedEvents.length; j++) {
+            var wrapped = destroyedEvents[j] || {};
+            var ev = wrapped.event || wrapped;
+            var eventData = ev.data || {};
+
+            if (eventData.type !== "creep") {
+                continue;
+            }
+
+            var x = null;
+            var y = null;
+
+            if (eventData.x !== undefined && eventData.y !== undefined) {
+                x = eventData.x;
+                y = eventData.y;
+            } else if (ev.x !== undefined && ev.y !== undefined) {
+                x = ev.x;
+                y = ev.y;
+            } else if (ev.pos && ev.pos.x !== undefined && ev.pos.y !== undefined) {
+                x = ev.pos.x;
+                y = ev.pos.y;
+            }
+
+            rows.push({
+                time: wrapped.time || ev.time || 0,
+                room: currentRoomName,
+                pos: x === null ? "?" : (x + "," + y),
+                objectId: ev.objectId || eventData.objectId || "-"
+            });
+        }
+    }
+
+    if (rows.length === 0) {
+        return "No creep destruction events found in room memory.";
+    }
+
+    rows = _.sortBy(rows, function (entry) {
+        return -entry.time;
+    });
+
+    rows = rows.slice(0, maxRows);
+
+    var headers = ["Tick", "Room", "Pos", "ObjectId"];
+    var tableRows = _.map(rows, function (entry) {
+        var tickAgo = entry.time > 0 ? (Game.time - entry.time) : null;
+        return [
+            tickAgo === null ? "?" : (String(tickAgo) + " ago"),
+            entry.room,
+            entry.pos,
+            entry.objectId
+        ];
+    });
+
+    var table = printTable(headers, tableRows, [1, 2, 3]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+
+    for (var k = 0; k < tableRows.length; k++) {
+        console.log("| " + tableRows[k].map(function (value, index) {
+            if (index === 0)
+                return rpad(value, table.widths[index]);
+            return pad(value, table.widths[index]);
+        }).join(" | ") + " |");
+    }
+    console.log(table.sep);
+
+    return "Printed " + tableRows.length + " creep destruction events" + (roomName ? " for " + roomName : "") + ".";
 };
 
 

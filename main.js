@@ -1,4 +1,5 @@
 var utils = require('utils');
+var basic = require('role.basic');
 var roleTower = require('role.tower');
 var roleLink = require('role.link');
 var roleBoost = require('role.boost');
@@ -11,17 +12,17 @@ var scp = require('screepsplus');
 var market = require('market');
 
 var prototypes = require('prototypes');
-//
-//var roleBasic = require('role.basic');
-//var roleHarvester = require('role.harvester');
-//var roleUpgrader = require('role.upgrader');
-//var roleBuilder = require('role.builder');
-//var roleDeliverer = require('role.deliverer');
-//var roleClaim = require('role.claim');
-//var roleAttack = require('role.attack');
-//var roleReserve = require('role.reserve');
-//var roleScout = require('role.scout');
-//var roleMineralHarvester = require('role.mineralHarvester');
+var roleBasic = require('role.basic');
+var roleHarvester = require('role.harvester');
+var roleDepositHarvester = require('role.depositHarvester');
+var roleUpgrader = require('role.upgrader');
+var roleBuilder = require('role.builder');
+var roleDeliverer = require('role.deliverer');
+var roleClaim = require('role.claim');
+var roleAttack = require('role.attack');
+var roleReserve = require('role.reserve');
+var roleScout = require('role.scout');
+var roleMineralHarvester = require('role.mineralHarvester');
 
 var roomPlanning = require('room.planning');
 var roomClaiming = require('room.claim');
@@ -31,32 +32,37 @@ var roomPowerHarvesting = require('room.powerHarvesting');
 var roomProcess = require('room.process');
 require('console-commands');
 
-
-//const profiler = require('screeps-profiler');
+var profiler = require('screeps-profiler');
 //profiler.enable();
-//profiler.registerClass(roleTower, 'role.tower');
-//profiler.registerClass(roleLink, 'role.link');
-//profiler.registerClass(roomPlanning, 'room.planning');
-//profiler.registerClass(roomClaiming, 'room.claim');
-//profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
-//profiler.registerClass(roomProcess, 'room.process');
-//profiler.registerClass(prototypes, 'prototypes');
-//profiler.registerClass(roleBoost, 'role.boost');
-//profiler.registerObject(roleFactory, 'role.factory');
-//profiler.registerClass(market, 'market');
-//profiler.registerClass(scp, 'scp');
-//profiler.registerObject(utils, 'utils');
-//
-//profiler.registerObject(roleBasic, 'role.basic');
-//profiler.registerObject(roleHarvester, 'role.harvester');
-//profiler.registerObject(roleUpgrader, 'role.upgrader');
-//profiler.registerObject(roleBuilder, 'role.builder');
-//profiler.registerObject(roleDeliverer, 'role.deliverer');
-//profiler.registerObject(roleClaim, 'role.claim');
-//profiler.registerObject(roleAttack, 'role.attack');
-//profiler.registerObject(roleReserve, 'role.reserve');
-//profiler.registerObject(roleScout, 'role.scout');
-//profiler.registerObject(roleMineralHarvester, 'role.mineralHarvester');
+profiler.registerClass(roleTower, 'role.tower');
+profiler.registerClass(roleLink, 'role.link');
+profiler.registerClass(roomPlanning, 'room.planning');
+profiler.registerClass(roomClaiming, 'room.claim');
+profiler.registerClass(roomRemoteHarvesting, 'room.remoteHarvesting');
+profiler.registerClass(roomPowerHarvesting, 'room.powerHarvesting');
+profiler.registerClass(roomDepositHarvesting, 'room.depositHarvesting');
+
+profiler.registerClass(roomProcess, 'room.process');
+profiler.registerClass(prototypes, 'prototypes');
+profiler.registerClass(roleBoost, 'role.boost');
+profiler.registerClass(roleLab, 'role.lab');
+profiler.registerObject(roleFactory, 'role.factory');
+profiler.registerClass(market, 'market');
+profiler.registerClass(scp, 'scp');
+profiler.registerObject(utils, 'utils');
+profiler.registerObject(roleObserver, 'role.observer');
+profiler.registerObject(rolePowerCreep, 'role.powerCreep');
+profiler.registerObject(roleBasic, 'role.basic');
+profiler.registerObject(roleHarvester, 'role.harvester');
+profiler.registerObject(roleDepositHarvester, 'role.depositHarvester');
+profiler.registerObject(roleUpgrader, 'role.upgrader');
+profiler.registerObject(roleBuilder, 'role.builder');
+profiler.registerObject(roleDeliverer, 'role.deliverer');
+profiler.registerObject(roleClaim, 'role.claim');
+profiler.registerObject(roleAttack, 'role.attack');
+profiler.registerObject(roleReserve, 'role.reserve');
+profiler.registerObject(roleScout, 'role.scout');
+profiler.registerObject(roleMineralHarvester, 'role.mineralHarvester');
 
 
 module.exports.loop = function () {
@@ -73,23 +79,16 @@ module.exports.loop = function () {
 
 loopInner = function () {
 
-
     try {
-        //market.exploreArbitrage(Game.rooms["E51S23"]);
-        if (Game.time % 5 == 0) {
-
+        if (Game.time % 10 == 0) {
             market.sellExcess();
-
             market.shareEnergyInternal();
-
-            roleLab.manageInventory();
-            roleLab.setupReactions();
-
-            market.adjustOrders();
+            market.shareResourcesInternal();
         }
-        roleLab.runReactions();
 
-        if (Game.time % market.MARKET_HISTORY_INTERVAL == 0) {
+        if (Game.time % 20 == 0) {
+            market.adjustOrders();
+            market.crazySales(RESOURCE_ENERGY, "E48S27");
             market.archiveMarketTransactions();
         }
     }
@@ -97,31 +96,20 @@ loopInner = function () {
         console.log("Market error: ", e.stack, e.message);
     }
 
+    if (Game.time % 100 == 0)
+        roomDepositHarvesting.assignDepositHarvestingRooms();
 
+    if (Game.time % 100 == 0)
+        roomPowerHarvesting.assignPowerHarvestingRooms();
 
     // manage via console commands
     var roomsToClaim = Memory.roomsToClaim;
-
     var claimOrders = roomClaiming.roomGetSpawnOrders(roomsToClaim);
-
-    if (Game.time % 10 == 0)
-        roomDepositHarvesting.assignDepositHarvestingRooms();
-
-    if (Game.time % 10 == 0)
-        roomPowerHarvesting.assignPowerHarvestingRooms();
-
     if (claimOrders) {
 
         console.log(JSON.stringify(claimOrders));
         //spawnOrders = undefined;
     }
-
-    if (Game.cpu.bucket == PIXEL_CPU_COST) {
-        Game.cpu.generatePixel();
-    }
-
-
-
 
     for (var roomName in Game.rooms) {
         var cpuStart = Game.cpu.getUsed();
@@ -152,7 +140,7 @@ loopInner = function () {
             roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU
-        if (roomTime % 5 == 0) {
+        if (roomTime % 10 == 0) {
 
             var spawnOrder = roomRemoteHarvesting.getOrder(room);
 
@@ -175,44 +163,7 @@ loopInner = function () {
                 if (order)
                     spawnOrder = order;
             }
-            
-            // if (!spawnOrder) {
-            //     var depositOrder = roomDepositHarvesting.getDepositHarvestingOrder(roomName);
-            //     if (depositOrder)
-            //         spawnOrder = depositOrder;
-            // }
 
-            //var roomN = "E55S21";
-            //var powerN = "E55S20";
-            //if (room.name == roomN) {
-            //    var deliverers = _.filter(Game.creeps,
-            //        c => c.memory.role == "deliverer" &&
-            //            c.memory.tag == "powerPickup+" + powerN);
-//
-            //    const powerDelivererParts =
-            //        [MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
-            //            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
-            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
-            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY,
-            //            CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY, CARRY];
-//
-            //    var delivererSize = CARRY_CAPACITY * _.sum(powerDelivererParts, p => p == CARRY ? 1 : 0);
-//
-            //    if (deliverers.length < 4000 / delivererSize) {
-//
-            //        var memory = {
-            //            role: "deliverer",
-            //            toGo: [powerN],
-            //            tag: "powerPickup+" + powerN,
-            //            task: "pickupPower",
-            //            preferredSourceId: "nonexistent", // to trigger suicide on pickup
-            //            preferredTargetId: room.storage.id,
-            //            parts: powerDelivererParts
-            //        };
-//
-            //        spawnOrder =  { "memory": memory };
-            //    }
-            //}
 
             if (roomName == "E57S23!!" && !spawnOrder) {
                 const attackRoomName = "E57S25";
@@ -243,20 +194,27 @@ loopInner = function () {
 
         roleLink.run(room);
         roleTower.run(room);
-        roleFactory.run(room);
+        if (roomTime % 5 == 0) {
+            roleFactory.run(room);
+        }
         roomPowerSpawn.run(room);
 
 
+        if (roomTime % 10 == 0) {
+            roleLab.manageInventory(room);
+            roleLab.setupReactions(room);
+        }
+
+        roleLab.runReactions(room);
 
 
-        // Prepare labs for boosting (every 10 ticks)
+        // Prepare labs for boosting (every x ticks)
         if (roomTime % 5 == 0) {
             //console.log("Preparing labs for boosting in room ", roomName);
             roleBoost.prepareLabs(room);
         }
 
-        var elapsed = Game.cpu.getUsed() - cpuStart;
-        room.memory.cputime = elapsed;
+        room.memory.cputime = Game.cpu.getUsed() - cpuStart;
     }
 
     for (var powerCreepName in Game.powerCreeps) {
@@ -270,11 +228,19 @@ loopInner = function () {
         }
     }
 
+    //roomPlanning.debugRouteBetweenIds('6a183b21f4ec89fa3ed5d1a8', '6a17441706382f81cd85338b');
+    //roomPlanning.debugRouteBetweenIds('6980f151251adc8ca0e59738', '579faa390700be0674d30aa2');
+    //roomPlanning.debugRouteBetweenIds('6980f151251adc8ca0e59738', '579faa390700be0674d30aa4');
     //roleLink.runManual();
+
 
     const statsInterval = 1;
     if (Game.time % statsInterval == 0)
         scp.collect_stats();
 
     scp.collect_stats_end();
+
+    if (Game.cpu.bucket == PIXEL_CPU_COST) {
+        Game.cpu.generatePixel();
+    }
 }

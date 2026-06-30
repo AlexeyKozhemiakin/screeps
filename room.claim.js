@@ -104,7 +104,7 @@ var roomClaiming = {
 
                 if (attackers.length < numAttack) {
                     console.log("needAttack", roomName);
-                    spawnOrder.memory = utils.createAttackMemory(sponsorRoom, roomName, room);
+                    spawnOrder.memory = utils.createAttackMemory(room);
                     return spawnOrder;
                 }
 
@@ -121,13 +121,13 @@ var roomClaiming = {
 
                 if (attackers.length < numAttack) {
                     console.log("needAttack", roomName);
-                    spawnOrder.memory = utils.createAttackMemory(sponsorRoom, roomName, room);
+                    spawnOrder.memory = utils.createAttackMemory(room);
                     return spawnOrder;
                 }
 
             }
             else {
-                room.removeFlag("defend" + roomName);
+                //room.removeFlag("defend" + roomName);
             }
 
             if (room.controller.reservation && room.controller.reservation.ticksToEnd > 100)

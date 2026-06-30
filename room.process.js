@@ -10,7 +10,16 @@ var roleReserve = require('role.reserve');
 var roleScout = require('role.scout');
 
 roomProcess = {
-    roomMove: function (room) {
+    roomMove: function (room, addCpuValue) {
+
+        var profileStep = function (label, cpuStart) {
+            if (!addCpuValue)
+                return;
+
+            addCpuValue('roomProcess.' + label, Game.cpu.getUsed() - cpuStart);
+        };
+
+        var cpuStep = Game.cpu.getUsed();
 
         var funcMap = {
             'harvester': roleHarvester,
@@ -26,8 +35,14 @@ roomProcess = {
             'healer': roleAttack,
             'scout': roleScout,
         }
+        profileStep('funcMap', cpuStep);
 
+        cpuStep = Game.cpu.getUsed();
         var roomCreeps = _.filter(Game.creeps, c => c.room.name == room.name);
+        profileStep('filterRoomCreeps', cpuStep);
+
+        cpuStep = Game.cpu.getUsed();
+        var roleCpu = {};
 
         for (var creepId in roomCreeps) {
             var creep = roomCreeps[creepId];
@@ -38,7 +53,12 @@ roomProcess = {
                 var role = creep.memory.role;
                 var obj = funcMap[role];
 
+                var roleCpuStart = Game.cpu.getUsed();
+
                 obj.run(creep);
+
+                var roleDelta = Game.cpu.getUsed() - roleCpuStart;
+                roleCpu[role] = (roleCpu[role] || 0) + roleDelta;
             }
             catch (err) {
                 const errorInfo = {
@@ -61,6 +81,14 @@ roomProcess = {
 
                 creep.memory.err = err.toString ? err.toString() : String(err);
 
+            }
+        }
+
+        profileStep('runCreeps', cpuStep);
+
+        if (addCpuValue) {
+            for (var roleName in roleCpu) {
+                addCpuValue('roomProcess.role.' + roleName, roleCpu[roleName]);
             }
         }
     }

@@ -1,10 +1,25 @@
+function countHarvestSlots(roomObject) {
+    var array = roomObject.room.lookForAtArea(
+        LOOK_TERRAIN,
+        roomObject.pos.y - 1,
+        roomObject.pos.x - 1,
+        roomObject.pos.y + 1,
+        roomObject.pos.x + 1,
+        true
+    );
+
+    return _.filter(array, function (p) { return p.terrain != 'wall'; }).length;
+}
+
 Source.prototype.slots = function () {
-    var array = this.room.lookForAtArea(LOOK_TERRAIN, this.pos.y - 1, this.pos.x - 1, this.pos.y + 1, this.pos.x + 1, true);
-
-    var len = _.filter(array, p => p.terrain != 'wall').length;
-
-    return len;
+    return countHarvestSlots(this);
 };
+
+if (typeof Deposit !== 'undefined') {
+    Deposit.prototype.slots = function () {
+        return countHarvestSlots(this);
+    };
+}
 
 // Room Prototypes
 Object.defineProperty(Room.prototype, 'extractor', {
@@ -93,12 +108,22 @@ Room.prototype.getResourceAmount = function (resourceType) {
 
     var creeps = this.find(FIND_MY_CREEPS, {
         filter: function (creep) {
-            return creep.memory.role === 'deliverer' && creep.store.getUsedCapacity(resourceType) > 0;
+            return creep.store.getUsedCapacity(resourceType) > 0;
         }
     });
 
     total += _.sum(creeps, function (creep) {
         return creep.store.getUsedCapacity(resourceType) || 0;
+    });
+
+    var powerCreeps = this.find(FIND_MY_POWER_CREEPS, {
+        filter: function (powerCreep) {
+            return powerCreep.store && powerCreep.store.getUsedCapacity(resourceType) > 0;
+        }
+    });
+
+    total += _.sum(powerCreeps, function (powerCreep) {
+        return powerCreep.store.getUsedCapacity(resourceType) || 0;
     });
 
     return total;
@@ -143,6 +168,18 @@ Object.defineProperty(Room.prototype, 'powerSpawn', {
             this._powerSpawnTick = Game.time;
         }
         return this._powerSpawn;
+    },
+    enumerable: false,
+    configurable: true
+});
+
+Object.defineProperty(Room.prototype, 'factory', {
+    get: function () {
+        if (this._factoryTick !== Game.time) {
+            this._factory = this.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_FACTORY } })[0];
+            this._factoryTick = Game.time;
+        }
+        return this._factory;
     },
     enumerable: false,
     configurable: true

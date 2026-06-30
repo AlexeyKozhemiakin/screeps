@@ -1,8 +1,8 @@
 module.exports = {
 
     // Archive market transactions to Memory for long-term analysis
-    MARKET_HISTORY_MAX_ENTRIES: 1000,   // keep at most this many archived transactions
-    MARKET_HISTORY_INTERVAL:    50,     // archive every N ticks
+    MARKET_HISTORY_MAX_ENTRIES: 2000,   // keep at most this many archived transactions
+    MARKET_HISTORY_INTERVAL: 1000,     // archive every N ticks
 
     archiveMarketTransactions: function () {
         if (!Memory.marketHistory) {
@@ -41,6 +41,42 @@ module.exports = {
 
     shareEnergyInternal: function () {
 
+        // uptake for smaller
+         for (var powerCreepName in Game.powerCreeps) {
+            var pc = Game.powerCreeps[powerCreepName];
+            //console.log("Checking power creep ", pc.room, " for energy sharing...");
+            if (pc.room && pc.room.terminal.store[RESOURCE_OPS] < 1000)
+                this.shareResourceFromOtherRooms(pc.room, RESOURCE_OPS, 1000, 1000);
+            //else
+            //    console.log("Power creep ", pc.name, " has sufficient OPS in terminal, skipping energy share");
+        }
+        
+         // uptake for smaller
+         for (var roomName in Game.rooms) {
+            var room = Game.rooms[roomName];
+            if(!room || !room.terminal || !room.factory || room.factory.level)
+                continue;
+                
+            //console.log("Checking power creep ", pc.room, " for energy sharing...");
+            if (room.terminal.store[RESOURCE_SILICON] < 1000)
+                this.shareResourceFromOtherRooms(room, RESOURCE_SILICON, 1000, 1000);
+            //else
+            //    console.log("Power creep ", pc.name, " has sufficient OPS in terminal, skipping energy share");
+        }
+        
+        // uptake for smaller
+         for (var roomName in Game.rooms) {
+            var room = Game.rooms[roomName];
+            if(!room || !room.terminal || !room.factory || room.factory.level)
+                continue;
+                
+            //console.log("Checking power creep ", pc.room, " for energy sharing...");
+            if (room.terminal.store[RESOURCE_BIOMASS] < 100)
+                this.shareResourceFromOtherRooms(room, RESOURCE_BIOMASS, 100, 100);
+            //else
+            //    console.log("Power creep ", pc.name, " has sufficient OPS in terminal, skipping energy share");
+        }
+
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
             if (!room || !room.terminal || !room.storage)
@@ -56,12 +92,12 @@ module.exports = {
             var targets = {};
             for (const targetRoomName in Game.rooms) {
                 const targetRoom = Game.rooms[targetRoomName];
-                if (!targetRoom || !targetRoom.controller|| !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
+                if (!targetRoom || !targetRoom.controller || !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
                     continue;
 
                 var totalInTarget = targetRoom.terminal.store[RESOURCE_ENERGY] + targetRoom.storage.store[RESOURCE_ENERGY];
                 if (totalInTarget < 50000) {
-                   targets[targetRoomName] = totalInTarget;
+                    targets[targetRoomName] = totalInTarget;
                 }
             }
 
@@ -70,37 +106,37 @@ module.exports = {
             if (targetRoomName) {
                 //console.log("Sharing energy from ", roomName, " to ", targetRoomName);
                 var res = this.shareResource(roomName, targetRoomName, RESOURCE_ENERGY, 10000);
-                if(res)
+                if (res)
                     return;// make it slower
             }
         }
 
         const res_type = RESOURCE_POWER;
-        var threshold = 10000;
-        var delta = 1000;
+        var threshold = 1000;
+        var delta = 500;
 
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
             if (!room || !room.terminal || !room.storage)
                 continue;
 
-            if(!room.powerSpawn)
+            if (!room.powerSpawn)
                 continue;
 
-            if (room.terminal.store[res_type] < threshold)
+            if (room.terminal.store[res_type] < threshold + delta)
                 continue;
 
             //console.log("Room ", roomName, " has excess ", res_type, " ", room.terminal.store[res_type]);
             for (const targetRoomName in Game.rooms) {
                 const targetRoom = Game.rooms[targetRoomName];
-                if (!targetRoom || !targetRoom.controller|| !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
+                if (!targetRoom || !targetRoom.controller || !targetRoom.controller.my || !targetRoom.terminal || !targetRoom.storage || targetRoomName == roomName)
                     continue;
 
                 var totalInTarget = targetRoom.terminal.store[res_type] + targetRoom.storage.store[res_type];
-                
-                if (totalInTarget < threshold + delta) {
+
+                if (totalInTarget < threshold) {
                     var res = this.shareResource(roomName, targetRoomName, res_type, delta);
-                    if(res)
+                    if (res)
                         return;// make it slower
                 }
             }
@@ -112,8 +148,13 @@ module.exports = {
     shareResource(idFrom, idTo, res, amount) {
         var room = Game.rooms[idFrom];
 
+        if (idTo == idFrom) {
+            console.log("Trying to share resource ", res, " within the same room ", idFrom);
+            return false;
+        }
+
         if (!room)
-           return false;
+            return false;
 
         if (!room.terminal)
             return false;
@@ -130,6 +171,10 @@ module.exports = {
         if (room.terminal.store[res] < amount)
             return false;
 
+        var log = true;
+        if (log)
+            console.log("Sharing ", amount, res, " from ", idFrom, " to ", idTo);
+
         var code = room.terminal.send(res, amount, idTo, "bro help");
         //console.log("CODE ", code);
         if (OK != code) {
@@ -140,14 +185,49 @@ module.exports = {
         return true;
     },
 
+    // Staged approach helper: attempt to share a resource from other rooms
+    // to reduce external demand before production starts.
+    // Returns true if sharing succeeded, false otherwise.
+    shareResourceFromOtherRooms: function (room, targetRes, resTarget, gapAmount) {
+        // 1. Turn Game.rooms into an array and filter out rooms without terminals
+    var sortedRooms = Object.values(Game.rooms).filter(r => r.terminal);
+
+    // 2. Sort the rooms by the amount of targetRes in their terminal (highest first)
+    sortedRooms.sort((a, b) => {
+        var amountA = a.terminal.store[targetRes] || 0;
+        var amountB = b.terminal.store[targetRes] || 0;
+        return amountB - amountA; // Descending order
+    });
+
+    // 3. Loop through your newly sorted rooms array
+    for (var i = 0; i < sortedRooms.length; i++) {
+        var sourceRoom = sortedRooms[i];
+        
+            if (sourceRoom.terminal.cooldown > 0 || sourceRoom.name === room.name)
+                continue;
+
+            var sourceAmount = sourceRoom.terminal.store[targetRes];
+            
+            
+
+            if (sourceAmount && sourceAmount > resTarget ) {
+                //console.log('Sharing ' + gapAmount + ' of ' + targetRes + ' from ' + sourceRoom.name + ' to ' + room.name);
+                var excess = sourceAmount - resTarget;
+                return this.shareResource(sourceRoom.name, room.name, targetRes, Math.min(excess, gapAmount));
+            }
+        }
+
+        return false;
+    },
+
     runManualOrder() {
 
 
     },
 
     shareResourcesInternal: function () {
-        //return;
-        
+        return;
+
         //console.log("Sharing resources between rooms...");
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
@@ -156,30 +236,39 @@ module.exports = {
 
             const silicone = room.terminal.store[RESOURCE_SILICON] || 0;
             //console.log("Room ", roomName, " has ", silicone, " silicon in terminal");
-            if (silicone > 1000) {
-                this.shareResource(roomName, 'E51S24', RESOURCE_SILICON, Math.min(1000, silicone));
+            if (silicone > 100 && roomName != 'E51S24') {
+                this.shareResource(roomName, 'E51S24', RESOURCE_SILICON,
+                    Math.min(1000, silicone));
             }
         }
     },
 
     sellExcess: function () {
         const threshold = 120000;
-        const batteryThresholdToSellEnergy = 100000;
-        const totalEnergyThresholdToSellRawEnergy = 450000;
+        const batteryThresholdToSellEnergy = 40000;
+        const totalEnergyThresholdToSellRawEnergy = 900000;
         const energyThresholdWhenBatteriesAreHigh = 50000;
 
         // Lower threshold for factory outputs - sell once a modest stockpile builds up
+        const SELL_INTERIM = 130;
         const commodityThresholds = {
-            'utrium_bar'    : 10000,
-            'lemergium_bar' : 10000,
-            'keanium_bar'   : 10000,
-            'zynthium_bar'  : 10000,
-            'oxidant'       : 10000,
-            'reductant'     : 10000,
-            'purifier'      : 10000,
-            'ghodium_melt'  : 10000,
-                'ops'           : 30000,
-            'battery'       : 5000
+            'utrium_bar': 10000,
+            'lemergium_bar': 10000,
+            'keanium_bar': 10000,
+            'zynthium_bar': 10000,
+            'oxidant': 10000,
+            'reductant': 10000,
+            'purifier': 10000,
+            'ghodium_melt': 10000,
+            'ops': 30000,
+            'wire': 50000,
+            'battery': 20000,
+            
+            'composite': 1000,
+            'device':0,
+
+            RESOURCE_CELL: SELL_INTERIM,
+            RESOURCE_MICROCHIP: SELL_INTERIM
         };
 
         for (const roomName in Game.rooms) {
@@ -195,7 +284,8 @@ module.exports = {
             if (room.storage)
                 totalEnergy += room.storage.store[RESOURCE_ENERGY] || 0;
 
-            if (totalBatteries > batteryThresholdToSellEnergy && totalEnergy > totalEnergyThresholdToSellRawEnergy) {
+            // totalBatteries > batteryThresholdToSellEnergy && 
+            if (totalEnergy > totalEnergyThresholdToSellRawEnergy) {
 
                 var excessRawEnergy = Math.min(
                     room.terminal.store[RESOURCE_ENERGY] || 0,
@@ -203,7 +293,7 @@ module.exports = {
                 );
 
                 if (excessRawEnergy > 10000) {
-                    //console.log("Room ", roomName, " has excess raw energy because batteries are high, amount ", excessRawEnergy);
+                    console.log("Room ", roomName, " has excess raw energy because batteries are high, amount ", excessRawEnergy);
                     this.matchOrderInternal(roomName, RESOURCE_ENERGY, Math.min(2000, excessRawEnergy), ORDER_BUY);
                 }
             }
@@ -214,9 +304,13 @@ module.exports = {
                 var limit = commodityThresholds[resource] !== undefined ? commodityThresholds[resource] : threshold;
 
                 const excessAmount = room.terminal.store[resource] - limit;
-
-                if (excessAmount > 100) {
-                    // console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
+                var gap = 100;
+                
+                if(limit < 150)
+                    gap = 1;
+                    
+                if (excessAmount >= gap) {
+                     console.log("Room ", roomName, " has excess of ", resource, " amount ", excessAmount);
                     this.matchOrderInternal(roomName, resource, Math.min(excessAmount, 3000), ORDER_BUY);
                 }
             }
@@ -226,16 +320,36 @@ module.exports = {
         //    this.matchOrderInternal(undefined, PIXEL, 10, ORDER_BUY);
     },
 
+    crazySales: function (resType, roomName) {
+        // checks if there is not market supply, create crazy order to buy, works very good with energy, i'm gettings sales like x10 price
+
+
+        var sellOrders = Game.market.getAllOrders({ type: ORDER_SELL, resourceType: resType }) || [];
+
+        var othersOrders = _.filter(sellOrders, o => !o.my);
+
+        //console.log("There are ", othersOrders.length, " sell orders for ", resType, " in the market");
+        if (othersOrders.length == 0) {
+            for (var i = 0; i < 10; i++) {
+                this.tryCreateOrder(resType, 1000 * i, 1000 + i, roomName, ORDER_SELL);
+            }
+        }
+    },
+
     adjustOrders: function () {
+
+
+
         var ADJUST_INTERVAL = 200; // ticks between price adjustments
         var PRICE_BUMP = 0.05;     // 5% increase per adjustment
+        var MARKET_REPRICE_INTERVAL = 1;
 
         if (!Memory.orderAdjustments) Memory.orderAdjustments = {};
 
         for (const order of Object.values(Game.market.orders)) {
             // Cancel fulfilled orders
             if (order.remainingAmount == 0) {
-                console.log('Removing fulfilled order ', order.id);
+                console.log('Removing fulfilled order ', order.id, " type ", order.type, " resource ", order.resourceType);
                 Game.market.cancelOrder(order.id);
                 delete Memory.orderAdjustments[order.id];
                 continue;
@@ -245,7 +359,7 @@ module.exports = {
             var ticksInDay = 24 * 60 * 10;
             var delay = Game.time - order.created;
             if (delay > 5 * ticksInDay) {
-                console.log('Removing expired order ', order.id);
+                console.log('Removing expired order ', order.id, " type ", order.type, " resource ", order.resourceType);
                 Game.market.cancelOrder(order.id);
                 delete Memory.orderAdjustments[order.id];
                 continue;
@@ -274,8 +388,114 @@ module.exports = {
                 delete Memory.orderAdjustments[id];
             }
         }
-    },    
-    
+
+
+        this.repriceOutdatedOrdersToMarket();
+
+    },
+
+    repriceOutdatedOrdersToMarket: function () {
+
+        return;
+
+        var TICKS_PER_DAY = Math.floor(24 * 60 * 60 / 2.5);
+        var STALE_AGE_TICKS = 10000;// 3 * TICKS_PER_DAY;
+        var MIN_MARKET_VOLUME = 10000;
+        var SUBSTANTIAL_MARGIN = 0.20;
+        var PRICE_IMPROVEMENT = 0.001;
+        var MAX_PRICE_CHANGES_PER_PASS = 2;
+        var DRY_RUN = false;
+        var changed = 0;
+
+        var myOrders = Object.values(Game.market.orders);
+        var marketByResource = {};
+
+        for (var i = 0; i < myOrders.length; i++) {
+            var order = myOrders[i];
+
+            if (!order || order.remainingAmount <= 0)
+                continue;
+
+            //console.log("Stale ticks ", STALE_AGE_TICKS);
+
+            var orderAge = Game.time - order.created;
+            if (orderAge < STALE_AGE_TICKS)
+                continue;
+
+            //console.log('Evaluating stale order ' + order.id + ' (' + order.resourceType + ') age ' + orderAge + ' ticks');
+
+
+            if (!marketByResource[order.resourceType]) {
+                marketByResource[order.resourceType] = Game.market.getAllOrders({ resourceType: order.resourceType });
+            }
+
+            var marketOrders = marketByResource[order.resourceType] || [];
+            var buyVolume = 0;
+            var sellVolume = 0;
+            var bestBuy = undefined;
+            var bestSell = undefined;
+
+            for (var j = 0; j < marketOrders.length; j++) {
+                var marketOrder = marketOrders[j];
+
+                if (!marketOrder || marketOrder.my || marketOrder.remainingAmount <= 0)
+                    continue;
+
+                if (marketOrder.type == ORDER_BUY) {
+                    buyVolume += marketOrder.remainingAmount;
+                    if (bestBuy === undefined || marketOrder.price > bestBuy)
+                        bestBuy = marketOrder.price;
+                } else if (marketOrder.type == ORDER_SELL) {
+                    sellVolume += marketOrder.remainingAmount;
+                    if (bestSell === undefined || marketOrder.price < bestSell)
+                        bestSell = marketOrder.price;
+                }
+            }
+
+            if (Math.max(buyVolume, sellVolume) < MIN_MARKET_VOLUME)
+                continue;
+
+            var referencePrice = order.type == ORDER_BUY ? bestBuy : bestSell;
+            if (referencePrice === undefined || referencePrice <= 0)
+                continue;
+
+            var lowerBound = referencePrice * (1 - SUBSTANTIAL_MARGIN);
+            var upperBound = referencePrice * (1 + SUBSTANTIAL_MARGIN);
+            var targetPrice = order.price;
+
+            if (order.price < lowerBound || order.price > upperBound) {
+                if (order.type == ORDER_BUY)
+                    targetPrice = referencePrice + PRICE_IMPROVEMENT;
+                else
+                    targetPrice = Math.max(PRICE_IMPROVEMENT, referencePrice - PRICE_IMPROVEMENT);
+            } else {
+                continue;
+            }
+
+            if (targetPrice <= 0)
+                continue;
+
+            targetPrice = +targetPrice.toFixed(3);
+
+            if (DRY_RUN) {
+                console.log('DRY RUN: would reprice stale ' + order.type + ' order ' + order.id + ' (' + order.resourceType + ') from ' + order.price + ' to ' + targetPrice + ' (age ' + orderAge + ' ticks, buyVol ' + buyVolume + ', sellVol ' + sellVolume + ')');
+                changed++;
+                if (changed >= MAX_PRICE_CHANGES_PER_PASS)
+                    return;
+            } else {
+                var code = Game.market.changeOrderPrice(order.id, targetPrice);
+                if (code == OK) {
+                    console.log('Repriced stale ' + order.type + ' order ' + order.id + ' (' + order.resourceType + ') from ' + order.price + ' to ' + targetPrice + ' (age ' + orderAge + ' ticks, buyVol ' + buyVolume + ', sellVol ' + sellVolume + ')');
+                    changed++;
+                    if (changed >= MAX_PRICE_CHANGES_PER_PASS)
+                        return;
+                } else {
+                    console.log('Failed to reprice stale order ' + order.id + ', code ' + code);
+                }
+            }
+        }
+    },
+
     recentPrice: function (res) {
 
         if (!Memory.marketHistoryCache) Memory.marketHistoryCache = {};
@@ -315,7 +535,7 @@ module.exports = {
         var list = Object.keys(RESOURCES_ALL).concat(RESOURCE_ENERGY);
 
         for (const res of list) {
-            
+
             const orders = Game.market.getAllOrders({ resourceType: res });
             const sellOrders = _.filter(orders, o => o.type === ORDER_SELL);
             const buyOrders = _.filter(orders, o => o.type === ORDER_BUY);
@@ -330,8 +550,8 @@ module.exports = {
             if (!bestSell || !bestBuy) continue;
 
             // Calculate profit per unit, including transfer costs
-            const buyTransfer = Game.market.calcTransactionCost(10000, bestSell.roomName, room.name)/10000* energyPrice;
-            const sellTransfer = Game.market.calcTransactionCost(10000, room.name, bestBuy.roomName)/10000 * energyPrice;
+            const buyTransfer = Game.market.calcTransactionCost(10000, bestSell.roomName, room.name) / 10000 * energyPrice;
+            const sellTransfer = Game.market.calcTransactionCost(10000, room.name, bestBuy.roomName) / 10000 * energyPrice;
             const profitPerUnit = bestBuy.price - bestSell.price - buyTransfer - sellTransfer;
             const maxAmount = Math.min(bestSell.remainingAmount, bestBuy.remainingAmount, room.terminal.store.getFreeCapacity(res), 1000);
             const netProfit = profitPerUnit * maxAmount;
@@ -412,7 +632,7 @@ module.exports = {
 
     },
 
-    matchOrderInternal: function (targetRoom, resType, amount, orderType) {
+    matchOrderInternal: function (targetRoom, resType, amount, orderType, acceptableMargin = 0.2) {
         if (targetRoom && Game.rooms[targetRoom].terminal && Game.rooms[targetRoom].terminal.cooldown > 0)
             return;
 
@@ -425,7 +645,6 @@ module.exports = {
             resType != RESOURCE_OXYGEN &&
             resType != RESOURCE_HYDROGEN
         ) {
-
             //console.log("Currently only selling raw materials is supported, skipping order for ", resType);
             return;
         }
@@ -459,7 +678,27 @@ module.exports = {
             sorted = sorted.reverse();
 
         //console.log(targetRoom, resType, amount, orderType);
-        const acceptableMargin = 0.2;// i can pay X more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
+        // var acceptableMargin = 0.2;// i can pay X more than historical price to buy and want to sell for 20% less than historical price, cause market is very volatile and i want to be able to react to it, also cause if there is demand someone will fill my order and if there is no demand i dont want to buy at bad price and can wait for market to stabilize or fill my order at good price
+
+        //if(acceptableMargin > 0.5)
+        //    console.log("Acceptable margin is very high ", acceptableMargin, " for ", resType, " order type ", orderType);
+
+        if (resType == RESOURCE_BATTERY) {
+            const energyPriceFair = 31;
+
+            var batteryPriceThreshold = 12 * energyPriceFair * (1 + acceptableMargin);
+
+            // based on recent price and my strategy to sell energy when battery is high, so if energy is 50 or more then battery price can be 12 times higher than that, but if energy is very cheap then battery price can be much higher than that, so i want to allow more margin for batteries when energy is cheap
+            //console.log("energy price ", energyPrice,
+            //    "historical battery price ", resHistoricalPrice,
+            //    "battery price threshold ", batteryPriceThreshold);
+
+            if (resHistoricalPrice < batteryPriceThreshold) {
+                resHistoricalPrice = batteryPriceThreshold;
+            }
+            //else
+            //    acceptableMargin = 0.5;// batteries are very volatile and can be bought for very low price when there is excess and then sold for good price when there is demand, so i want to be more flexible with them
+        }
 
         for (id in sorted) {
 
@@ -482,7 +721,7 @@ module.exports = {
             }
             if (orderType == ORDER_BUY && totalPrice < resHistoricalPrice * (1 - acceptableMargin)) {
                 //console.log("Skipping order ", resType, " because total price ", totalPrice, " is significantly lower than historical price ", resHistoricalPrice);
-                
+
                 this.tryCreateOrder(resType, Math.ceil(resHistoricalPrice * (1 + acceptableMargin / 2)), 3000, targetRoom, ORDER_SELL);
 
                 break;

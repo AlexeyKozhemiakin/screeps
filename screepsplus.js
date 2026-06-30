@@ -66,10 +66,17 @@ function collect_stats_end() {
             eff = 0;
         }
 
+        if (eff == 0 && room.memory.iterator > 0) {
+
+            eff = (room.memory.iterator / CONTROLLER_MAX_UPGRADE_PER_TICK) * 100;
+            //console.log("Controller efficiency in room ", room.name, " is 0 with iterator ", eff);
+        }
+
         room.memory.controllerEfficiency = eff;
 
-        if (Memory.stats.roomSummary[room.name])
+        if (Memory.stats.roomSummary[room.name]) {
             Memory.stats.roomSummary[room.name].controllerEfficiency = eff;
+        }
     }
 
 
@@ -107,6 +114,16 @@ function collect_stats() {
     Memory.stats.roomSummary = summarize_rooms();
 }
 
+var MANUAL_STATS_ROOMS = {
+    E56S24: true,
+    E48S24: true,
+    E48S26: true,
+};
+
+function isManualStatsRoom(room) {
+    return room && MANUAL_STATS_ROOMS[room.name] === true;
+}
+
 // Summarizes the situation in a room in a single object.
 // Room can be a string room name or an actual room object.
 function summarize_room_internal(room) {
@@ -116,31 +133,34 @@ function summarize_room_internal(room) {
     if (room == null) {
         return null;
     }
-    if (!room.controller) {
+    var includeManually = isManualStatsRoom(room);
+
+    if (!room.controller && !includeManually) {
         return null;
     }
 
-    if (!room.controller.my)
+    if (room.controller && !room.controller.my && !includeManually)
         return null
 
-    var owner = room.controller.owner ? room.controller.owner.username : "none";
-    var reserv = room.controller.reservation ? room.controller.reservation.username : "none"
+    var owner = room.controller && room.controller.owner ? room.controller.owner.username : "none";
+    var reserv = room.controller && room.controller.reservation ? room.controller.reservation.username : "none"
     //console.log(, 
     // /   room.controller.reservation ? room.controller.reservation.username : "none");
 
-    if (owner != 'Zenga' &&
+    if (!includeManually &&
+        owner != 'Zenga' &&
         reserv != 'Zenga') {
         return null;
     }
 
-    const controller_level = room.controller.level;
-    const controller_progress = room.controller.progress;
-    const controller_needed = room.controller.progressTotal;
-    const controller_downgrade = room.controller.ticksToDowngrade;
-    const controller_blocked = room.controller.upgradeBlocked;
-    const controller_safemode = room.controller.safeMode ? room.controller.safeMode : 0;
-    const controller_safemode_avail = room.controller.safeModeAvailable;
-    const controller_safemode_cooldown = room.controller.safeModeCooldown;
+    const controller_level = room.controller ? room.controller.level : 0;
+    const controller_progress = room.controller ? room.controller.progress : 0;
+    const controller_needed = room.controller ? room.controller.progressTotal : 0;
+    const controller_downgrade = room.controller ? room.controller.ticksToDowngrade : 0;
+    const controller_blocked = room.controller ? room.controller.upgradeBlocked : 0;
+    const controller_safemode = room.controller && room.controller.safeMode ? room.controller.safeMode : 0;
+    const controller_safemode_avail = room.controller ? room.controller.safeModeAvailable : 0;
+    const controller_safemode_cooldown = room.controller ? room.controller.safeModeCooldown : 0;
 
     const energy_avail = room.energyAvailable;
     const energy_cap = room.energyCapacityAvailable;
@@ -154,6 +174,9 @@ function summarize_room_internal(room) {
     const container_details = containers ? _.reduce(containers, (acc, res) => { acc[res.id] = res.store; return acc; }, {}) : {};
 
     const labsBusy = _.any(room.labs, lab => lab.cooldown > 0);
+    const terminalBusy = room.terminal && room.terminal.cooldown > 0;
+    const factoryBusy = room.factory && room.factory.cooldown > 0;
+
 
     const sources = room.find(FIND_SOURCES);
     const source_energy = _.sum(sources, s => s.energy);
@@ -201,27 +224,24 @@ function summarize_room_internal(room) {
     const mineral_type = mineral ? mineral.mineralType : "";
     const mineral_amount = mineral ? mineral.mineralAmount : 0;
     const mineral_ticksToRegeneration = mineral ? mineral.ticksToRegeneration : 0;
-    const extractors = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_EXTRACTOR });
-    const num_extractors = extractors.length;
 
-    const has_terminal = room.terminal != null;
     const terminal_details = room.terminal ? room.terminal.store : new Object();
 
     const creeps = _.filter(Game.creeps, c => c.pos.roomName == room.name && c.my);
-    const num_creeps = creeps ? creeps.length : 0;
     const creeps_bodycost = _.sum(creeps, c => _.sum(c.body, part => BODYPART_COST[part.type]));
     const enemy_creeps = room.find(FIND_HOSTILE_CREEPS);
     const creep_energy = _.sum(Game.creeps, c => c.pos.roomName == room.name ? c.store.energy : 0);
     const num_enemies = enemy_creeps ? enemy_creeps.length : 0;
 
     const spawns = room.find(FIND_MY_SPAWNS);
-    const num_spawns = spawns ? spawns.length : 0;
     const spawns_spawning = _.sum(spawns, s => s.spawning ? 1 : 0);
 
     const powerHarvesting =
         room.memory.powerHarvesting ? room.memory.powerHarvesting.length : 0;
+
+    const depositHarvesting = room.memory.depositHarvesting ? room.memory.depositHarvesting.length : 0;
+
     const towers = room.find(FIND_STRUCTURES, { filter: s => s.structureType == STRUCTURE_TOWER && s.my });
-    const num_towers = towers ? towers.length : 0;
     const tower_energy = _.sum(towers, t => t.energy);
 
     const const_sites = room.find(FIND_CONSTRUCTION_SITES);
@@ -242,27 +262,6 @@ function summarize_room_internal(room) {
             max_hits: _.max(ss, 'hits').hits,
         };
     }
-    // console.log(JSON.stringify(structure_info));
-
-    const ground_resources = room.find(FIND_DROPPED_RESOURCES);
-    // const ground_resources_short = ground_resources.map(r => ({ amount: r.amount, resourceType: r.resourceType }));
-    const reduced_resources = _.reduce(ground_resources, (acc, res) => { acc[res.resourceType] = _.get(acc, [res.resourceType], 0) + res.amount; return acc; }, {});
-
-    // _.reduce([{resourceType: 'energy', amount: 200},{resourceType: 'energy', amount:20}], (acc, res) => { acc[res.resourceType] = _.get(acc, [res.resourceType], 0) + res.amount; return acc; }, {});
-
-    // console.log(JSON.stringify(reduced_resources));
-
-    // Number of each kind of creeps
-    // const creep_types = new Set(creeps.map(c => c.memory.role));
-    const creep_counts = _.countBy(creeps, c => c.memory.role);
-
-    // Other things we can count:
-    // Tower count, energy
-
-    // Other things we can't count but we _can_ track manually:
-    // Energy spent on repairs
-    // Energy spent on making creeps
-    // Energy lost to links
 
     const cput = room.memory.cputime;
 
@@ -283,8 +282,9 @@ function summarize_room_internal(room) {
 
         powerHarvesting,
         powerHarvesting2: room.memory.powerHarvesting,
-        
-        source_energy,
+
+        depositHarvesting,
+
         source_energy_reduced,
 
         source_energy_wasted,
@@ -294,32 +294,24 @@ function summarize_room_internal(room) {
         },
         mineral_amount,
         mineral_ticksToRegeneration,
-        //num_extractors,
 
         storage_details,
 
         labsBusy,
+        factoryBusy,
+        terminalBusy,
 
         terminal_details,
 
-        //container_energy,
-        //container_energy_reduced,
         container_details,
-        link_energy,
         link_energy_reduced,
-        num_creeps,
         creeps_bodycost,
-        creep_counts,
-        creep_energy,
         num_enemies,
-        num_spawns,
         spawns_spawning,
-        num_towers,
         tower_energy,
         structure_info,
         num_construction_sites,
         construction_hits,
-        //ground_resources: reduced_resources,
         cput
     };
 

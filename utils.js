@@ -44,11 +44,8 @@ var utils = {
     },
 
     roomDraw: function (room) {
-        //room.visual.clear();
+        room.visual.clear();
 
-
-
-       
         room.spawns.forEach(spawn => {
             if (spawn.spawning) {
                 var spawningCreep = Game.creeps[spawn.spawning.name];
@@ -63,8 +60,6 @@ var utils = {
         var debugFlag = room.find(FIND_FLAGS, { filter: f => (f.name.includes("debug")) })[0];
 
         if (debugFlag) {
-
-
             var ignoreKeys = ["controllerProcessStats", "controllerEfficiency", "events"];
             var messages = Object.keys(room.memory).map(key => {
                 var value = room.memory[key];
@@ -86,17 +81,7 @@ var utils = {
                     });
             }
         }
-        /*
-        if(room.mineral) { 
-            room.visual.text(
-                '⏱️' + room.mineral.ticksToRegeneration,
-                room.mineral.pos.x + 1, 
-                room.mineral.pos.y, 
-                {align: 'left', opacity: 0.8});
-        }
-        */
-
-
+        return;
         var labs = room.find(FIND_STRUCTURES, {
             filter: (lab) => {
                 return ((lab.structureType == STRUCTURE_LAB) && lab.isActive()
@@ -105,7 +90,6 @@ var utils = {
         });
 
         _.forEach(labs, lab => {
-            //console.log("!!! ", lab);
             room.visual.resource(
                 lab.mineralDemand,
                 lab.pos.x, lab.pos.y);
@@ -113,13 +97,9 @@ var utils = {
 
         // factory demand
         if (room.memory.factoryDemand) {
-            var fd = room.memory.factoryDemand;
-            var factoryStruct = Game.getObjectById(fd.factoryId);
-            if (factoryStruct)
-                room.visual.resource(fd.type, factoryStruct.pos.x, factoryStruct.pos.y);
+            
+            room.visual.resource(room.memory.factoryDemand.type, room.factory.pos);
         }
-
-
     },
 
     roomSpawn: function (room, spawnOrders) {
@@ -138,6 +118,7 @@ var utils = {
         var builders = _.filter(roomCreeps, (creep) => creep.memory.role == 'builder');
         var deliverers = _.filter(roomCreeps, (creep) => creep.memory.role == 'deliverer');
         var mineralHarvesters = _.filter(roomCreeps, (creep) => creep.memory.role == 'mineralHarvester');
+        var powerCreepInRoom = room.find(FIND_MY_POWER_CREEPS).length > 0;
 
         var extensions = _.filter(room.find(FIND_STRUCTURES), s => s.structureType == STRUCTURE_EXTENSION);
 
@@ -274,7 +255,7 @@ var utils = {
             if (room.storage && room.storage.store.energy > 100000 && buildSize > 50000)
                 builderPartsNeeded = 20;
         }
-        
+
         //if(buildSize > 50000 && )
         var gapBuilderParts = 0;
         if (builderPartsNeeded > 0) {
@@ -366,30 +347,24 @@ var utils = {
         );
 
 
+        var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId
+            && !d.memory.temporary);
+        var localDelivererSize = 50; // rough estimage
+        var remoteHarvest = room.memory.config ? room.memory.config.remoteHarvest : [];
+
+        localDelivererSize = (room.controller.level) * 50 + (remoteHarvest ? remoteHarvest.length * 100 : 0);
+
+        if (room.storage && room.storage.store.energy > 100000)
+            localDelivererSize += 100;
+
         // around spawn local deliverer
         // TODO: refactor spec delivers 1) change value to dynamic calculation
         if (mem.role == null) {
-            // excluding small recovery deliverers
-            var specDelivers = _.filter(deliverers, d => !d.memory.preferredSourceId
-                && !d.memory.temporary);
-            var size = 50; // rough estimage
-
-            var remoteHarvest = room.memory.config ? room.memory.config.remoteHarvest : [];
-
-            size = (room.controller.level) * 50 + (remoteHarvest ? remoteHarvest.length * 100 : 0);
-
-
-            if (room.storage && room.storage.store.energy > 100000)
-                size += 100;
             // spawn
             // spawn.container
             // room.storage
             // room.terminal
             var numLocals = 1;
-            //if (room.name == "E48S27")
-            //    numLocals = 2;
-
-            var powerCreepInRoom = _.some(Game.powerCreeps, p => p.room.name == room.name);
 
             if (powerCreepInRoom)
                 numLocals = 0; // no local delivers when power creep is present, to save CPU for more important tasks
@@ -397,16 +372,16 @@ var utils = {
             //if (numLocals == 0)
             //    console.log("Power creep in room ", room.name, " disabling local deliverers");
 
+            var localDelivererBudget = Math.min(room.energyAvailable, localDelivererSize * 1.5);
+
             if (room.spawn.container || room.storage)
                 if (specDelivers.length < numLocals) {
 
-                    mem.parts = utils.getBodyParts(Math.min(room.energyAvailable, size * 1.5), "delivererLight");
+                    mem.parts = utils.getBodyParts(localDelivererBudget, "delivererLight");
                     mem.role = 'deliverer';
                 }
         }
 
-        //if (room.name == "E48S27")
-        //    console.log(room.name, " ",mem.role, " ", mem.parts);
 
         // FROM SOURCE CONTAINER TO BASE
         if (mem.role == null) {
@@ -504,15 +479,12 @@ var utils = {
 
 
         // MINERAL HARVESTER
-        var needMinerals = roleMineralHarvester.needHarvester(room) &&
-            room.storage.store[RESOURCE_ENERGY] > RICH_ROOM_ENERGY;
+        var needMinerals = this.shouldHarvestMineralInRoom(room, RICH_ROOM_ENERGY);
+        room.memory.needMineralHarvester = needMinerals;
 
         var mineralHarvestPartsNeeded = 0;
         if (needMinerals) {
-            mineralHarvestPartsNeeded = 10;
-
-            if (room.controller.level == 8)
-                mineralHarvestPartsNeeded = 30;
+            mineralHarvestPartsNeeded = this.getMineralHarvestWorkParts(room);
         }
 
 
@@ -528,22 +500,14 @@ var utils = {
                 WORK
             );
 
-
-        room.memory.needMineralHarvester = needMinerals;
-
         // MINERAL deliverer
         if (mem.role == null) {
             if (mineralHarvesters.length > 0 &&
                 (_.sum(room.extractor.container.store) > CONTAINER_CAPACITY * 0.4)) {
 
-                var amountPerSec = _.sum(_.map(mineralHarvesters, m => m.getActiveBodyparts(WORK))) * HARVEST_MINERAL_POWER / EXTRACTOR_COOLDOWN;
-
-                var targetId = room.storage.id;
-                var terminalWatermark = 0.8;
-                if (room.terminal && _.sum(room.terminal.store) < terminalWatermark * room.terminal.storeCapacity)
-                    targetId = room.terminal.id;
-
-                var res = this.createDeliverer(room.extractor.container.id, targetId, amountPerSec);
+                var amountPerSec = this.getMineralHarvestAmountPerSec(mineralHarvesters);
+                var mineralType = room.mineral ? room.mineral.mineralType : undefined;
+                var res = this.createMineralDeliverer(room.extractor.container.id, room, amountPerSec, mineralType);
 
                 if (res != null)
                     mem = res;
@@ -581,24 +545,26 @@ var utils = {
                 energyBudget = Math.max(300, room.energyAvailable); // use as min energy in start as possible
         }
         else if (needAttack && attackers.length == 0) {
-            mem = this.createAttackMemory(room, room.name, room);
+            mem = this.createAttackMemory(room);
         }
         else if (spawnOrders && spawnOrders.attackRoom) {
-            mem = this.createAttackMemory(room, spawnOrders.attackRoom, Game.rooms[spawnOrders.attackRoom]);
+            mem = Game.rooms[spawnOrders.attackRoom]
+                ? this.createAttackMemory(Game.rooms[spawnOrders.attackRoom])
+                : { role: "attack", toGo: [spawnOrders.attackRoom], attackSize: "small" };
         }
         else if (mem.role != null) {
             // parts already created where?
         }
         else if (gapBuilderParts > 0) {
-            var builderMoveRatio = room.controller.level < 6 ? 1 : 3;
+            var builderMoveRatio = 1;// room.controller.level < 6 ? 1 : 3;
             mem.role = "builder";
-            mem.parts = utils.createWorkBody(gapBuilderParts, room, [], builderMoveRatio, 2);
+            mem.parts = utils.createWorkBody(gapBuilderParts, room, [CARRY, MOVE], builderMoveRatio, 2);
         }
         else if (gapUpgradeParts > 0) {
             mem.role = 'upgrader';
             gapUpgradeParts = Math.min(gapUpgradeParts, 17);
-             // max 15 parts in one upgrader, 
-             // that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
+            // max 15 parts in one upgrader, 
+            // that will be more efficient than several with 2-3 parts, that will not use all energy and require more bodies to maintain
             mem.parts = utils.createUpgraderBody(gapUpgradeParts, room);
         }
         else if (gapMineralHarvestParts > 0) {
@@ -661,37 +627,45 @@ var utils = {
 
         if (room.memory.coldStart) {
 
-            if (mem.role == "deliverer" && deliverers.length == 0 && room.controller.level <= 6 && room.energyAvailable < 300) {
-                // more proper amount
-                mem.parts = [CARRY, MOVE]
-                mem.temporary = true; // mark as temporary to exclude from some logic
-                console.log(room.name, " low deliverer budget=", energyBudget);
+            var deliverersBase = _.filter(deliverers,
+                d => d.memory.preferredSourceId == undefined
+                    && !d.memory.temporary);
 
+            var hasNoTempDeliverers = !_.some(deliverers, d => d.memory.temporary);
+
+            var hasSomeResorts =
+                (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
+                (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100) ||
+                (room.terminal && room.terminal.store[RESOURCE_ENERGY] > 1000);
+
+            var shouldSpawnTempDeliverer = !powerCreepInRoom
+                && deliverersBase.length == 0
+                && hasNoTempDeliverers
+                && hasSomeResorts;
+
+            if (shouldSpawnTempDeliverer) {
+                var recoveryDelivererBudget = Math.min(room.energyAvailable, localDelivererSize * 1.5);
+
+                mem.role = "deliverer";
+                mem.parts = utils.getBodyParts(recoveryDelivererBudget, "delivererLight");
+                mem.temporary = true; // mark as temporary to exclude from some logic
+                mem.preferredSourceId = undefined;
+
+                console.log(room.name, " low deliverer budget=", recoveryDelivererBudget);
             }
 
-            if (roomCreeps.length < 3 || harvesters.length == 0) {
+            else if (roomCreeps.length < 3 || harvesters.length == 0) {
                 energyBudget = room.energyAvailable; // use as min energy in start as possible
 
                 mem.temporary = true; // mark as temporary to exclude from some logic
-                console.log(room.name, " low creeps budget=", energyBudget);
+                mem.role = "harvester";
+                if (energyBudget < 300)
+                    mem.parts = utils.createHarvesterBody(1, room, false);
+                console.log(room.name, "a low creeps budget=", energyBudget, " mem =", JSON.stringify(mem));
             }
 
-            var deliverersBase = _.filter(deliverers,
-                d => d.memory.preferredSourceId == undefined && !d.memory.temporary);
 
-            if (mem.role == null && deliverersBase.length == 0 && (
-                (room.storage && room.storage.store[RESOURCE_ENERGY] > 1000) ||
-                (room.spawn.container && room.spawn.container.store[RESOURCE_ENERGY] > 100)
-            )) {
-                console.log(room.name, " no deliverers recovery, budget=", room.energyAvailable);
-                energyBudget = room.energyAvailable;
 
-                // create small local deliverer
-                mem.role = "deliverer";
-                mem.parts = [CARRY, MOVE];
-                mem.preferredSourceId = undefined;
-                mem.temporary = true; // mark as temporary to exclude from some logic
-            }
         }
 
 
@@ -751,39 +725,59 @@ var utils = {
         }
     },
 
-    isRoaded(from, target, room) {
+    isRoaded(from, target) {
         if (target == undefined || from == undefined)
             return false;
 
 
         //console.log("checking roading from ", pos, " to ", target);
-        var path = from.pos.findPathTo(target, { range: 1, ignoreCreeps: true });
+        var path = this.getPathMultiroomForRoad(from, target);
 
-
-
-        return this.isPathRoaded(path, room)
+        return this.isPathRoaded(path)
     },
 
 
-    isPathRoaded: function (path, room) {
-        if (path.length <= 2)
+    isPathRoaded: function (path) {
+        if (path.length <= 3)
             return true;
 
         //this.drawPath(path, room, 'blue');
         // exclucde first and last pos, where creep will stand on, so only middle road is checked
         var middlePath = path.slice(1, path.length - 1);
-        var roaded = _.every(middlePath, p => {
-            var look = room.lookForAt(LOOK_STRUCTURES, p.x, p.y);
-            var yesRoad = look.some(s => s.structureType == STRUCTURE_ROAD)
-            return yesRoad;
+        var notRoadedSteps = _.filter(middlePath, function (p) {
+            try {
+                if (p.x == 0 || p.y == 0 || p.x == 49 || p.y == 49) // check for exits, they are usually not roaded and it's not a problem
+                    return false;
+
+                var look = p.lookFor(LOOK_STRUCTURES);
+                var hasRoad = _.some(look, function (s) {
+                    return s.structureType == STRUCTURE_ROAD;
+                });
+
+                return !hasRoad;
+            } catch (e) {
+                //console.log("Error checking road at ", p, " error=", e);
+
+                // in case of error consider it roaded 
+                return false;
+            }
         });
 
-        //sconsole.log("isPathRoaded =", roaded, " for ", path.length, " steps");
+        var delta = notRoadedSteps.length;
+        var allowed = 3;
+
+        //if (delta > 0 && delta <= allowed) // allow few non-roaded tiles in middle, because of possible construction or other issues
+        //    console.log(`⚠️ Roaded path issue: ${delta}/${path.length} unroaded tiles at pos ${JSON.stringify(notRoadedSteps[0])}`);
+
+        var roaded = notRoadedSteps.length < allowed;
+
         return roaded;
     },
 
     calculateRoleGap: function (roomCreeps, role, requiredCapacity, from, to, bodyPart, extraTicks = 0) {
-        var ticksToCreate = CREEP_SPAWN_TIME * (requiredCapacity || 0);
+        // * 2 means there will be other parts in the body, need to measure agains real body not estimates
+
+        var ticksToCreate = CREEP_SPAWN_TIME * (requiredCapacity * 2 || 0);
         var fromPos = from.pos || from;
         var toPos = to.pos || to;
         var ticksToTravel = fromPos.findPathTo(toPos, { ignoreCreeps: true }).length;
@@ -836,7 +830,7 @@ var utils = {
             if (usedEnergy + BODYPART_COST[WORK] > energyBudget)
                 break;
 
-            if(parts.length + extraParts.length >= MAX_CREEP_SIZE - 2 ) // body part limit
+            if (parts.length + extraParts.length >= MAX_CREEP_SIZE - 2) // body part limit
                 break;
 
             extraParts.push(WORK);
@@ -877,23 +871,68 @@ var utils = {
         return this.createWorkBody(gapMineralHarvestParts, room, [MOVE, CARRY], 3);
     },
 
-    getPathMultiroom: function (from, to, r = 1) {
-        if (from.room.name == to.room.name)
-            return from.pos.findPathTo(to.pos, { range: r, ignoreCreeps: true });
+    shouldHarvestMineralInRoom: function (room, minEnergyInStorage) {
+        if (!roleMineralHarvester.needHarvester(room)) {
+            return false;
+        }
 
-        let goals = _.map([to], function (s) {
-            return { pos: s.pos, range: r };
-        });
+        if (!minEnergyInStorage) {
+            return true;
+        }
 
-        let ret = PathFinder.search(from.pos, goals, {});
+        return !!(room.storage && room.storage.store[RESOURCE_ENERGY] > minEnergyInStorage);
+    },
 
-        return ret.path;
+    getMineralHarvestWorkParts: function (room) {
+        if (room.controller && room.controller.level == 8) {
+            return 30;
+        }
+
+        return 10;
+    },
+
+    getMineralHarvestAmountPerSec: function (mineralHarvesters) {
+        return _.sum(mineralHarvesters, function (creep) {
+            return creep.getActiveBodyparts(WORK);
+        }) * HARVEST_MINERAL_POWER / EXTRACTOR_COOLDOWN;
+    },
+
+    getPreferredMineralTargetId: function (room) {
+        if (!room.storage) {
+            return undefined;
+        }
+
+        var targetId = room.storage.id;
+        var terminalWatermark = 0.8;
+        if (room.terminal && _.sum(room.terminal.store) < terminalWatermark * room.terminal.storeCapacity) {
+            targetId = room.terminal.id;
+        }
+
+        return targetId;
+    },
+
+    createMineralDeliverer: function (fromId, targetRoom, amountPerSec, resourceType, maxCapacity) {
+        if (!targetRoom) {
+            return null;
+        }
+
+        var targetId = this.getPreferredMineralTargetId(targetRoom);
+        if (!targetId) {
+            return null;
+        }
+
+        return this.createDeliverer(fromId, targetId, amountPerSec, resourceType, maxCapacity);
+    },
+
+
+    getPathMultiroomForRoad: function (from, to, r = 1) {
+        return basic.getPathMultiroom(from, to, r);
     }
     ,
-    createDeliverer: function (fromId, toId, energyPerTick, resType, maxCapacity = 3000) {
+    createDeliverer: function (fromId, toId, energyPerTick, resType, maxCapacity = 1000) {
+
         if (fromId == toId)
             return null;
-
 
         var from = Game.getObjectById(fromId);
         var to = Game.getObjectById(toId);
@@ -903,7 +942,7 @@ var utils = {
             return null;
         }
 
-        var path = this.getPathMultiroom(from, to);
+        var path = this.getPathMultiroomForRoad(from, to);
 
         //console.log("cost analysis path", path);
         if (!path || path.length == 0) {
@@ -916,7 +955,7 @@ var utils = {
         // +2 is turnaround delay tbd to remove it (currently 0)
         var travelTime = (path.length - 1) * 2 + 1;
 
-        var pathRoaded = this.isPathRoaded(path, from.room);
+        var pathRoaded = this.isPathRoaded(path);
 
         if (pathRoaded) {
             //console.log('deliverer all roaded ', fromId, '->', toId);
@@ -935,7 +974,7 @@ var utils = {
 
         var remainingCapacity = requiredCapacity - existingCapacity;
 
-        if (travelTime > 200)
+        if (travelTime > 500)
             console.log("delivery tax for ",
                 fromId, '->', toId, " travelTime=", travelTime,
                 " requiredCapacity=", requiredCapacity, " energyPerTick=", energyPerTick,
@@ -956,7 +995,8 @@ var utils = {
         var existingLookeahead = _.filter(Game.creeps,
             d => d.memory.role == "deliverer" &&
                 d.memory.preferredSourceId == fromId &&
-                d.ticksToLive > LOOKAHEAD_TICKS);
+                (d.ticksToLive > LOOKAHEAD_TICKS || d.spawning));
+
         var existingLookaheadCapacity = _.sum(_.map(existingLookeahead, e => e.getActiveBodyparts(CARRY) * CARRY_CAPACITY));
 
 
@@ -1073,36 +1113,61 @@ var utils = {
 
         var attackPartsSmall = [TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
-            HEAL,
-            ATTACK, ATTACK];
+
+            ATTACK, HEAL, ATTACK];
 
         var attackPartsMedium = [
             TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
-            HEAL, HEAL,
-            RANGED_ATTACK, ATTACK, ATTACK, ATTACK, ATTACK
+            HEAL,
+            RANGED_ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, HEAL
         ];
+
         var attackPartsLarge = [
             TOUGH, TOUGH, TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE,
-            HEAL, HEAL, HEAL,
-            RANGED_ATTACK, ATTACK, ATTACK, ATTACK,
-            ATTACK, ATTACK, ATTACK, ATTACK
+            MOVE, MOVE, MOVE, MOVE,
+            HEAL, HEAL,
+            RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
+            ATTACK, ATTACK, ATTACK, ATTACK, HEAL
         ];
 
         var attackPartsExtraLarge = [
-            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE, MOVE,
 
             ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
             ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK,
 
-            HEAL, HEAL, HEAL, HEAL, HEAL
+            HEAL, HEAL, HEAL, HEAL, HEAL,
+            MOVE
+        ];
+        
+        var powerfulRangedAttackerUnboostedMove = [
+    // 4 TOUGH Parts (Mandatory damage shield - must be T3 boosted!)
+    TOUGH, TOUGH, TOUGH, TOUGH,
+
+    // 17 RANGED_ATTACK Parts (Your core DPS)
+    RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
+    RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
+    RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
+    RANGED_ATTACK, RANGED_ATTACK,
+
+    // 4 HEAL Parts (Sustained self-healing)
+    HEAL, HEAL, HEAL, HEAL,
+
+    // 25 UNBOOSTED MOVE Parts (Exactly 1:1 ratio to match the 25 heavy parts above)
+    MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+    MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
+    MOVE, MOVE, MOVE, MOVE, MOVE
+];
+
+        var attackPartsInvaderCore = [
+            ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE, ATTACK, MOVE
         ];
 
 
@@ -1216,6 +1281,9 @@ var utils = {
         if (role == 'attack') {
             var desiredAttackSize = memory && memory.attackSize ? memory.attackSize : "small";
 
+
+if (desiredAttackSize == "extraLarge" && this.getPartsCost(attackPartsLarge) <= currentEnergy)
+                return attackPartsExtraLarge;
             if (desiredAttackSize == "extraLarge" && this.getPartsCost(attackPartsLarge) <= currentEnergy)
                 return attackPartsExtraLarge;
 
@@ -1224,6 +1292,9 @@ var utils = {
 
             if ((desiredAttackSize == "large" || desiredAttackSize == "medium") && this.getPartsCost(attackPartsMedium) <= currentEnergy)
                 return attackPartsMedium;
+
+            if (desiredAttackSize == "invaderCore" && this.getPartsCost(attackPartsInvaderCore) <= currentEnergy)
+                return attackPartsInvaderCore;
 
             if (this.getPartsCost(attackPartsSmall) <= currentEnergy)
                 return attackPartsSmall;
@@ -1278,15 +1349,12 @@ var utils = {
         return this.prefillParts(currentEnergy, parts);
     },
 
-    createAttackMemory: function (sourceRoom, targetRoomName, targetRoom) {
+    createAttackMemory: function (targetRoom) {
         var memory = {
-            role: "attack"
+            role: "attack",
+            toGo: [targetRoom.name],
+            attackSize: this.getAttackSize(targetRoom)
         };
-
-        if (targetRoomName && (!sourceRoom || sourceRoom.name != targetRoomName))
-            memory.toGo = [targetRoomName];
-
-        memory.attackSize = this.getAttackSize(targetRoom);
 
         return memory;
     },
@@ -1322,7 +1390,7 @@ var utils = {
         var heavyHostiles = _.filter(hostiles, function (hostile) {
             return hostile.getActiveBodyparts(HEAL) >= 2 ||
                 hostile.getActiveBodyparts(ATTACK) >= 5 ||
-                hostile.getActiveBodyparts(RANGED_ATTACK) >= 5 ||
+                hostile.getActiveBodyparts(RANGED_ATTACK) >= 3 ||
                 hostile.getActiveBodyparts(TOUGH) >= 5;
         });
 
@@ -1375,9 +1443,14 @@ var utils = {
         if (hostileTowers.length > 0 || boostedHostiles.length > 0 || heavyHostiles.length > 0 || dangerousHostiles.length >= 3 || (invaderCore && invaderCore.level >= 2))
             return "large";
 
-        if (dangerousHostiles.length >= 2 || boostedHostiles.length > 0 || invaderCore || conquerFlag || enemyReservation || controllerWalls.length > 0)
+        if (dangerousHostiles.length >= 2 || boostedHostiles.length > 0 || conquerFlag || enemyReservation || controllerWalls.length > 0)
             return "medium";
 
+        if (invaderCore && dangerousHostiles.length === 0)
+            return "invaderCore";
+
+        if (invaderCore)
+            return "medium";
 
         return "small";
     },
@@ -1456,7 +1529,13 @@ var utils = {
         // Log counters for each event type
         for (var eventType of eventTypes) {
             let events = _.filter(eventLog, function (ev) {
-                return ev.event === eventType && (ev.type == EVENT_OBJECT_DESTROYED && ev.data.type !== "creep");
+                if (eventType === EVENT_ATTACK)
+                    return ev.event === EVENT_ATTACK;
+
+                if (eventType === EVENT_OBJECT_DESTROYED)
+                    return ev.event === EVENT_OBJECT_DESTROYED;
+
+                return false;
             });
 
             if (!room.memory.events[eventType])
@@ -1470,9 +1549,10 @@ var utils = {
                 });
             }
 
-            // Clear old events if list is larger than 30
-            if (room.memory.events[eventType].length > 10) {
-                room.memory.events[eventType] = room.memory.events[eventType].slice(-30);
+            // Clear old events if list is larger than size
+            var size = 10;
+            if (room.memory.events[eventType].length > size) {
+                room.memory.events[eventType] = room.memory.events[eventType].slice(-size);
             }
         }
 
