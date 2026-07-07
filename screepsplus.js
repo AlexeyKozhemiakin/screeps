@@ -27,6 +27,7 @@ function collect_stats_end() {
         }
     }
 
+    
     /*
     for(var name in Memory.rooms) {
         if(!Game.rooms[name]) {

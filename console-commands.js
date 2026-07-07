@@ -469,6 +469,60 @@ global.clearRoomMemory = function (roomName) {
     return "Cleared Memory.rooms[\"" + roomName + "\"].";
 };
 
+// --- Clear events for all rooms in memory ---
+// Usage: clearAllRoomEvents()
+global.clearAllRoomEvents = function () {
+    if (!Memory.rooms) {
+        return "No Memory.rooms found.";
+    }
+
+    function utf8Bytes(str) {
+        if (str === undefined || str === null) {
+            return 0;
+        }
+        return unescape(encodeURIComponent(str)).length;
+    }
+
+    var roomNames = Object.keys(Memory.rooms);
+    var roomsWithEvents = 0;
+    var totalEventTypes = 0;
+    var totalEventEntries = 0;
+    var bytesCleared = 0;
+
+    for (var i = 0; i < roomNames.length; i++) {
+        var roomName = roomNames[i];
+        var roomMemory = Memory.rooms[roomName];
+        if (!roomMemory || !roomMemory.events) {
+            continue;
+        }
+
+        var events = roomMemory.events;
+        var eventTypeKeys = Object.keys(events);
+        var roomEntries = 0;
+
+        for (var j = 0; j < eventTypeKeys.length; j++) {
+            var eventType = eventTypeKeys[j];
+            var bucket = events[eventType];
+
+            if (Array.isArray(bucket)) {
+                roomEntries += bucket.length;
+            }
+        }
+
+        var serialized = JSON.stringify(events);
+        bytesCleared += utf8Bytes(serialized);
+        roomsWithEvents++;
+        totalEventTypes += eventTypeKeys.length;
+        totalEventEntries += roomEntries;
+
+        delete roomMemory.events;
+    }
+
+    return "Cleared room events in " + roomsWithEvents + " rooms. " +
+        "Removed " + totalEventTypes + " event buckets and " + totalEventEntries + " entries. " +
+        "Estimated freed: " + (bytesCleared / 1024).toFixed(2) + " KB.";
+};
+
 // add function to calculate price of materials and store them in memory
 // Usage: calculateAndStorePrices()
 global.calculateAndStorePrices = function () {
@@ -1016,6 +1070,573 @@ global.listCreepDestroyedEvents = function (roomName, limit) {
     console.log(table.sep);
 
     return "Printed " + tableRows.length + " creep destruction events" + (roomName ? " for " + roomName : "") + ".";
+};
+
+// --- Estimate Memory size by root branch ---
+// Usage: memoryRootSize()
+// Usage: memoryRootSize(15)           // top N rows
+// Usage: memoryRootSize(20, 0.5)      // top N, minimum KB filter
+global.memoryRootSize = function (limit, minKb) {
+    function utf8Bytes(str) {
+        if (str === undefined || str === null) {
+            return 0;
+        }
+        return unescape(encodeURIComponent(str)).length;
+    }
+
+    var topN = parseInt(limit, 10);
+    if (!topN || topN < 1) {
+        topN = 50;
+    }
+
+    var minKbFilter = Number(minKb);
+    if (isNaN(minKbFilter) || minKbFilter < 0) {
+        minKbFilter = 0;
+    }
+
+    var keys = Object.keys(Memory || {});
+    if (keys.length === 0) {
+        return "Memory is empty.";
+    }
+
+    var rows = [];
+    var estimatedRootBytes = 2; // opening/closing braces in JSON object
+    var serializableBranches = 0;
+
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var valueJson;
+        var valueBytes = 0;
+        var error = null;
+
+        try {
+            valueJson = JSON.stringify(Memory[key]);
+            if (valueJson === undefined) {
+                error = "non-serializable";
+            } else {
+                valueBytes = utf8Bytes(valueJson);
+                var keyAndColonBytes = utf8Bytes(JSON.stringify(key) + ":");
+                estimatedRootBytes += keyAndColonBytes + valueBytes;
+                serializableBranches++;
+            }
+        } catch (e) {
+            error = e && e.message ? e.message : "serialization error";
+        }
+
+        rows.push({
+            key: key,
+            bytes: valueBytes,
+            kb: valueBytes / 1024,
+            error: error
+        });
+    }
+
+    if (serializableBranches > 1) {
+        estimatedRootBytes += (serializableBranches - 1); // commas between branches
+    }
+
+    rows = _.sortBy(rows, function (entry) {
+        return -entry.bytes;
+    });
+
+    if (minKbFilter > 0) {
+        rows = _.filter(rows, function (entry) {
+            return entry.kb >= minKbFilter;
+        });
+    }
+
+    if (rows.length === 0) {
+        return "No root branches matched the filter (minKb=" + minKbFilter + ").";
+    }
+
+    var displayed = rows.slice(0, topN);
+    var coveredBytes = _.reduce(displayed, function (sum, entry) {
+        return sum + entry.bytes;
+    }, 0);
+    var totalBranchBytes = _.reduce(rows, function (sum, entry) {
+        return sum + entry.bytes;
+    }, 0);
+
+    var headers = ["Root Key", "Size KB", "% of branches", "Bytes", "Status"];
+    var tableRows = _.map(displayed, function (entry) {
+        var pct = totalBranchBytes > 0 ? (100 * entry.bytes / totalBranchBytes).toFixed(2) : "0.00";
+        return [
+            entry.key,
+            entry.kb.toFixed(2),
+            pct,
+            String(entry.bytes),
+            entry.error ? entry.error : "ok"
+        ];
+    });
+
+    var table = printTable(headers, tableRows, [0, 4]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var j = 0; j < tableRows.length; j++) {
+        console.log("| " + tableRows[j].map(function (value, index) {
+            if (index === 0 || index === 4)
+                return pad(value, table.widths[index]);
+            return rpad(value, table.widths[index]);
+        }).join(" | ") + " |");
+    }
+    console.log(table.sep);
+
+    var rawBytes = utf8Bytes(RawMemory.get());
+    var unshownBytes = totalBranchBytes - coveredBytes;
+    return "Displayed " + displayed.length + "/" + rows.length + " root branches. " +
+        "Shown branches: " + (coveredBytes / 1024).toFixed(2) + " KB, " +
+        "unshown branches: " + (unshownBytes / 1024).toFixed(2) + " KB. " +
+        "Estimated root JSON: " + (estimatedRootBytes / 1024).toFixed(2) + " KB. " +
+        "RawMemory.get(): " + (rawBytes / 1024).toFixed(2) + " KB.";
+};
+
+// Resolve a dot-path inside Memory (for example: "rooms.E51S23.events").
+function memoryResolvePath(path) {
+    if (!path || path === "Memory" || path === "memory") {
+        return { ok: true, value: Memory, normalizedPath: "Memory" };
+    }
+
+    var normalized = String(path).trim();
+    if (normalized.indexOf("Memory.") === 0) {
+        normalized = normalized.substring(7);
+    }
+
+    if (!normalized) {
+        return { ok: true, value: Memory, normalizedPath: "Memory" };
+    }
+
+    var parts = normalized.split('.');
+    var current = Memory;
+    var consumed = [];
+
+    for (var i = 0; i < parts.length; i++) {
+        var part = parts[i];
+        if (!part) {
+            continue;
+        }
+
+        if (current === undefined || current === null || !Object.prototype.hasOwnProperty.call(current, part)) {
+            return {
+                ok: false,
+                error: "Path not found: Memory." + parts.slice(0, i + 1).join('.'),
+                value: undefined,
+                normalizedPath: "Memory." + consumed.join('.')
+            };
+        }
+
+        current = current[part];
+        consumed.push(part);
+    }
+
+    return {
+        ok: true,
+        value: current,
+        normalizedPath: "Memory." + consumed.join('.')
+    };
+}
+
+function memoryUtf8Bytes(str) {
+    if (str === undefined || str === null) {
+        return 0;
+    }
+    return unescape(encodeURIComponent(str)).length;
+}
+
+function memorySizeRowsFromObject(obj) {
+    var rows = [];
+    var keys = Object.keys(obj || {});
+
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var value = obj[key];
+        var json;
+        var bytes = 0;
+        var error = null;
+
+        try {
+            json = JSON.stringify(value);
+            if (json === undefined) {
+                error = "non-serializable";
+            } else {
+                bytes = memoryUtf8Bytes(json);
+            }
+        } catch (e) {
+            error = e && e.message ? e.message : "serialization error";
+        }
+
+        rows.push({
+            key: key,
+            bytes: bytes,
+            kb: bytes / 1024,
+            error: error,
+            type: Array.isArray(value) ? "array" : typeof value
+        });
+    }
+
+    return _.sortBy(rows, function (row) {
+        return -row.bytes;
+    });
+}
+
+// --- Estimate size of direct children under a Memory path ---
+// Usage: memoryBranchSize("rooms", 20)
+// Usage: memoryBranchSize("rooms.E51S23", 30, 0.2)
+global.memoryBranchSize = function (path, limit, minKb) {
+    var resolved = memoryResolvePath(path || "Memory");
+    if (!resolved.ok) {
+        return resolved.error;
+    }
+
+    var target = resolved.value;
+    if (target === null || target === undefined) {
+        return resolved.normalizedPath + " is empty.";
+    }
+
+    if (typeof target !== "object") {
+        var primitiveJson = JSON.stringify(target);
+        var primitiveBytes = primitiveJson ? memoryUtf8Bytes(primitiveJson) : 0;
+        return resolved.normalizedPath + " is a primitive (" + typeof target + "), ~" + (primitiveBytes / 1024).toFixed(2) + " KB.";
+    }
+
+    var topN = parseInt(limit, 10);
+    if (!topN || topN < 1) {
+        topN = 30;
+    }
+
+    var minKbFilter = Number(minKb);
+    if (isNaN(minKbFilter) || minKbFilter < 0) {
+        minKbFilter = 0;
+    }
+
+    var rows = memorySizeRowsFromObject(target);
+    if (minKbFilter > 0) {
+        rows = _.filter(rows, function (row) {
+            return row.kb >= minKbFilter;
+        });
+    }
+
+    if (rows.length === 0) {
+        return "No children matched for " + resolved.normalizedPath + " (minKb=" + minKbFilter + ").";
+    }
+
+    var totalBytes = _.reduce(rows, function (sum, row) {
+        return sum + row.bytes;
+    }, 0);
+    var displayed = rows.slice(0, topN);
+
+    var headers = ["Child Key", "Type", "Size KB", "%", "Bytes", "Status"];
+    var tableRows = _.map(displayed, function (row) {
+        var pct = totalBytes > 0 ? (100 * row.bytes / totalBytes).toFixed(2) : "0.00";
+        return [row.key, row.type, row.kb.toFixed(2), pct, String(row.bytes), row.error ? row.error : "ok"];
+    });
+
+    var table = printTable(headers, tableRows, [0, 1, 5]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var i = 0; i < tableRows.length; i++) {
+        console.log("| " + tableRows[i].map(function (value, index) {
+            if (index === 0 || index === 1 || index === 5)
+                return pad(value, table.widths[index]);
+            return rpad(value, table.widths[index]);
+        }).join(" | ") + " |");
+    }
+    console.log(table.sep);
+
+    return "Displayed " + displayed.length + "/" + rows.length + " children for " + resolved.normalizedPath +
+        ". Total child payload: " + (totalBytes / 1024).toFixed(2) + " KB.";
+};
+
+// --- Aggregate size by field across object collection entries ---
+// Example: Memory.rooms.<roomName>.<field> totals by field key
+// Usage: memoryFieldTotals("rooms", 20)
+// Usage: memoryFieldTotals("creeps", 20, 0.1)
+global.memoryFieldTotals = function (path, limit, minKb) {
+    var resolved = memoryResolvePath(path || "rooms");
+    if (!resolved.ok) {
+        return resolved.error;
+    }
+
+    var collection = resolved.value;
+    if (!collection || typeof collection !== "object") {
+        return resolved.normalizedPath + " is not an object collection.";
+    }
+
+    var topN = parseInt(limit, 10);
+    if (!topN || topN < 1) {
+        topN = 30;
+    }
+
+    var minKbFilter = Number(minKb);
+    if (isNaN(minKbFilter) || minKbFilter < 0) {
+        minKbFilter = 0;
+    }
+
+    var totals = {};
+    var key;
+    var entries = 0;
+
+    for (key in collection) {
+        if (!Object.prototype.hasOwnProperty.call(collection, key)) {
+            continue;
+        }
+
+        var entry = collection[key];
+        if (!entry || typeof entry !== "object") {
+            continue;
+        }
+
+        entries++;
+        var fields = Object.keys(entry);
+        for (var i = 0; i < fields.length; i++) {
+            var field = fields[i];
+            var fieldJson;
+            var fieldBytes = 0;
+            var fieldError = null;
+
+            try {
+                fieldJson = JSON.stringify(entry[field]);
+                if (fieldJson === undefined) {
+                    fieldError = "non-serializable";
+                } else {
+                    fieldBytes = memoryUtf8Bytes(fieldJson);
+                }
+            } catch (e) {
+                fieldError = e && e.message ? e.message : "serialization error";
+            }
+
+            if (!totals[field]) {
+                totals[field] = {
+                    field: field,
+                    bytes: 0,
+                    count: 0,
+                    errors: 0
+                };
+            }
+
+            totals[field].bytes += fieldBytes;
+            totals[field].count += 1;
+            if (fieldError) {
+                totals[field].errors += 1;
+            }
+        }
+    }
+
+    var rows = _.map(Object.keys(totals), function (field) {
+        return {
+            field: totals[field].field,
+            bytes: totals[field].bytes,
+            kb: totals[field].bytes / 1024,
+            count: totals[field].count,
+            errors: totals[field].errors
+        };
+    });
+
+    rows = _.sortBy(rows, function (row) {
+        return -row.bytes;
+    });
+
+    if (minKbFilter > 0) {
+        rows = _.filter(rows, function (row) {
+            return row.kb >= minKbFilter;
+        });
+    }
+
+    if (rows.length === 0) {
+        return "No aggregated fields matched for " + resolved.normalizedPath + " (minKb=" + minKbFilter + ").";
+    }
+
+    var totalBytes = _.reduce(rows, function (sum, row) {
+        return sum + row.bytes;
+    }, 0);
+    var displayed = rows.slice(0, topN);
+
+    var headers = ["Field", "Entries", "Size KB", "%", "Avg B/entry", "Errors"];
+    var tableRows = _.map(displayed, function (row) {
+        var pct = totalBytes > 0 ? (100 * row.bytes / totalBytes).toFixed(2) : "0.00";
+        var avg = row.count > 0 ? Math.round(row.bytes / row.count) : 0;
+        return [row.field, String(row.count), row.kb.toFixed(2), pct, String(avg), String(row.errors)];
+    });
+
+    var table = printTable(headers, tableRows, [0]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var j = 0; j < tableRows.length; j++) {
+        console.log("| " + tableRows[j].map(function (value, index) {
+            if (index === 0)
+                return pad(value, table.widths[index]);
+            return rpad(value, table.widths[index]);
+        }).join(" | ") + " |");
+    }
+    console.log(table.sep);
+
+    return "Analyzed " + entries + " entries under " + resolved.normalizedPath +
+        ". Displayed " + displayed.length + "/" + rows.length + " fields. " +
+        "Total aggregated payload: " + (totalBytes / 1024).toFixed(2) + " KB.";
+};
+
+// --- Aggregate nested field-path sizes at a fixed depth across collection entries ---
+// Depth is relative to each entry object: 1=top-level fields, 2=child fields, etc.
+// Usage: memoryFieldTotalsDepth("rooms", 2, 40)
+// Usage: memoryFieldTotalsDepth("rooms", 3, 50, 0.05)
+global.memoryFieldTotalsDepth = function (path, depth, limit, minKb) {
+    var resolved = memoryResolvePath(path || "rooms");
+    if (!resolved.ok) {
+        return resolved.error;
+    }
+
+    var collection = resolved.value;
+    if (!collection || typeof collection !== "object") {
+        return resolved.normalizedPath + " is not an object collection.";
+    }
+
+    var targetDepth = parseInt(depth, 10);
+    if (!targetDepth || targetDepth < 1) {
+        targetDepth = 2;
+    }
+
+    var topN = parseInt(limit, 10);
+    if (!topN || topN < 1) {
+        topN = 40;
+    }
+
+    var minKbFilter = Number(minKb);
+    if (isNaN(minKbFilter) || minKbFilter < 0) {
+        minKbFilter = 0;
+    }
+
+    var totals = {};
+    var entryCount = 0;
+
+    function addField(pathKey, value) {
+        var json;
+        var bytes = 0;
+        var hasError = false;
+
+        try {
+            json = JSON.stringify(value);
+            if (json !== undefined) {
+                bytes = memoryUtf8Bytes(json);
+            } else {
+                hasError = true;
+            }
+        } catch (e) {
+            hasError = true;
+        }
+
+        if (!totals[pathKey]) {
+            totals[pathKey] = {
+                path: pathKey,
+                bytes: 0,
+                rooms: 0,
+                errors: 0
+            };
+        }
+
+        totals[pathKey].bytes += bytes;
+        totals[pathKey].rooms += 1;
+        if (hasError) {
+            totals[pathKey].errors += 1;
+        }
+    }
+
+    function walkAtDepth(node, prefix, level) {
+        if (!node || typeof node !== "object") {
+            return;
+        }
+
+        var keys = Object.keys(node);
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var value = node[key];
+            var nextPath = prefix ? (prefix + "." + key) : key;
+
+            if (level === targetDepth) {
+                addField(nextPath, value);
+                continue;
+            }
+
+            if (level < targetDepth && value && typeof value === "object" && !Array.isArray(value)) {
+                walkAtDepth(value, nextPath, level + 1);
+            }
+        }
+    }
+
+    for (var entryKey in collection) {
+        if (!Object.prototype.hasOwnProperty.call(collection, entryKey)) {
+            continue;
+        }
+
+        var entry = collection[entryKey];
+        if (!entry || typeof entry !== "object") {
+            continue;
+        }
+
+        entryCount++;
+        walkAtDepth(entry, "", 1);
+    }
+
+    var rows = _.map(Object.keys(totals), function (k) {
+        var row = totals[k];
+        return {
+            path: row.path,
+            bytes: row.bytes,
+            kb: row.bytes / 1024,
+            rooms: row.rooms,
+            roomPct: entryCount > 0 ? (100 * row.rooms / entryCount) : 0,
+            errors: row.errors
+        };
+    });
+
+    rows = _.sortBy(rows, function (row) {
+        return -row.bytes;
+    });
+
+    if (minKbFilter > 0) {
+        rows = _.filter(rows, function (row) {
+            return row.kb >= minKbFilter;
+        });
+    }
+
+    if (rows.length === 0) {
+        return "No fields found for depth=" + targetDepth + " under " + resolved.normalizedPath +
+            " (minKb=" + minKbFilter + ").";
+    }
+
+    var totalBytes = _.reduce(rows, function (sum, row) {
+        return sum + row.bytes;
+    }, 0);
+    var displayed = rows.slice(0, topN);
+
+    var headers = ["Field Path", "Rooms", "Room %", "Size KB", "%", "Avg B/room", "Errors"];
+    var tableRows = _.map(displayed, function (row) {
+        var pct = totalBytes > 0 ? (100 * row.bytes / totalBytes).toFixed(2) : "0.00";
+        var avg = row.rooms > 0 ? Math.round(row.bytes / row.rooms) : 0;
+        return [
+            row.path,
+            String(row.rooms),
+            row.roomPct.toFixed(2),
+            row.kb.toFixed(2),
+            pct,
+            String(avg),
+            String(row.errors)
+        ];
+    });
+
+    var table = printTable(headers, tableRows, [0]);
+    function pad(value, width) { return String(value).padEnd(width); }
+    function rpad(value, width) { return String(value).padStart(width); }
+    for (var j = 0; j < tableRows.length; j++) {
+        console.log("| " + tableRows[j].map(function (value, index) {
+            if (index === 0)
+                return pad(value, table.widths[index]);
+            return rpad(value, table.widths[index]);
+        }).join(" | ") + " |");
+    }
+    console.log(table.sep);
+
+    return "Analyzed " + entryCount + " entries under " + resolved.normalizedPath + " at depth " + targetDepth +
+        ". Displayed " + displayed.length + "/" + rows.length + " field paths. " +
+        "Total payload at this depth: " + (totalBytes / 1024).toFixed(2) + " KB.";
 };
 
 

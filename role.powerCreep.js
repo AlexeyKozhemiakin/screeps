@@ -37,8 +37,8 @@ module.exports = {
         if (this.operateExtension(powerCreep))
             return;
 
-        if (this.operateFactory(powerCreep))
-            return;
+        //if (this.operateFactory(powerCreep))
+        //    return;
 
         this.actAsDeliverer(powerCreep);
     },

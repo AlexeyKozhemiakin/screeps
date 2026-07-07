@@ -1128,11 +1128,11 @@ var utils = {
             TOUGH, TOUGH, TOUGH, TOUGH,
             MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
-            MOVE, MOVE, MOVE, MOVE,
+            MOVE, MOVE, MOVE, MOVE, MOVE, MOVE,
             MOVE, MOVE, MOVE, MOVE,
             HEAL, HEAL,
             RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK, RANGED_ATTACK,
-            ATTACK, ATTACK, ATTACK, ATTACK, HEAL
+            ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, HEAL
         ];
 
         var attackPartsExtraLarge = [
@@ -1518,6 +1518,8 @@ if (desiredAttackSize == "extraLarge" && this.getPartsCost(attackPartsLarge) <= 
 
     safeModeIfDanger: function (room) {
 
+        return;
+        
         // activate safe mode if creep was killed or structure was destroyed
         let eventLog = room.getEventLog();
 

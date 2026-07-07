@@ -82,9 +82,11 @@ var roleBuilder = {
         // Withdraw from hostile structures
         var hostileSource = creep.pos.findClosestByPath(FIND_HOSTILE_STRUCTURES, {
             filter: function (s) {
-                return creep.pos.getRangeTo(s) <= 10 && s.store && s.store[RESOURCE_ENERGY] > 0 && s.structureType != STRUCTURE_NUKER;
+                return creep.pos.getRangeTo(s) <= 10 && 
+                s.store && s.store[RESOURCE_ENERGY] > 0 && s.structureType != STRUCTURE_NUKER;
             }
         });
+        
         if (hostileSource) {
             if (!creep.pos.isNearTo(hostileSource.pos) && creep.fatigue == 0) {
                 var err = creep.moveTo(hostileSource.pos, { visualizePathStyle: { stroke: '#ff0000' } });
@@ -271,9 +273,19 @@ var roleBuilder = {
     }
     ,
     selectTarget: function (creep) {
+        var hasPurpleFlag = function (pos) {
+            var flags = pos.lookFor(LOOK_FLAGS);
+            for (var i = 0; i < flags.length; i++) {
+                if (flags[i].color == COLOR_PURPLE || flags[i].secondaryColor == COLOR_PURPLE)
+                    return true;
+            }
+
+            return false;
+        };
+
         if (creep.memory.targetId) {
             var tgt = Game.getObjectById(creep.memory.targetId);
-            if (tgt)
+            if (tgt && !hasPurpleFlag(tgt.pos))
                 return tgt;
 
             creep.memory.targetId = undefined;
@@ -286,7 +298,10 @@ var roleBuilder = {
 
         if (flag) {
 
-            target = flag.pos.findClosestByPath(FIND_CONSTRUCTION_SITES, { ignoreCreeps: true });
+            target = flag.pos.findClosestByPath(FIND_CONSTRUCTION_SITES, {
+                ignoreCreeps: true,
+                filter: s => !hasPurpleFlag(s.pos)
+            });
 
             if (target != null)
                 console.log("building important object " + target.id, " at flag ", flag.name, " for creep ", creep.name);
@@ -299,31 +314,34 @@ var roleBuilder = {
             // then everything else
             var targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
                 filter: s => (s.structureType == STRUCTURE_ROAD &&
-                    s.pos.lookFor(LOOK_TERRAIN)[0] == 'swamp')
+                    s.pos.lookFor(LOOK_TERRAIN)[0] == 'swamp' &&
+                    !hasPurpleFlag(s.pos))
             });
 
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
-                    filter: s => s.structureType == STRUCTURE_SPAWN
+                    filter: s => s.structureType == STRUCTURE_SPAWN && !hasPurpleFlag(s.pos)
                 });
 
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
-                    filter: s => s.structureType == STRUCTURE_LINK
+                    filter: s => s.structureType == STRUCTURE_LINK && !hasPurpleFlag(s.pos)
                 });
 
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
-                    filter: s => s.structureType == STRUCTURE_EXTENSION
+                    filter: s => s.structureType == STRUCTURE_EXTENSION && !hasPurpleFlag(s.pos)
                 });
 
             if (targets.length == 0)
                 targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
-                    filter: s => s.structureType == STRUCTURE_CONTAINER
+                    filter: s => s.structureType == STRUCTURE_CONTAINER && !hasPurpleFlag(s.pos)
                 });
 
             if (targets.length == 0)
-                targets = creep.room.find(FIND_CONSTRUCTION_SITES);
+                targets = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                    filter: s => !hasPurpleFlag(s.pos)
+                });
 
 
             // building smaller first

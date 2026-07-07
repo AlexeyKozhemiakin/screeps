@@ -84,11 +84,6 @@ loopInner = function () {
             market.sellExcess();
             market.shareEnergyInternal();
             market.shareResourcesInternal();
-
-            roleLab.manageInventory();
-            roleLab.setupReactions();
-
-            market.adjustOrders();
         }
 
         if (Game.time % 20 == 0) {
@@ -145,7 +140,7 @@ loopInner = function () {
             roomPlanning.roomPlan(room);
 
         // every Nth tick to save CPU
-        if (roomTime % 10 == 0) {
+        if (roomTime % 9 == 0) {
 
             var spawnOrder = roomRemoteHarvesting.getOrder(room);
 
@@ -205,7 +200,7 @@ loopInner = function () {
         roomPowerSpawn.run(room);
 
 
-        if (roomTime % 10 == 0) {
+        if (roomTime % 11 == 0) {
             roleLab.manageInventory(room);
             roleLab.setupReactions(room);
         }
@@ -214,7 +209,7 @@ loopInner = function () {
 
 
         // Prepare labs for boosting (every x ticks)
-        if (roomTime % 5 == 0) {
+        if (roomTime % 6 == 0) {
             //console.log("Preparing labs for boosting in room ", roomName);
             roleBoost.prepareLabs(room);
         }

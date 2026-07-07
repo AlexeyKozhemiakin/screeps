@@ -102,6 +102,11 @@ var roleHarvester = {
             return;
         }
 
+        if(target.store.getFreeCapacity() == 0){
+            creep.say("⏳")
+            return;
+        }
+        
         var transferCode = creep.transfer(target, RESOURCE_ENERGY);
 
         if (OK == transferCode) {
@@ -205,10 +210,7 @@ var roleHarvester = {
             creep.memory.task = "harvest";
         }
 
-        if (creep.memory.task == "recycle") {
-            basic.recycleCreep(creep);
-            return;
-        }
+
 
 
 

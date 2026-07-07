@@ -226,7 +226,8 @@ module.exports = {
     },
 
     shareResourcesInternal: function () {
-        //return;
+        return;
+
         //console.log("Sharing resources between rooms...");
         for (const roomName in Game.rooms) {
             const room = Game.rooms[roomName];
@@ -291,7 +292,7 @@ module.exports = {
                     totalEnergy - energyThresholdWhenBatteriesAreHigh
                 );
 
-                if (excessRawEnergy > 10000) {
+                if (excessRawEnergy > 5000) {
                     console.log("Room ", roomName, " has excess raw energy because batteries are high, amount ", excessRawEnergy);
                     this.matchOrderInternal(roomName, RESOURCE_ENERGY, Math.min(2000, excessRawEnergy), ORDER_BUY);
                 }
@@ -590,12 +591,23 @@ module.exports = {
         }
     },
 
+    minSellPriceByResource: function (resType) {
+        if (resType == RESOURCE_ENERGY)
+            return 15;
+
+        return 0;
+    },
+
     tryCreateOrder: function (resType, price, amount, targetRoom, orderType) {
         if (!resType || !price || !amount)
             return;
 
         if (price <= 0 || amount <= 0)
             return;
+
+        var minSellPrice = this.minSellPriceByResource(resType);
+        if (orderType == ORDER_SELL && minSellPrice > 0 && price < minSellPrice)
+            price = minSellPrice;
 
         if (targetRoom && (!Game.rooms[targetRoom] || !Game.rooms[targetRoom].terminal))
             return;
@@ -699,10 +711,15 @@ module.exports = {
             //    acceptableMargin = 0.5;// batteries are very volatile and can be bought for very low price when there is excess and then sold for good price when there is demand, so i want to be more flexible with them
         }
 
+        var minSellPrice = this.minSellPriceByResource(resType);
+
         for (id in sorted) {
 
             var order = sorted[id];
             if (order.remainingAmount == 0)
+                continue;
+
+            if (orderType == ORDER_BUY && minSellPrice > 0 && order.price < minSellPrice)
                 continue;
 
             var totalPrice = getTotalPrice(order);

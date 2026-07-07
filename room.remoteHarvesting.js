@@ -338,7 +338,7 @@ var roomRemoteHarvesting = {
                     parentRoom,
                     mineralAmountPerSec,
                     mineral.mineralType,
-                    1500
+                    500
                 );
 
                 if (mineralDeliverer) {

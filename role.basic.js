@@ -8,6 +8,7 @@ var roleBasic = {
     "E51S31",
         //"E56S25" //invader
         
+        "E43S26",
         "E57S26", "E58S27", "E56S28", "E56S29", "E54S29",
         "E53S28"
 
@@ -190,7 +191,12 @@ var roleBasic = {
             return costs;
 
         for (var creep of hostiles) {
-            costs.set(creep.pos.x, creep.pos.y, 0xff);
+            var current = costs.get(creep.pos.x, creep.pos.y);
+
+            // Keep creep tiles traversable with a penalty so routes do not collapse
+            // to ERR_NO_PATH when traffic briefly blocks exits.
+            if (current < 0xff)
+                costs.set(creep.pos.x, creep.pos.y, Math.max(current, 10));
         }
 
 
@@ -335,7 +341,7 @@ var roleBasic = {
         if (creep.memory && (creep.memory.debugPath || creep.memory.debugPathDetail))
             return true;
 
-        return creep.memory && creep.name == 'deliverer61144';
+        return creep.memory && (creep.name == 'deliverer7175');
     },
 
     debugPathSelection: function (creep, label, target) {
@@ -536,6 +542,16 @@ var roleBasic = {
         state.x = creep.pos.x;
         state.y = creep.pos.y;
         state.roomName = creep.room.name;
+
+        if (this.shouldLogPathDebug(creep)) {
+            this.debugPathDetail(creep,
+                'stuckState',
+                'key=' + key +
+                ' samePosition=' + samePosition +
+                ' oscillating=' + oscillating +
+                ' stuckTicks=' + state.stuckTicks,
+                undefined);
+        }
 
         return state.stuckTicks >= 2;
     },
@@ -858,9 +874,42 @@ var roleBasic = {
             'exitDir=' + exitDir + ' moveTarget=' + moveTarget.roomName + ':' + moveTarget.x + ',' + moveTarget.y,
             target);
 
+        var finalTargetPos = this.getTargetPos(target);
+        var finalTargetKey = finalTargetPos
+            ? finalTargetPos.roomName + ':' + finalTargetPos.x + ':' + finalTargetPos.y
+            : 'none';
+        var moveStateKey = 'visibleRoom:' + roomToGo + ':exit:' + exitDir + ':target:' + finalTargetKey;
+        var go2State = creep.memory._go2State;
+        if (!go2State || go2State.key != moveStateKey) {
+            go2State = {
+                key: moveStateKey,
+                ignoreCreeps: true
+            };
+            creep.memory._go2State = go2State;
+        }
+
+        var isStuck = this.updateMoveStuckState(creep, moveStateKey);
+        this.debugPathDetail(creep,
+            'go2 state ' + roomToGo,
+            'isStuck=' + isStuck + ' ignoreCreeps=' + go2State.ignoreCreeps,
+            moveTarget);
+
+        if (isStuck && go2State.ignoreCreeps) {
+            go2State.ignoreCreeps = false;
+            delete creep.memory._move;
+
+            this.debugPathDetail(creep,
+                'go2 mode switch ' + roomToGo,
+                'reason=stuck ignoreCreeps=false',
+                moveTarget);
+        }
+
         var visibleMoveCode = creep.moveTo(moveTarget, this.getMoveToOptions(moveTarget, '#35bd1d', 0, {
-            costCallback: this.buildHostileAwareCostCallback(moveTarget, creep, true),
-            reusePath: 0,
+            ignoreCreeps: go2State.ignoreCreeps,
+            costCallback: this.buildHostileAwareCostCallback(moveTarget,
+                go2State.ignoreCreeps ? undefined : creep,
+                !go2State.ignoreCreeps),
+            reusePath: go2State.ignoreCreeps ? (isStuck ? 0 : 20) : 0,
             maxRooms: 1
         }));
 
@@ -965,11 +1014,10 @@ var roleBasic = {
         if (creep.fatigue > 0)
             return false;
 
-        var isStuck = this.updateMoveStuckState(creep, moveStateKey);
-
         var visibleRoomCode = this.moveToVisibleRoomController(creep, roomToGo, target);
         if (visibleRoomCode == OK) {
-            creep.say("Go2" + roomToGo);
+            var go2ModeLetter = creep.memory._go2State && creep.memory._go2State.ignoreCreeps ? 'I' : 'B';
+            creep.say("Go2" + go2ModeLetter + roomToGo);
             return false;
         }
 
@@ -978,6 +1026,8 @@ var roleBasic = {
             creep.say("Go3" + roomToGo);
             return false;
         }
+
+        var isStuck = this.updateMoveStuckState(creep, moveStateKey);
 
         //console.log(creep.name, " moving to room ", roomToGo);
         //var flag = creep.pos.findClosestByRange(FIND_FLAGS, {
@@ -1019,12 +1069,12 @@ var roleBasic = {
             target);
 
         var moveOptions = this.getMoveToOptions(moveTarget, '#35bd1d', 0, {
-            reusePath: isStuck ? 0 : 10,
+            reusePath: isStuck ? 0 : 20,
             maxRooms: moveTarget && moveTarget.roomName != creep.room.name ? 2 : 1
         });
 
         var code = creep.moveTo(moveTarget, moveTarget && moveTarget.roomName != creep.room.name ? moveOptions : this.getMoveToOptions(moveTarget, '#35bd1d', undefined, {
-            reusePath: isStuck ? 0 : 10,
+            reusePath: isStuck ? 0 : 20,
             maxRooms: 1
         }));
 

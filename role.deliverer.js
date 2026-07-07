@@ -456,6 +456,12 @@ var roleDeliverer =
 
         if (creep.memory.preferredResourceType) {
             resType = creep.memory.preferredResourceType;
+
+            if (source && source.store && (source.store[resType] || 0) <= 0) {
+                var fallbackResType = _.findKey(source.store, function (amount) { return amount > 0; });
+                if (fallbackResType)
+                    resType = fallbackResType;
+            }
         }
         else if (source && source.store) {
             var keys = _.findKey(source.store, function (f) { return f > 0; });
@@ -804,7 +810,7 @@ var roleDeliverer =
 
         if (OK == code) {
             creep._withdrawn = true;
-            creep.memory.task = "deliver";
+            //creep.memory.task = "deliver";
             creep.memory.recentWithdrawResType = resType;
             creep.memory.recentWithdrawSourceId = source.id;
             creep.memory.cachedSourceId = undefined;
